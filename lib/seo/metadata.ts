@@ -1,0 +1,161 @@
+/**
+ * Helpers pour construire les métadonnées Next.js (title, description, OG, Twitter, schema.org).
+ * Centralise les defaults pour éviter les incohérences entre pages.
+ */
+import type { Metadata } from "next";
+import type { VenueDetail } from "@/lib/supabase/types";
+import { getFamilyEmoji } from "@/lib/families";
+
+const SITE_URL = "https://sporthubmap.com";
+const SITE_NAME = "Sport Hub";
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
+
+/**
+ * Metadata de base pour la landing.
+ */
+export function buildHomeMetadata(): Metadata {
+  return {
+    title: {
+      default: "Sport Hub · Une seule carte pour tous tes sports",
+      template: "%s · Sport Hub",
+    },
+    description:
+      "Trouve où pratiquer ton sport : tennis, padel, surf, yoga, foot, pétanque… 267 000 spots dans 13 familles, partout dans le monde. Données ouvertes, sans inscription.",
+    metadataBase: new URL(SITE_URL),
+    alternates: { canonical: "/" },
+    openGraph: {
+      type: "website",
+      url: SITE_URL,
+      siteName: SITE_NAME,
+      title: "Sport Hub · Une seule carte pour tous tes sports",
+      description:
+        "267 000 spots sportifs dans le monde — tennis, padel, surf, yoga, foot, pétanque et plus encore.",
+      images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: "Sport Hub" }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Sport Hub · Une seule carte pour tous tes sports",
+      description: "267 000 spots sportifs dans le monde, données ouvertes.",
+      images: [DEFAULT_OG_IMAGE],
+    },
+  };
+}
+
+/**
+ * Metadata pour une page venue.
+ */
+export function buildVenueMetadata(venue: VenueDetail, cityName?: string): Metadata {
+  const emoji = getFamilyEmoji(venue.family_slug);
+  const location = cityName ?? venue.address ?? "";
+  const title = `${venue.name}${location ? ` · ${location}` : ""}`;
+  const description =
+    venue.description ??
+    `${emoji} Retrouve ${venue.name}${location ? ` à ${location}` : ""} sur Sport Hub — horaires, contacts, sports pratiqués.`;
+
+  const photoUrl = (venue.enrichments as { photo_url?: string })?.photo_url;
+  const ogImage = photoUrl ?? DEFAULT_OG_IMAGE;
+  const venueUrl = `${SITE_URL}/venue/${venue.slug}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: `/venue/${venue.slug}` },
+    openGraph: {
+      type: "place",
+      url: venueUrl,
+      siteName: SITE_NAME,
+      title,
+      description,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: venue.name }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
+    },
+  };
+}
+
+/**
+ * Metadata pour une page sport.
+ */
+export function buildSportMetadata(sportName: string, count?: number): Metadata {
+  const title = `${sportName} · Trouver un club ou terrain`;
+  const description = `Carte et liste de ${count ? `${count} ` : ""}clubs et terrains de ${sportName} partout dans le monde — Sport Hub.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      type: "website",
+      siteName: SITE_NAME,
+      title,
+      description,
+      images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: `${sportName} · Sport Hub` }],
+    },
+  };
+}
+
+/**
+ * Schema.org JSON-LD pour une venue (SportsActivityLocation).
+ * À injecter dans <script type="application/ld+json">.
+ */
+export function buildVenueJsonLd(venue: VenueDetail, cityName?: string): object {
+  const enrichments = venue.enrichments as Record<string, unknown>;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "SportsActivityLocation",
+    name: venue.name,
+    url: `${SITE_URL}/venue/${venue.slug}`,
+    description: venue.description,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: venue.address,
+      addressLocality: cityName,
+      postalCode: venue.postal_code,
+      addressCountry: venue.country_code,
+    },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: venue.lat,
+      longitude: venue.lon,
+    },
+    telephone: venue.phone,
+    email: venue.email,
+    sameAs: enrichments?.wikipedia_url
+      ? [enrichments.wikipedia_url as string]
+      : undefined,
+    aggregateRating:
+      enrichments?.google_rating
+        ? {
+            "@type": "AggregateRating",
+            ratingValue: enrichments.google_rating,
+            reviewCount: enrichments.google_rating_count ?? 0,
+            bestRating: 5,
+            worstRating: 1,
+          }
+        : undefined,
+  };
+}
+
+/**
+ * Schema.org JSON-LD WebSite pour la landing.
+ */
+export function buildWebsiteJsonLd(): object {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE_NAME,
+    url: SITE_URL,
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${SITE_URL}/map?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
+  };
+}

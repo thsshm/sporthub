@@ -1,0 +1,38 @@
+# Dépendances
+node_modules
+.pnpm-store
+
+# Next.js build
+.next
+out
+
+# Variables d'environnement — jamais committer les clés
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE
+.DS_Store
+.idea
+*.swp
+*.swo
+.vscode/settings.json
+
+# Tests
+coverage
+
+# Supabase local
+supabase/.branches
+supabase/.temp

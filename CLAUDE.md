@@ -1,0 +1,170 @@
+# SportHub V2 — contexte pour Claude Code
+
+## Contexte produit
+
+SportHub est une carte interactive mondiale qui aide les sportifs à trouver
+où pratiquer : tennis, padel, surf, yoga, foot, pétanque, etc. Les données
+proviennent de bases publiques (OSM, RES France, Wikidata, Overture). 267 000
+spots indexés dans 13 familles de sport.
+
+**Le site actuel (V1, vanilla HTML/JS + SQLite + Leaflet) tourne à sporthubmap.com.**
+On migre vers cette V2 (Next.js 14 App Router + Supabase + MapLibre). V1
+reste live pendant toute la migration. La bascule se fera par 301 quand V2
+aura dépassé V1 sur les métriques clés (parité SEO + features).
+
+## Stack V2
+
+| Couche | Tech |
+|---|---|
+| Framework | Next.js 14 (App Router) + TypeScript strict |
+| Styling | Tailwind CSS + shadcn/ui |
+| Carte | MapLibre GL + react-map-gl |
+| Backend | Supabase (Postgres + Auth + Storage + Realtime) |
+| Hosting | Vercel (preview URL par PR) |
+| Monitoring | Sentry (erreurs) + PostHog (analytics produit) |
+| Source data | `data-pipeline/data/sportpin.sqlite` (V1, en lecture seule) |
+
+## Règles de travail strictes
+
+1. **Une PR = une issue.** Pas de PR sans issue GitHub liée. Ferme l'issue via `Closes #N`.
+2. **Pas de breaking change sur les routes existantes** sans entrée explicite dans `MIGRATION.md`.
+3. **Variables d'env obligatoires** : tout secret va dans `.env.local` (jamais commit). `.env.example` documente les variables nécessaires.
+4. **TypeScript strict.** Pas de `any` sauf justification dans le commit message.
+5. **Server Components par défaut.** Client Components (`"use client"`) seulement si interaction utilisateur ou hooks.
+6. **Pas de fake data en prod.** Pour le dev local, utiliser `supabase/seed.sql`.
+7. **Conventional Commits.** `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `perf:`, `test:`.
+8. **Avant tout refactor majeur**, demander à Gautier (commenter sur l'issue avant de coder).
+9. **Tests** : pas obligatoires pour les pages, **obligatoires pour les helpers** (`lib/`).
+10. **PRs < 500 lignes**. Si plus gros, c'est probablement deux issues distinctes.
+
+## Mapping famille interne ↔ display name (legacy V1, à conserver)
+
+| `family_slug` (DB) | Display FR | Display EN |
+|---|---|---|
+| `raquette` | Raquette | Racket sports |
+| `ballon` | Ballon | Ball sports |
+| `fitness` | Fitness | Fitness |
+| `combat` | Combat | Combat |
+| `yoga` | Bien-être | Wellness |
+| `baignade` | Baignade | Swimming |
+| `boules` | Boules | Boules |
+| `nautique` | Nautique | Nautical |
+| `glisse` | Glisse | Board sports |
+| `snow` | Sport d'hiver | Winter sports |
+| `hike` | Plein air & endurance | Outdoor & endurance |
+| `retraites` | Retraites & camps | Retreats & camps |
+| `plus` | Plus de sports | More sports |
+
+**Important** : `yoga` côté data = "Bien-être" côté UI (héritage V1, ne pas
+renommer la clé tant que les anciennes URLs SEO ne sont pas redirigées).
+
+## Couleurs par famille (CSS variables)
+
+```css
+--f-raquette: #2d7a3e;  --f-ballon:   #b45309;  --f-fitness:  #7c3aed;
+--f-combat:   #b91c1c;  --f-yoga:     #db2777;  --f-baignade: #0891b2;
+--f-boules:   #ca8a04;  --f-nautique: #1e40af;  --f-glisse:   #0ea5e9;
+--f-snow:     #6366f1;  --f-hike:     #16a34a;  --f-retraites:#be185d;
+--f-plus:     #6b7280;
+```
+
+## Conventions DB Supabase
+
+- **Tables singulier snake_case** : `venue`, pas `venues` ; `venue_sport`, pas `venues_sports`.
+- **Toutes les tables avec data utilisateur** ont `created_at`, `updated_at` (TIMESTAMPTZ NOT NULL DEFAULT NOW()).
+- **Toute table avec slug** a un index UNIQUE sur le slug.
+- **Indexes spatiaux PostGIS** sur `venue(geom)` — créés dans migration `0003`.
+- **Soft delete** via `deleted_at TIMESTAMPTZ` (jamais de DELETE physique sur venue).
+- **Row Level Security activée** sur toutes les tables avec data sensible (venue, claim_request).
+- **Toutes les migrations DB** passent par `supabase/migrations/NNNN_*.sql` versionnées et committées. Pas d'édition ad-hoc dans le Studio.
+
+## Conventions Next.js
+
+- Routes data-heavy = **Server Components** avec `async` direct sur Supabase server client (`lib/supabase/server.ts`).
+- Routes interactives = **Client Components** (`"use client"`), fetch via `useSWR` ou `useQuery`.
+- Pas de `getServerSideProps` (App Router uniquement).
+- Metadata via `export const metadata` ou `export async function generateMetadata`.
+- Routes API dans `app/api/*/route.ts`, jamais `pages/api/`.
+
+## Structure DB (vue d'ensemble)
+
+```
+country (référentiel)        sport (référentiel)         amenity (référentiel)
+   │                            │                             │
+   └─── city ────┐               └─── venue_sport (M:N)        └─── venue_amenity (M:N)
+                 │                       │                              │
+                 │                       │                              │
+                 └─────────── venue ◄────┘──────────────────────────────┘
+                              │
+                              ├─── booking_link (1:N)
+                              └─── claim_request (1:N)
+```
+
+## Ce que Claude Code NE DOIT PAS faire
+
+- ❌ Modifier les fichiers de V1 (dans le repo `sporthub-legacy` ou `data-pipeline/`)
+- ❌ Créer des migrations DB sans incrémenter le numéro (`0004_…sql` après `0003_…sql`)
+- ❌ Pousser sur `main` directement — toujours via PR
+- ❌ Ajouter des dépendances > 500 KB bundle sans justification
+- ❌ Activer du cache Next.js agressif (`revalidate=3600+`) sans valider l'impact sur l'admin
+- ❌ Désactiver Row Level Security pour "aller plus vite"
+- ❌ Hardcoder une URL ou clé API (toujours via `process.env.*` typé dans `lib/env.ts`)
+- ❌ Charger 267 000 venues d'un coup côté client — toujours paginer + bbox côté serveur
+- ❌ Casser le format des URLs publiques après le go-live sans 301 dans `MIGRATION.md`
+
+## Workflow attendu
+
+```bash
+# 1. Choisir une issue sur le board GitHub (label "ready")
+gh issue list --label ready
+
+# 2. Créer la branche dédiée
+gh issue develop <num> --checkout
+# ou : git checkout -b feat/<num>-<slug>
+
+# 3. Coder le minimum pour fermer l'issue (pas plus)
+#    Tester en local : pnpm dev
+
+# 4. Commit avec Conventional Commits
+git commit -m "feat(map): add cluster layer (#42)"
+
+# 5. Push + PR
+git push -u origin HEAD
+gh pr create --fill --body "Closes #42"
+
+# 6. Vercel poste auto une preview URL → la tester
+# 7. Demander review à Gautier
+# 8. Merge "Squash and merge" → Vercel deploy production auto
+```
+
+## Objectifs MVP par phase
+
+### Phase 1 (semaines 1-2) — Fondations
+- Repo scaffold, Supabase project, Vercel branché
+- Schema 0001 + 0003 (PostGIS)
+- Script `import_v1.py` qui peuple ≥ 60k venues depuis SQLite V1
+
+### Phase 2 (semaines 3-6) — Lecture parité
+- `/venue/[slug]` avec metadata SEO + schema.org SportsActivityLocation
+- `/map` avec MapLibre + clustering + filtres sport
+- `/sports/[sport]` et `/[sport]/[country]/[city]`
+- Sitemap dynamique
+
+### Phase 3 (semaines 7-10) — Écriture & admin
+- Auth Supabase (magic link + Google)
+- `/admin/venues` (CRUD)
+- `/venue/[slug]/claim` + `/admin/claim-requests`
+- Favoris persistés (vs localStorage V1)
+
+### Phase 4 (semaines 11-12) — Cutover
+- 301 redirects de toutes les URLs V1 vers V2
+- Migration finale du domaine
+- Décommission Netlify V1
+
+## Références utiles dans ce repo
+
+- `PRODUCT_SPEC.md` — quoi & pourquoi du produit
+- `DATA_MODEL.md` — détail du schéma DB et invariants
+- `MIGRATION.md` — mapping URLs V1 → V2 + checklist cutover
+- `ROADMAP.md` — phases & timeline
+- `ADR.md` — décisions architecturales (pourquoi Supabase, pourquoi MapLibre, etc.)
