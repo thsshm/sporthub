@@ -61,7 +61,7 @@ export function buildVenueMetadata(venue: VenueDetail, cityName?: string): Metad
     description,
     alternates: { canonical: `/venue/${venue.slug}` },
     openGraph: {
-      type: "place",
+      type: "website",
       url: venueUrl,
       siteName: SITE_NAME,
       title,
