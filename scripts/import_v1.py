@@ -251,6 +251,8 @@ def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: i
         WHERE s.lat IS NOT NULL AND s.lon IS NOT NULL
           AND s.name IS NOT NULL AND s.name != ''
           AND s.sport_family IS NOT NULL
+          AND LENGTH(s.country) = 2   -- ISO 3166-1 alpha-2 obligatoire pour pouvoir
+                                       -- linker city_id (build_cities filtre déjà sur len=2)
     """
     if limit:
         sql += f" LIMIT {limit}"
