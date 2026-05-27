@@ -87,6 +87,16 @@ export function Footer() {
                   Mentions légales
                 </Link>
               </li>
+              <li>
+                <a
+                  href="https://github.com/thsshm/sporthub"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground"
+                >
+                  Code source (GitHub)
+                </a>
+              </li>
             </ul>
           </div>
         </div>
