@@ -1,6 +1,6 @@
 export default function HomePage() {
   return (
-    <main className="container mx-auto max-w-3xl px-6 py-16">
+    <div className="container mx-auto max-w-3xl px-6 py-16">
       <h1 className="text-4xl font-bold tracking-tight">SportHub V2</h1>
       <p className="mt-3 text-lg text-muted-foreground">
         Scaffold initial en place. Phase 1 — Fondations.
@@ -32,6 +32,6 @@ export default function HomePage() {
           <code>ISSUES.md</code>
         </p>
       </section>
-    </main>
+    </div>
   );
 }
