@@ -1,6 +1,12 @@
 # Dépendances
 node_modules
 .pnpm-store
+.venv
+__pycache__
+*.pyc
+
+# Next.js TS shim (auto-généré)
+next-env.d.ts
 
 # Next.js build
 .next

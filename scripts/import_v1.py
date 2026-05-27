@@ -49,14 +49,17 @@ except ImportError:
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Convention Next.js : .env.local pour les secrets (priorité), .env en fallback
+load_dotenv(Path(__file__).resolve().parent.parent / ".env.local")
+load_dotenv()  # charge aussi .env si présent (sans override)
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
+# NEXT_PUBLIC_SUPABASE_URL côté .env.local Next.js, SUPABASE_URL en CI/scripts
+SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 V1_DB = os.getenv("V1_SQLITE_PATH", "../data-pipeline/data/sportpin.sqlite")
 
 if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    print("❌ Définir SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY dans .env")
+    print("❌ Définir NEXT_PUBLIC_SUPABASE_URL (ou SUPABASE_URL) et SUPABASE_SERVICE_ROLE_KEY dans .env.local")
     sys.exit(1)
 
 sb: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -158,7 +161,18 @@ def build_cities(conn: sqlite3.Connection, valid_countries: set[str]) -> dict:
             "lon": r["lon"],
             "is_featured": r["n_spots"] >= 100,  # villes avec ≥100 spots = featured
         })
-    print(f"  → {len(cities):,} villes uniques détectées")
+    print(f"  → {len(cities):,} villes brutes détectées")
+
+    # Dédup sur (country_code, slug) : la slugification ASCII peut collapser
+    # plusieurs noms en un même slug (ex: "Saint-Étienne" et "Saint-Etienne").
+    # On garde l'entrée avec le plus de spots (la "plus représentative").
+    unique: dict[tuple[str, str], dict] = {}
+    for c in cities:
+        key = (c["country_code"], c["slug"])
+        if key not in unique:
+            unique[key] = c
+    cities = list(unique.values())
+    print(f"  → {len(cities):,} villes uniques après dédup slug")
 
     # Upsert par batch
     city_index = {}
@@ -225,17 +239,84 @@ def yield_venues_from_clubs(conn: sqlite3.Connection, city_index: dict, limit: i
         yield venue, sports, features
 
 
+def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: int | None):
+    """Itère sur la table spots (granularité fine : 1 spot = 1 venue, ~522k au max)."""
+    sql = """
+        SELECT s.id, s.public_id, s.sport_family, s.sport_type, s.sports,
+               s.name, s.lat, s.lon, s.surface, s.access, s.operator,
+               s.courts_count, s.lit, s.covered, s.wheelchair, s.fee,
+               s.description, s.website, s.phone, s.email,
+               s.address, s.city, s.country, s.postal_code, s.google_place_id
+        FROM spots s
+        WHERE s.lat IS NOT NULL AND s.lon IS NOT NULL
+          AND s.name IS NOT NULL AND s.name != ''
+          AND s.sport_family IS NOT NULL
+    """
+    if limit:
+        sql += f" LIMIT {limit}"
+    for r in conn.execute(sql):
+        country = (r["country"] or "").upper()
+        country_code = country if len(country) == 2 else None
+        city_id = city_index.get((country, slugify(r["city"] or ""))) if country else None
+        sports = safe_json(r["sports"]) or ([r["sport_type"]] if r["sport_type"] else [])
+        # public_id de la forme "osm/way/12345" — garantit unicité
+        slug_suffix = slugify(r["public_id"])[:30]
+        features = {
+            "lit": bool(r["lit"]),
+            "covered": bool(r["covered"]),
+            "wheelchair": (r["wheelchair"] or "").lower() == "yes",
+        }
+        # Détecte source depuis public_id (osm/, res/, wikidata/, overture/)
+        source = (r["public_id"] or "").split("/", 1)[0] or "v1-import"
+
+        venue = {
+            "slug": f"{slugify(r['name'])[:80]}-{slug_suffix}",
+            "name": r["name"],
+            "description": r["description"],
+            "lat": r["lat"],
+            "lon": r["lon"],
+            "address": r["address"],
+            "city_id": city_id,
+            "postal_code": r["postal_code"],
+            "country_code": country_code,
+            "website_url": r["website"],
+            "phone": r["phone"],
+            "email": r["email"],
+            "family_slug": r["sport_family"],
+            "primary_sport_slug": r["sport_type"],
+            "courts_count": r["courts_count"],
+            "is_indoor": bool(r["covered"]) if r["covered"] is not None else None,
+            "has_lighting": bool(r["lit"]) if r["lit"] is not None else None,
+            "is_wheelchair_accessible": features["wheelchair"],
+            "fee_required": (r["fee"] or "").lower() in ("yes", "true", "1"),
+            "source": source,
+            "external_id": r["public_id"],
+            "enrichments": {
+                "v1_spot_id": r["id"],
+                "surface": r["surface"],
+                "access": r["access"],
+                "operator": r["operator"],
+                "google_place_id": r["google_place_id"],
+            },
+        }
+        yield venue, sports, features
+
+
 def import_venues(conn: sqlite3.Connection, city_index: dict, mode: str, limit: int | None):
     """Insère les venues + venue_sport + venue_amenity."""
     print(f"\n🏟  Import venues (mode={mode}, limit={limit or 'all'})")
-    if mode != "clubs-only":
-        print(f"  ⚠ mode '{mode}' pas encore implémenté — utilise clubs-only")
-        return
+    if mode == "clubs-only":
+        yielder = yield_venues_from_clubs(conn, city_index, limit)
+    elif mode == "spots-only":
+        yielder = yield_venues_from_spots(conn, city_index, limit)
+    else:
+        print(f"  ⚠ mode '{mode}' pas encore implémenté — fallback spots-only")
+        yielder = yield_venues_from_spots(conn, city_index, limit)
 
     # Cache slug → id pour pouvoir lier venue_sport
     venue_ids_by_extid = {}
     total = 0
-    for batch in chunked(yield_venues_from_clubs(conn, city_index, limit), 200):
+    for batch in chunked(yielder, 200):
         rows = [v for v, _, _ in batch]
         result = sb.table("venue").upsert(
             rows, on_conflict="slug", returning="representation"
