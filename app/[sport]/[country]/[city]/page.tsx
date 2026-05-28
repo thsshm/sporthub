@@ -177,10 +177,11 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
         </p>
       ) : (
         <>
-          {/* Carte centrée sur la ville avec les venues */}
+          {/* Carte bbox-aware filtrée par sport (centrée sur la ville) */}
           <div className="mt-6">
             <SportPageMap
-              venues={
+              sportSlug={params.sport}
+              initialVenues={
                 venues.map((v) => ({
                   id: v.id,
                   slug: v.slug,
@@ -191,6 +192,7 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
                   primary_sport_slug: v.primary_sport_slug,
                 })) as VenuePin[]
               }
+              totalSportVenues={ctx.total}
             />
           </div>
 

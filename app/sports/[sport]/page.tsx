@@ -116,10 +116,11 @@ export default async function SportPage({ params, searchParams }: Props) {
         </p>
       ) : (
         <>
-          {/* Carte des venues de la page courante */}
+          {/* Carte bbox-aware filtrée par sport */}
           <div className="mt-6">
             <SportPageMap
-              venues={
+              sportSlug={sport.slug}
+              initialVenues={
                 venues.map((v) => ({
                   id: v.id,
                   slug: v.slug,
@@ -130,14 +131,11 @@ export default async function SportPage({ params, searchParams }: Props) {
                   primary_sport_slug: v.primary_sport_slug,
                 })) as VenuePin[]
               }
+              totalSportVenues={total}
             />
             <p className="mt-2 text-xs text-muted-foreground">
-              Carte des {venues.length} venues de cette page. Pour explorer tous
-              les {formatCount(total)} venues {sport.name_fr.toLowerCase()},{" "}
-              <Link href="/map" className="underline hover:text-foreground">
-                ouvre la carte mondiale
-              </Link>
-              .
+              Carte interactive — pan/zoom recharge les venues{" "}
+              {sport.name_fr.toLowerCase()} du viewport (jusqu&apos;à 2 000).
             </p>
           </div>
 

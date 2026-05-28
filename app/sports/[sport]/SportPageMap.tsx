@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo } from "react";
+import { useState } from "react";
 import type { VenuePin } from "@/lib/supabase/types";
+import { formatCount } from "@/lib/utils";
 
 const MapClient = dynamic(() => import("@/app/map/MapClient"), {
   ssr: false,
@@ -14,29 +15,31 @@ const MapClient = dynamic(() => import("@/app/map/MapClient"), {
 });
 
 type Props = {
-  venues: VenuePin[];
-  fallbackLat?: number;
-  fallbackLon?: number;
-  fallbackZoom?: number;
+  /** Slug du sport pour le filtrage côté API (mode bbox-aware) */
+  sportSlug: string;
+  /** Venues initiaux (les 24 de la page courante) — utilisés pour calculer
+   * un bbox de départ raisonnable + affichés instantanément. */
+  initialVenues: VenuePin[];
+  /** Total venues du sport (pour l'overlay info). */
+  totalSportVenues?: number;
 };
 
 /**
- * Wrapper Client qui mount MapClient en mode "presetVenues" pour une
- * page sport spécifique. Calcule la bbox + zoom auto depuis les venues
- * fournis (les 24 de la page courante).
+ * Carte avec bbox-aware fetch filtré par sport. Sur /sports/[sport].
+ * Au mount, affiche les venues initiaux fournis. Dès que l'user pan/zoom,
+ * refetch via /api/venues?sport=X&bbox=... pour tous les venues du sport
+ * dans la nouvelle vue.
  */
-export function SportPageMap({
-  venues,
-  fallbackLat = 46.5,
-  fallbackLon = 2.5,
-  fallbackZoom = 5,
-}: Props) {
-  const initial = useMemo(() => {
-    if (venues.length === 0) {
-      return { lat: fallbackLat, lon: fallbackLon, zoom: fallbackZoom };
+export function SportPageMap({ sportSlug, initialVenues, totalSportVenues }: Props) {
+  const [visibleCount, setVisibleCount] = useState(initialVenues.length);
+
+  // Calc initial center + zoom depuis les venues initiaux
+  const initial = (() => {
+    if (initialVenues.length === 0) {
+      return { lat: 46.5, lon: 2.5, zoom: 5 };
     }
-    const lats = venues.map((v) => v.lat);
-    const lons = venues.map((v) => v.lon);
+    const lats = initialVenues.map((v) => v.lat);
+    const lons = initialVenues.map((v) => v.lon);
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
     const minLon = Math.min(...lons);
@@ -44,11 +47,10 @@ export function SportPageMap({
     const centerLat = (minLat + maxLat) / 2;
     const centerLon = (minLon + maxLon) / 2;
     const span = Math.max(maxLat - minLat, maxLon - minLon);
-    // Zoom approximatif selon le span géographique
     const zoom =
       span > 50 ? 2 : span > 20 ? 4 : span > 8 ? 6 : span > 3 ? 8 : span > 0.5 ? 11 : 13;
     return { lat: centerLat, lon: centerLon, zoom };
-  }, [venues, fallbackLat, fallbackLon, fallbackZoom]);
+  })();
 
   return (
     <div className="relative h-[400px] w-full overflow-hidden rounded-lg border">
@@ -56,8 +58,18 @@ export function SportPageMap({
         initialLat={initial.lat}
         initialLon={initial.lon}
         initialZoom={initial.zoom}
-        presetVenues={venues}
+        selectedSport={sportSlug}
+        onVenuesChange={setVisibleCount}
       />
+      <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-background/90 px-2 py-1 text-[11px] shadow backdrop-blur">
+        <span className="font-semibold">{formatCount(visibleCount)}</span> visible
+        {totalSportVenues != null && (
+          <>
+            {" "}
+            / <span>{formatCount(totalSportVenues)}</span> total
+          </>
+        )}
+      </div>
     </div>
   );
 }
