@@ -1,0 +1,76 @@
+{
+  "nav": {
+    "disciplines": "Sports",
+    "map": "Map",
+    "favorites": "Favorites",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "changeLang": "Change language",
+    "home": "Sport Hub — home"
+  },
+  "home": {
+    "heroTitle": "Sport Hub",
+    "heroSubtitle": "One map for every sport.",
+    "heroDescription": "{count} spots across 13 families, worldwide. Open data, no ads, no signup.",
+    "ctaMap": "Explore the map",
+    "ctaList": "List by sport",
+    "familiesTitle": "Browse by family",
+    "familiesSubtitle": "13 sport families · click a family or a sport",
+    "spotsCount": "{count, plural, =0 {coming soon} one {1 spot} other {{count} spots}}",
+    "comingSoon": "coming soon",
+    "dataSourcesTitle": "Open data",
+    "dataSourcesDescription": "Sources: OpenStreetMap (ODbL) · RES Étalab · Wikidata (CC0). PostGIS geolocation · Supercluster clustering · MapLibre GL map."
+  },
+  "families": {
+    "raquette": "Racket sports",
+    "ballon": "Ball sports",
+    "fitness": "Fitness",
+    "combat": "Combat",
+    "yoga": "Wellness",
+    "baignade": "Swimming",
+    "boules": "Boules",
+    "nautique": "Nautical",
+    "glisse": "Board sports",
+    "snow": "Winter sports",
+    "hike": "Outdoor & endurance",
+    "retraites": "Retreats & camps",
+    "plus": "More sports"
+  },
+  "sport": {
+    "venuesIndexed": "{count, plural, =0 {No venue} one {1 venue indexed} other {{count} venues indexed}}",
+    "page": "page {current} / {total}",
+    "emptyMessage": "No venue for this sport yet.",
+    "exploreOthers": "Explore other sports",
+    "previous": "← Previous",
+    "next": "Next →",
+    "mapHint": "Interactive map — pan/zoom reloads the {sport} venues in view (up to 2 000)."
+  },
+  "venue": {
+    "sportsPracticed": "Sports played",
+    "address": "Address",
+    "website": "Website",
+    "phone": "Phone",
+    "coordinates": "GPS coordinates",
+    "notFoundTitle": "Venue not found"
+  },
+  "map": {
+    "title": "Map of sport spots",
+    "loading": "Loading map…",
+    "spotsInView": "{count} spots in view",
+    "searchPlaceholder": "Search a city…",
+    "filtersTitle": "Families",
+    "filtersAll": "all",
+    "filtersNone": "none",
+    "openFilters": "Open filters",
+    "closeFilters": "Close filters"
+  },
+  "footer": {
+    "about": "Sport Hub",
+    "aboutText": "One map for every sport. Open data, no ads, no signup.",
+    "explore": "Explore",
+    "dataLicense": "Data & license",
+    "legal": "Legal notice",
+    "source": "Source code (GitHub)",
+    "copyright": "© {year} Sport Hub — MIT license — Data under their respective source licenses"
+  }
+}

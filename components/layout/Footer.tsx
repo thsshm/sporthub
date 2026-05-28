@@ -1,28 +1,26 @@
-/**
- * Footer — liens, sources de données, licence.
- */
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/routing";
 
 export function Footer() {
+  const t = useTranslations("footer");
+
   return (
     <footer className="mt-auto border-t bg-muted/40">
       <div className="container py-8">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           {/* À propos */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold">Sport Hub</h3>
-            <p className="text-sm text-muted-foreground">
-              Une seule carte pour tous tes sports. Données ouvertes, sans pub, sans inscription.
-            </p>
+            <h3 className="mb-3 text-sm font-semibold">{t("about")}</h3>
+            <p className="text-sm text-muted-foreground">{t("aboutText")}</p>
           </div>
 
           {/* Navigation */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold">Explorer</h3>
+            <h3 className="mb-3 text-sm font-semibold">{t("explore")}</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link href="/map" className="hover:text-foreground">
-                  Carte mondiale
+                  Sport Hub map
                 </Link>
               </li>
               <li>
@@ -50,7 +48,7 @@ export function Footer() {
 
           {/* Sources & légal */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold">Données & licence</h3>
+            <h3 className="mb-3 text-sm font-semibold">{t("dataLicense")}</h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <a
@@ -69,7 +67,7 @@ export function Footer() {
                   rel="noopener noreferrer"
                   className="hover:text-foreground"
                 >
-                  RES Étalab (Etalab)
+                  RES Étalab
                 </a>
               </li>
               <li>
@@ -84,7 +82,7 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/legal" className="hover:text-foreground">
-                  Mentions légales
+                  {t("legal")}
                 </Link>
               </li>
               <li>
@@ -94,7 +92,7 @@ export function Footer() {
                   rel="noopener noreferrer"
                   className="hover:text-foreground"
                 >
-                  Code source (GitHub)
+                  {t("source")}
                 </a>
               </li>
             </ul>
@@ -102,10 +100,7 @@ export function Footer() {
         </div>
 
         <div className="mt-8 border-t pt-6 text-center text-xs text-muted-foreground">
-          <p>
-            &copy; {new Date().getFullYear()} Sport Hub — Licence MIT — Données sous licences
-            respectives des sources
-          </p>
+          <p>{t("copyright", { year: new Date().getFullYear() })}</p>
         </div>
       </div>
     </footer>

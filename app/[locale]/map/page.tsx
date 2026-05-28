@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MapWithSearch } from "@/app/map/MapWithSearch";
+import { MapWithSearch } from "@/app/[locale]/map/MapWithSearch";
 
 export const metadata: Metadata = {
   title: "Carte des spots sportifs",
