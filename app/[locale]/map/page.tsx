@@ -16,8 +16,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/map" },
 };
 
-// Cache ISR 1h — la liste initiale change peu
-export const revalidate = 3600;
+// Cache ISR 60s — un revalidate trop élevé (genre 1h) bloque la propagation
+// des fixes de code après un nouveau deploy (la HTML cachée référence les
+// anciens chunks JS jusqu'à expiration). 60s = presque-instant après deploy,
+// charge DB faible. Cf. incident #100 où le fix mettait 1h à être visible.
+export const revalidate = 60;
 
 async function fetchInitialVenues(): Promise<VenuePin[]> {
   try {
