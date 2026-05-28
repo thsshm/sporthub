@@ -39,6 +39,9 @@ pnpm-debug.log*
 # Tests
 coverage
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # Supabase local
 supabase/.branches
 supabase/.temp
