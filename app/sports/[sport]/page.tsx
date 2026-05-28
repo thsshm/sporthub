@@ -57,7 +57,7 @@ async function fetchVenues(sportSlug: string, page: number) {
     .eq("is_published", true)
     .is("deleted_at", null)
     .range(offset, offset + PAGE_SIZE - 1)
-    .order("name", { ascending: true });
+    .order("id", { ascending: true });
 
   if (error) return { venues: [], total: 0 };
 

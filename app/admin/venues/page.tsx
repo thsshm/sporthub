@@ -33,7 +33,7 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
       "id, slug, name, family_slug, source, is_published, deleted_at, updated_at",
       { count: "exact" },
     )
-    .order("updated_at", { ascending: false });
+    .order("id", { ascending: false }); // updated_at pas indexé → trop lent sur 348k rows
 
   if (q) query = query.ilike("name", `%${q}%`);
   if (!showDeleted) query = query.is("deleted_at", null);

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
+import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { formatCount } from "@/lib/utils";
 
 export const revalidate = 3600;
@@ -62,31 +63,39 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Grille familles */}
+      {/* Grille familles avec chips sous-sports */}
       <section className="container mx-auto max-w-6xl px-6 py-12">
         <h2 className="text-2xl font-semibold tracking-tight">
           Explorer par famille
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          13 familles de sport · cliquez pour voir la liste complète
+          13 familles de sport · cliquez sur une famille ou un sport
         </p>
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {FAMILIES.map((family) => {
             const count = counts[family.slug] ?? 0;
             const hasVenues = count > 0;
+            // Top 4 sports de la famille pour les chips
+            const topSports = family.sports
+              .slice(0, 4)
+              .map((slug) => SPORTS_BY_SLUG[slug])
+              .filter(Boolean);
             return (
-              <Link
+              <div
                 key={family.slug}
-                href={`/sports/${family.sports[0]}`}
-                className="group block overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md"
+                className="flex flex-col overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md"
               >
                 <div
                   className="h-1.5"
                   style={{ backgroundColor: family.color }}
                   aria-hidden="true"
                 />
-                <div className="p-4">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-1 flex-col p-4">
+                  {/* Header : famille (link principal) */}
+                  <Link
+                    href={`/sports/${family.sports[0]}`}
+                    className="group flex items-center gap-3"
+                  >
                     <span className="text-3xl leading-none" aria-hidden="true">
                       {family.emoji}
                     </span>
@@ -109,9 +118,27 @@ export default async function HomePage() {
                         )}
                       </p>
                     </div>
-                  </div>
+                  </Link>
+
+                  {/* Chips sous-sports (V1 pattern) */}
+                  {hasVenues && topSports.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {topSports.map((sport) => (
+                        <Link
+                          key={sport.slug}
+                          href={`/sports/${sport.slug}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          {sport.emoji && (
+                            <span aria-hidden="true">{sport.emoji}</span>
+                          )}
+                          <span>{sport.name_fr}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
