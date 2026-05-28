@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
 import { MapWithSearch } from "@/app/[locale]/map/MapWithSearch";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { VenuePin } from "@/lib/supabase/types";
+
+// Bbox d'initialisation : Europe élargie centrée sur la France.
+// Permet d'afficher des pins dès le first paint (LCP), avant le bbox-aware
+// fetch côté client qui s'ajustera au viewport réel.
+const INITIAL_BBOX = { west: -10, south: 35, east: 20, north: 55 } as const;
+const INITIAL_LIMIT = 500;
 
 export const metadata: Metadata = {
   title: "Carte des spots sportifs",
@@ -8,10 +16,39 @@ export const metadata: Metadata = {
   alternates: { canonical: "/map" },
 };
 
-export default function MapPage() {
+// Cache ISR 1h — la liste initiale change peu
+export const revalidate = 3600;
+
+async function fetchInitialVenues(): Promise<VenuePin[]> {
+  try {
+    const sb = getSupabaseServerClient();
+    const { data, error } = await sb.rpc("venues_in_bbox", {
+      west: INITIAL_BBOX.west,
+      south: INITIAL_BBOX.south,
+      east: INITIAL_BBOX.east,
+      north: INITIAL_BBOX.north,
+      fams: null,
+      sport: null,
+      max_results: INITIAL_LIMIT,
+    });
+    if (error) return [];
+    return (data ?? []) as VenuePin[];
+  } catch {
+    return [];
+  }
+}
+
+export default async function MapPage() {
+  const initialVenues = await fetchInitialVenues();
+
   return (
     <div className="relative h-[calc(100vh-4rem)] w-full">
-      <MapWithSearch initialLat={46.5} initialLon={2.5} initialZoom={5} />
+      <MapWithSearch
+        initialLat={46.5}
+        initialLon={2.5}
+        initialZoom={5}
+        initialVenues={initialVenues}
+      />
     </div>
   );
 }
