@@ -73,6 +73,9 @@ type Props = {
   presetVenues?: VenuePin[];
   /** Filtre sport pour le bbox-aware fetch. Quand set, appelle /api/venues?sport=... */
   selectedSport?: string | null;
+  /** Venues SSR pré-fetched (bbox d'initialisation). Affichés immédiatement
+   * pour améliorer le LCP, avant que le premier bbox-aware fetch client retourne. */
+  initialVenues?: VenuePin[];
 };
 
 export default function MapClient({
@@ -85,9 +88,12 @@ export default function MapClient({
   flyTarget,
   presetVenues,
   selectedSport,
+  initialVenues,
 }: Props) {
   const mapRef = useRef<MapRef | null>(null);
-  const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>([]);
+  const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(
+    () => initialVenues ?? [],
+  );
   const venues = presetVenues ?? fetchedVenues;
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [zoom, setZoom] = useState<number>(initialZoom);
@@ -97,6 +103,14 @@ export default function MapClient({
 
   useEffect(() => {
     setFavorites(loadFavorites());
+  }, []);
+
+  // Reporte le count initial (SSR pre-fetch) au parent pour l'overlay UI.
+  useEffect(() => {
+    if (initialVenues && initialVenues.length > 0) {
+      onVenuesChange?.(initialVenues.length);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fly to target quand le token change (clic suggestion SearchBar)

@@ -8,6 +8,7 @@ import { SportFilters } from "@/app/[locale]/map/SportFilters";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
 import type { FlyTarget } from "@/app/[locale]/map/MapClient";
+import type { VenuePin } from "@/lib/supabase/types";
 
 const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ssr: false,
@@ -41,9 +42,17 @@ type Props = {
   initialLat: number;
   initialLon: number;
   initialZoom: number;
+  /** Venues pré-fetched côté Server pour le LCP. Affichés immédiatement avant
+   * que le bbox-aware fetch client retourne. */
+  initialVenues?: VenuePin[];
 };
 
-export function MapWithSearch({ initialLat, initialLon, initialZoom }: Props) {
+export function MapWithSearch({
+  initialLat,
+  initialLon,
+  initialZoom,
+  initialVenues,
+}: Props) {
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
   const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(
     () => new Set(FAMILIES.map((f) => f.slug)),
@@ -121,6 +130,7 @@ export function MapWithSearch({ initialLat, initialLon, initialZoom }: Props) {
         totalFamilies={FAMILIES.length}
         onVenuesChange={setVisibleCount}
         flyTarget={flyTarget}
+        initialVenues={initialVenues}
       />
     </div>
   );
