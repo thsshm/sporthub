@@ -67,6 +67,10 @@ type Props = {
   onVenuesChange?: (count: number) => void;
   /** Quand set, MapClient appelle map.flyTo() à chaque changement de token. */
   flyTarget?: FlyTarget | null;
+  /** Mode "venues fixes" : si fourni, MapClient utilise ces venues directement
+   * et skip l'API bbox-aware fetch. Utile pour /sports/[sport] qui veut
+   * afficher seulement la page courante. */
+  presetVenues?: VenuePin[];
 };
 
 export default function MapClient({
@@ -77,9 +81,11 @@ export default function MapClient({
   totalFamilies,
   onVenuesChange,
   flyTarget,
+  presetVenues,
 }: Props) {
   const mapRef = useRef<MapRef | null>(null);
-  const [venues, setVenues] = useState<VenuePin[]>([]);
+  const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>([]);
+  const venues = presetVenues ?? fetchedVenues;
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [zoom, setZoom] = useState<number>(initialZoom);
   const [selected, setSelected] = useState<VenuePin | null>(null);
@@ -103,8 +109,13 @@ export default function MapClient({
     });
   }, [flyTarget?.token, flyTarget?.lat, flyTarget?.lon, flyTarget?.zoom]);
 
-  // Fetch venues debounced quand bbox ou filtres changent
+  // Fetch venues debounced quand bbox ou filtres changent.
+  // Skip si on est en mode presetVenues (venues fixes passées en prop).
   useEffect(() => {
+    if (presetVenues) {
+      onVenuesChange?.(presetVenues.length);
+      return;
+    }
     if (!bounds) return;
     setLoading(true);
     const handle = setTimeout(async () => {
@@ -120,22 +131,22 @@ export default function MapClient({
       try {
         const res = await fetch(`/api/venues?${params}`);
         if (!res.ok) {
-          setVenues([]);
+          setFetchedVenues([]);
           onVenuesChange?.(0);
           return;
         }
         const data = (await res.json()) as { venues: VenuePin[] };
-        setVenues(data.venues);
+        setFetchedVenues(data.venues);
         onVenuesChange?.(data.venues.length);
       } catch {
-        setVenues([]);
+        setFetchedVenues([]);
         onVenuesChange?.(0);
       } finally {
         setLoading(false);
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, [bounds, selectedFamilies, totalFamilies, onVenuesChange]);
+  }, [bounds, selectedFamilies, totalFamilies, onVenuesChange, presetVenues]);
 
   // Supercluster index
   const supercluster = useMemo(() => {

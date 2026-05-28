@@ -7,6 +7,8 @@ import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { formatCount } from "@/lib/utils";
+import { SportPageMap } from "./SportPageMap";
+import type { VenuePin } from "@/lib/supabase/types";
 
 const PAGE_SIZE = 24;
 
@@ -114,7 +116,32 @@ export default async function SportPage({ params, searchParams }: Props) {
         </p>
       ) : (
         <>
-          <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Carte des venues de la page courante */}
+          <div className="mt-6">
+            <SportPageMap
+              venues={
+                venues.map((v) => ({
+                  id: v.id,
+                  slug: v.slug,
+                  name: v.name,
+                  lat: v.lat,
+                  lon: v.lon,
+                  family_slug: v.family_slug,
+                  primary_sport_slug: v.primary_sport_slug,
+                })) as VenuePin[]
+              }
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Carte des {venues.length} venues de cette page. Pour explorer tous
+              les {formatCount(total)} venues {sport.name_fr.toLowerCase()},{" "}
+              <Link href="/map" className="underline hover:text-foreground">
+                ouvre la carte mondiale
+              </Link>
+              .
+            </p>
+          </div>
+
+          <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {venues.map((venue) => (
               <VenueCard key={venue.id} venue={venue} />
             ))}

@@ -9,7 +9,33 @@ import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
 import type { FlyTarget } from "@/app/map/MapClient";
 
-const MapClient = dynamic(() => import("@/app/map/MapClient"), { ssr: false });
+const MapClient = dynamic(() => import("@/app/map/MapClient"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full w-full items-center justify-center bg-muted/20">
+      <div className="flex items-center gap-2 rounded-md bg-background/95 px-4 py-2 text-sm text-muted-foreground shadow-md backdrop-blur">
+        <svg
+          className="h-4 w-4 animate-spin"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeDasharray="60"
+            strokeDashoffset="40"
+            strokeLinecap="round"
+          />
+        </svg>
+        Chargement de la carte…
+      </div>
+    </div>
+  ),
+});
 
 type Props = {
   initialLat: number;

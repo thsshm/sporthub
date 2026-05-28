@@ -7,6 +7,8 @@ import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { formatCount } from "@/lib/utils";
+import { SportPageMap } from "@/app/sports/[sport]/SportPageMap";
+import type { VenuePin } from "@/lib/supabase/types";
 
 const PAGE_SIZE = 24;
 const SITE_URL = "https://sporthubmap.com";
@@ -175,7 +177,24 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
         </p>
       ) : (
         <>
-          <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Carte centrée sur la ville avec les venues */}
+          <div className="mt-6">
+            <SportPageMap
+              venues={
+                venues.map((v) => ({
+                  id: v.id,
+                  slug: v.slug,
+                  name: v.name,
+                  lat: v.lat,
+                  lon: v.lon,
+                  family_slug: v.family_slug,
+                  primary_sport_slug: v.primary_sport_slug,
+                })) as VenuePin[]
+              }
+            />
+          </div>
+
+          <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {venues.map((v) => (
               <VenueCard key={v.id} venue={v} />
             ))}
