@@ -88,8 +88,14 @@ export async function GET(request: Request) {
       { venues: (data ?? []) as VenuePin[], count: (data ?? []).length },
       {
         headers: {
-          // Cache navigateur 60s pour les pans rapides de la même zone
-          "Cache-Control": "public, max-age=60, s-maxage=60",
+          // Cache navigateur + edge CDN. Une bbox+filtres identiques renvoie
+          // le même résultat tant que la DB n'a pas changé.
+          //   - max-age=300       : cache navigateur 5min (pans/zooms rapides)
+          //   - s-maxage=300      : cache edge Vercel 5min
+          //   - stale-while-revalidate=3600 : sert l'ancien pendant 1h pendant
+          //     la revalidation en arrière-plan → 0 wait pour le user
+          "Cache-Control":
+            "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
         },
       },
     );

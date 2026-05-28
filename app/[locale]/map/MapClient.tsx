@@ -222,14 +222,25 @@ export default function MapClient({
       mapStyle={{
         version: 8,
         sources: {
-          osm: {
+          // CartoCDN "Voyager" — CDN global rapide (vs tile.openstreetmap.org
+          // qui est lent, capacity-policy 1 req/s/IP, et HTTP/1.1).
+          // Carto fournit ces tiles publiques gratuites pour usage modéré.
+          // Subdomains a-d permettent au navigateur de paralléliser jusqu'à 4×.
+          // Style "voyager" = look équivalent à OSM mais plus lisible.
+          basemap: {
             type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tiles: [
+              "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+              "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+              "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+              "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+            ],
             tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
+            attribution:
+              '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
           },
         },
-        layers: [{ id: "osm-layer", type: "raster", source: "osm" }],
+        layers: [{ id: "basemap-layer", type: "raster", source: "basemap" }],
       }}
       onLoad={updateViewport}
       onMoveEnd={updateViewport}
