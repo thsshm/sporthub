@@ -10,15 +10,24 @@ export const revalidate = 300;  // 5 min : compromis fraîcheur (counts) vs perf
 
 async function fetchFamilyCounts(): Promise<Record<string, number>> {
   const sb = getSupabaseServerClient();
+  // count=planned (estimation via Postgres stats) au lieu de count=exact :
+  // sur 200k+ venues (fitness), exact timeout (statement timeout >3s) →
+  // la home affichait 0 pour fitness. planned est instantané, précision
+  // ±1% suffisante pour un affichage UI.
   const entries = await Promise.all(
     FAMILIES.map(async (f) => {
-      const { count } = await sb
-        .from("venue")
-        .select("id", { count: "exact", head: true })
-        .eq("family_slug", f.slug)
-        .eq("is_published", true)
-        .is("deleted_at", null);
-      return [f.slug, count ?? 0] as const;
+      try {
+        const { count } = await sb
+          .from("venue")
+          .select("id", { count: "planned", head: true })
+          .eq("family_slug", f.slug)
+          .eq("is_published", true)
+          .is("deleted_at", null);
+        return [f.slug, count ?? 0] as const;
+      } catch {
+        // Si une famille fail, on ne fait pas tout planter
+        return [f.slug, 0] as const;
+      }
     }),
   );
   return Object.fromEntries(entries);
