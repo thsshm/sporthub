@@ -21,6 +21,54 @@
     "dataSourcesTitle": "Données ouvertes",
     "dataSourcesDescription": "Sources : OpenStreetMap (ODbL) · RES Étalab · Wikidata (CC0). Géolocalisation PostGIS · clusterisation Supercluster · carte MapLibre GL."
   },
+  "howItWorks": {
+    "title": "Pourquoi Sport Hub",
+    "subtitle": "Quatre engagements pour que tu trouves vite, et bien.",
+    "step1Title": "Tous tes sports, une seule carte",
+    "step1Desc": "Padel, surf, yoga, fitness, foot, pétanque… Fini les 12 applis et annuaires. Tout est ici, agrégé et dédupliqué.",
+    "step2Title": "Que des vrais spots",
+    "step2Desc": "Les lieux viennent des bases publiques officielles (OpenStreetMap, RES Ministère des Sports, Wikidata). Un court existe ? Il est dedans. Il a fermé ? Tu peux le corriger.",
+    "step3Title": "Toi d'abord, pas la pub",
+    "step3Desc": "Pas de pub, pas d'inscription, pas de commission cachée. Tu cherches, tu trouves, tu pratiques — sans qu'on te revende au passage.",
+    "step4Title": "Vivant et ouvert",
+    "step4Desc": "Un spot manque ? Tu l'ajoutes en 1 minute. C'est de la donnée ouverte qui profite à tout le monde — pas un silo de plus."
+  },
+  "featuredCities": {
+    "title": "Villes à explorer",
+    "subtitle": "Les villes avec le plus de spots indexés — clique pour voir la carte filtrée.",
+    "venuesCount": "{count, plural, =0 {aucun spot} one {1 spot} other {{count} spots}}",
+    "viewOnMap": "Voir sur la carte"
+  },
+  "topSpots": {
+    "title": "Top spots du moment",
+    "subtitle": "Les venues les mieux notées — sélection automatique selon Google ratings.",
+    "viewAll": "Voir la carte complète"
+  },
+  "popularSearches": {
+    "title": "Recherches populaires",
+    "subtitle": "Les pages les plus consultées par sport et par ville.",
+    "viewAll": "Toutes les villes"
+  },
+  "faq": {
+    "title": "Questions fréquentes",
+    "subtitle": "Tout ce qu'on nous demande le plus.",
+    "q1": "C'est gratuit ?",
+    "a1": "Oui, totalement et sans pub. Les données sont issues de sources ouvertes (OpenStreetMap, RES France, Wikidata, Overture Maps) et la consultation est libre. Pas d'inscription, pas de paywall.",
+    "q2": "D'où viennent les ~250 000 spots ?",
+    "a2": "D'un croisement de quatre sources publiques : OpenStreetMap (ODbL), le RES du Ministère des Sports (Etalab), Wikidata (CC0) et Overture Maps. Un même spot vu par plusieurs sources est dédupliqué automatiquement (50 m + nom normalisé).",
+    "q3": "Comment ajouter mon club ou mon spot ?",
+    "a3": "Trois options : (1) remplir notre formulaire (1 min, on l'ajoute dans la semaine) ; (2) modifier directement sur OpenStreetMap — la modif arrive ici sous 24h ; (3) nous écrire à hello@sporthubmap.com.",
+    "q4": "Comment réserver un cours ou trouver un coach ?",
+    "a4": "Sport Hub ne gère pas la réservation directement. Selon le sport, on te renvoie vers le partenaire le plus adapté : Anybuddy (tennis/padel), ClassPass et Mindbody (fitness/yoga), Superprof (coachs particuliers), etc.",
+    "q5": "Les données sont-elles à jour ?",
+    "a5": "Les sources sont rafraîchies automatiquement : OSM en quasi-temps réel, RES France tous les mois, Overture tous les trimestres. Les ratings Google sont fetchés avec un cache de 30 jours.",
+    "q6": "Quelles familles vont s'ajouter ?",
+    "a6": "Court terme : athlétisme (pistes, stades), escalade (salles + falaises), golf. À plus long terme : équitation, sports d'hiver, sports mécaniques.",
+    "q7": "Je suis dev — il y a une API ?",
+    "a7": "Pas encore publique. Le projet est ouvert (cf. OSM Overpass pour les requêtes ad-hoc) et une API REST/vector tiles est dans la roadmap. Contact : hello@sporthubmap.com.",
+    "q8": "Ça marche en dehors de la France ?",
+    "a8": "Oui. La couverture est mondiale via OpenStreetMap et Overture. La densité est la plus forte en France (où on croise RES + OSM), mais on indexe des spots dans 200+ pays."
+  },
   "families": {
     "raquette": "Raquette",
     "ballon": "Ballon",
