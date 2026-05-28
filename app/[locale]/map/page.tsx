@@ -42,13 +42,24 @@ export default async function MapPage() {
   const initialVenues = await fetchInitialVenues();
 
   return (
-    <div className="relative h-[calc(100vh-4rem)] w-full">
-      <MapWithSearch
-        initialLat={46.5}
-        initialLon={2.5}
-        initialZoom={5}
-        initialVenues={initialVenues}
-      />
-    </div>
+    <>
+      {/* Preconnect aux 4 subdomains CartoCDN : permet au navigateur d'établir
+          la connexion TCP+TLS en parallèle du JS bundle, donc les tiles arrivent
+          aussi vite que MapLibre est prêt à les demander. Économise 100-300ms
+          par tile sur connexion mobile. */}
+      <link rel="preconnect" href="https://a.basemaps.cartocdn.com" crossOrigin="" />
+      <link rel="preconnect" href="https://b.basemaps.cartocdn.com" crossOrigin="" />
+      <link rel="preconnect" href="https://c.basemaps.cartocdn.com" crossOrigin="" />
+      <link rel="preconnect" href="https://d.basemaps.cartocdn.com" crossOrigin="" />
+
+      <div className="relative h-[calc(100vh-4rem)] w-full">
+        <MapWithSearch
+          initialLat={46.5}
+          initialLon={2.5}
+          initialZoom={5}
+          initialVenues={initialVenues}
+        />
+      </div>
+    </>
   );
 }
