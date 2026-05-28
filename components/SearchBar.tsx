@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export type SearchResult = {
   display_name: string;
@@ -30,9 +31,11 @@ type Props = {
  */
 export function SearchBar({
   onSelect,
-  placeholder = "Rechercher une ville…",
+  placeholder,
   className,
 }: Props) {
+  const tMap = useTranslations("map");
+  const ph = placeholder ?? tMap("searchPlaceholder");
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -94,8 +97,8 @@ export function SearchBar({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder={placeholder}
-          aria-label="Rechercher une ville"
+          placeholder={ph}
+          aria-label={ph}
           aria-autocomplete="list"
           className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />

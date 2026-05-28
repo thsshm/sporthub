@@ -1,24 +1,26 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/routing";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
-import { formatCount } from "@/lib/utils";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
 
 const PAGE_SIZE = 24;
 const SITE_URL = "https://sporthubmap.com";
 
+type Params = { locale: string; sport: string; country: string; city: string };
+
 type Props = {
-  params: { sport: string; country: string; city: string };
+  params: Params;
   searchParams: { page?: string };
 };
 
-export const revalidate = 86400; // 24h — counts city × sport changent peu
+export const revalidate = 86400; // 24h
 
 type Ctx = {
   sport: (typeof SPORTS_BY_SLUG)[string];
@@ -26,34 +28,31 @@ type Ctx = {
   total: number;
 };
 
-/**
- * Résout sport + city + count en un seul passage (déduplicé entre
- * generateMetadata et la page via React cache()).
- */
-const resolveContext = cache(async (params: Props["params"]): Promise<Ctx | null> => {
-  const sport = SPORTS_BY_SLUG[params.sport];
-  if (!sport) return null;
+const resolveContext = cache(async (sport: string, country: string, city: string): Promise<Ctx | null> => {
+  const sportDef = SPORTS_BY_SLUG[sport];
+  if (!sportDef) return null;
 
   const sb = getSupabaseServerClient();
-  const { data: city } = await sb
+  const { data: cityRow } = await sb
     .from("city")
     .select("id, name, country_code")
-    .eq("country_code", params.country.toUpperCase())
-    .eq("slug", params.city)
+    .eq("country_code", country.toUpperCase())
+    .eq("slug", city)
     .maybeSingle();
-  if (!city) return null;
+  if (!cityRow) return null;
 
+  // count=planned évite les timeouts sur les sports volumineux
   const { count } = await sb
     .from("venue")
-    .select("id", { count: "exact", head: true })
-    .eq("primary_sport_slug", params.sport)
-    .eq("city_id", (city as { id: string }).id)
+    .select("id", { count: "planned", head: true })
+    .eq("primary_sport_slug", sport)
+    .eq("city_id", (cityRow as { id: string }).id)
     .eq("is_published", true)
     .is("deleted_at", null);
 
   return {
-    sport,
-    city: city as Ctx["city"],
+    sport: sportDef,
+    city: cityRow as Ctx["city"],
     total: count ?? 0,
   };
 });
@@ -75,11 +74,6 @@ async function fetchVenues(ctx: Ctx, page: number) {
   const sb = getSupabaseServerClient();
   const offset = (page - 1) * PAGE_SIZE;
 
-  // Mono-table query (primary_sport_slug) au lieu du inner join venue_sport.
-  // Le inner-join timeout à >3s pour ce combo (sport + city + paginated).
-  // Trade-off : on loupe les venues qui ont le sport en secondaire (vs primary).
-  // Pour les pages programmatiques city × sport, l'utilisateur cherche les
-  // venues *dédiés* à ce sport, donc primary_sport_slug est le bon filtre.
   const { data, error } = await sb
     .from("venue")
     .select(
@@ -102,64 +96,83 @@ async function fetchVenues(ctx: Ctx, page: number) {
   }));
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const ctx = await resolveContext(params);
-  if (!ctx) return { title: "Page introuvable" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<Params>;
+}): Promise<Metadata> {
+  const { locale, sport, country, city } = await params;
+  const ctx = await resolveContext(sport, country, city);
+  const t = await getTranslations({ locale, namespace: "programmatic" });
+  const tSports = await getTranslations({ locale, namespace: "sports" });
 
-  const title = `Clubs de ${ctx.sport.name_fr} à ${ctx.city.name} (${ctx.total} adresses)`;
-  const description = `Liste complète des ${ctx.total} clubs et terrains de ${ctx.sport.name_fr} à ${ctx.city.name} — adresses, contacts, horaires.`.slice(
-    0,
-    160,
-  );
-  const path = `/${params.sport}/${params.country}/${params.city}`;
+  if (!ctx) {
+    const tVenue = await getTranslations({ locale, namespace: "venue" });
+    return { title: tVenue("notFoundTitle") };
+  }
+
+  const sportName = tSports.has(ctx.sport.slug)
+    ? tSports(ctx.sport.slug)
+    : ctx.sport.name_fr;
+  const title = t("title", { sport: sportName, city: ctx.city.name, count: ctx.total });
+  const description = t("description", {
+    sport: sportName.toLowerCase(),
+    city: ctx.city.name,
+    count: ctx.total,
+  }).slice(0, 160);
+  const path = `/${sport}/${country}/${city}`;
 
   return {
     title,
     description,
     alternates: { canonical: path },
-    openGraph: {
-      type: "website",
-      url: `${SITE_URL}${path}`,
-      title,
-      description,
-    },
+    openGraph: { type: "website", url: `${SITE_URL}${path}`, title, description },
   };
 }
 
 export default async function ProgrammaticPage({ params, searchParams }: Props) {
-  const ctx = await resolveContext(params);
+  const { locale, sport, country, city } = (await Promise.resolve(params)) as Params;
+  setRequestLocale(locale);
+
+  const ctx = await resolveContext(sport, country, city);
   if (!ctx) notFound();
+
+  const t = await getTranslations("programmatic");
+  const tSport = await getTranslations("sport");
+  const tFamilies = await getTranslations("families");
+  const tSports = await getTranslations("sports");
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const venues = await fetchVenues(ctx, page);
   const family = FAMILIES_BY_SLUG[ctx.sport.family_slug];
   const totalPages = Math.max(1, Math.ceil(ctx.total / PAGE_SIZE));
-  const basePath = `/${params.sport}/${params.country}/${params.city}`;
+  const basePath = `/${sport}/${country}/${city}`;
+  const sportName = tSports.has(ctx.sport.slug) ? tSports(ctx.sport.slug) : ctx.sport.name_fr;
 
   return (
     <main className="container mx-auto max-w-6xl px-6 py-12">
       <header className="border-b pb-6">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <Link href="/" className="hover:text-foreground">
-            Accueil
+            Sport Hub
           </Link>
           <span aria-hidden="true">/</span>
-          <Link href={`/sports/${params.sport}`} className="hover:text-foreground">
-            {ctx.sport.name_fr}
+          <Link href={`/sports/${sport}`} className="hover:text-foreground">
+            {tFamilies(ctx.sport.family_slug)}
           </Link>
           <span aria-hidden="true">/</span>
           <span>{ctx.city.name}</span>
         </div>
         <h1 className="mt-2 flex items-center gap-3 text-3xl font-bold tracking-tight">
           <span aria-hidden="true">{ctx.sport.emoji || family?.emoji}</span>
-          {ctx.sport.name_fr} à {ctx.city.name}
+          {t("h1", { sport: sportName, city: ctx.city.name })}
         </h1>
         <p className="mt-2 text-muted-foreground">
-          {formatCount(ctx.total)} adresse{ctx.total > 1 ? "s" : ""}
+          {t("addresses", { count: ctx.total })}
           {totalPages > 1 && (
             <span className="text-sm">
               {" "}
-              · page {page} / {totalPages}
+              · {tSport("page", { current: page, total: totalPages })}
             </span>
           )}
         </p>
@@ -167,20 +180,19 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
 
       {venues.length === 0 ? (
         <p className="mt-12 text-center text-muted-foreground">
-          Pas encore de venue pour {ctx.sport.name_fr} à {ctx.city.name}.{" "}
+          {t("emptyMessage", { sport: sportName, city: ctx.city.name })}{" "}
           <Link
-            href={`/sports/${params.sport}`}
+            href={`/sports/${sport}`}
             className="underline hover:text-foreground"
           >
-            Voir les autres villes
+            {t("seeOtherCities")}
           </Link>
         </p>
       ) : (
         <>
-          {/* Carte bbox-aware filtrée par sport (centrée sur la ville) */}
           <div className="mt-6">
             <SportPageMap
-              sportSlug={params.sport}
+              sportSlug={sport}
               initialVenues={
                 venues.map((v) => ({
                   id: v.id,
@@ -212,26 +224,26 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
                   href={`${basePath}?page=${page - 1}`}
                   className="rounded-md border px-3 py-2 hover:bg-accent"
                 >
-                  ← Précédent
+                  {tSport("previous")}
                 </Link>
               ) : (
                 <span className="rounded-md border px-3 py-2 opacity-40">
-                  ← Précédent
+                  {tSport("previous")}
                 </span>
               )}
               <span className="text-muted-foreground">
-                Page {page} / {totalPages}
+                {tSport("page", { current: page, total: totalPages })}
               </span>
               {page < totalPages ? (
                 <Link
                   href={`${basePath}?page=${page + 1}`}
                   className="rounded-md border px-3 py-2 hover:bg-accent"
                 >
-                  Suivant →
+                  {tSport("next")}
                 </Link>
               ) : (
                 <span className="rounded-md border px-3 py-2 opacity-40">
-                  Suivant →
+                  {tSport("next")}
                 </span>
               )}
             </nav>

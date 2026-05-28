@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { buildVenueMetadata, buildVenueJsonLd } from "@/lib/seo/metadata";
 import { SportChips } from "@/components/venue/SportChips";
@@ -7,7 +8,7 @@ import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
 import type { VenueDetail } from "@/lib/supabase/types";
 
-type Props = { params: { slug: string } };
+type Props = { params: { locale: string; slug: string } };
 
 export const revalidate = 3600;
 
@@ -29,7 +30,6 @@ async function fetchVenue(slug: string): Promise<VenueDetail | null> {
 
   if (error || !data) return null;
 
-  // Supabase joint city comme objet imbriqué — on flatten pour matcher VenueDetail
   const v = data as Record<string, unknown> & {
     city?: { name?: string; country_code?: string } | null;
     sports?: unknown[];
@@ -43,20 +43,34 @@ async function fetchVenue(slug: string): Promise<VenueDetail | null> {
   };
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const venue = await fetchVenue(params.slug);
-  if (!venue) return { title: "Venue introuvable" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>;
+}): Promise<Metadata> {
+  const { locale, slug } = await params;
+  const venue = await fetchVenue(slug);
+  if (!venue) {
+    const t = await getTranslations({ locale, namespace: "venue" });
+    return { title: t("notFoundTitle") };
+  }
   return buildVenueMetadata(venue, venue.city_name);
 }
 
 export default async function VenuePage({ params }: Props) {
-  const venue = await fetchVenue(params.slug);
+  const { locale, slug } = (await Promise.resolve(params)) as {
+    locale: string;
+    slug: string;
+  };
+  setRequestLocale(locale);
+  const t = await getTranslations("venue");
+  const tFamilies = await getTranslations("families");
+
+  const venue = await fetchVenue(slug);
   if (!venue) notFound();
 
   const family = FAMILIES_BY_SLUG[venue.family_slug];
-  const sportSlugs = (venue.sports ?? [])
-    .map((s) => s.sport_slug)
-    .filter(Boolean);
+  const sportSlugs = (venue.sports ?? []).map((s) => s.sport_slug).filter(Boolean);
   const jsonLd = buildVenueJsonLd(venue, venue.city_name);
   const websiteHost = venue.website_url
     ? (() => {
@@ -81,7 +95,7 @@ export default async function VenuePage({ params }: Props) {
           <span className="text-xl" aria-hidden="true">
             {family?.emoji ?? "🏟️"}
           </span>
-          <span>{family?.name_fr ?? venue.family_slug}</span>
+          <span>{tFamilies(venue.family_slug)}</span>
           {venue.city_name && <span aria-hidden="true">·</span>}
           {venue.city_name && <span>{venue.city_name}</span>}
           {venue.country_code && <span aria-hidden="true">·</span>}
@@ -95,7 +109,7 @@ export default async function VenuePage({ params }: Props) {
 
       {sportSlugs.length > 0 && (
         <section className="mt-6">
-          <h2 className="mb-2 text-sm font-semibold">Sports pratiqués</h2>
+          <h2 className="mb-2 text-sm font-semibold">{t("sportsPracticed")}</h2>
           <SportChips sportSlugs={sportSlugs} />
         </section>
       )}
@@ -103,13 +117,13 @@ export default async function VenuePage({ params }: Props) {
       <section className="mt-8 grid grid-cols-1 gap-x-8 gap-y-4 text-sm sm:grid-cols-2">
         {venue.address && (
           <div>
-            <dt className="font-medium text-muted-foreground">Adresse</dt>
+            <dt className="font-medium text-muted-foreground">{t("address")}</dt>
             <dd>{venue.address}</dd>
           </div>
         )}
         {websiteHost && (
           <div>
-            <dt className="font-medium text-muted-foreground">Site web</dt>
+            <dt className="font-medium text-muted-foreground">{t("website")}</dt>
             <dd>
               <a
                 className="underline hover:text-foreground"
@@ -124,7 +138,7 @@ export default async function VenuePage({ params }: Props) {
         )}
         {venue.phone && (
           <div>
-            <dt className="font-medium text-muted-foreground">Téléphone</dt>
+            <dt className="font-medium text-muted-foreground">{t("phone")}</dt>
             <dd>
               <a className="hover:underline" href={`tel:${venue.phone}`}>
                 {venue.phone}
@@ -133,7 +147,7 @@ export default async function VenuePage({ params }: Props) {
           </div>
         )}
         <div>
-          <dt className="font-medium text-muted-foreground">Coordonnées GPS</dt>
+          <dt className="font-medium text-muted-foreground">{t("coordinates")}</dt>
           <dd className="font-mono text-xs">
             {venue.lat.toFixed(4)}, {venue.lon.toFixed(4)}
           </dd>
