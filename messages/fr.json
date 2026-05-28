@@ -86,7 +86,15 @@
     "filtersAll": "tout",
     "filtersNone": "aucun",
     "openFilters": "Ouvrir les filtres",
-    "closeFilters": "Fermer les filtres"
+    "closeFilters": "Fermer les filtres",
+    "criteriaTitle": "Critères",
+    "feat": {
+      "lit": "Éclairage",
+      "indoor": "Couvert",
+      "wheelchair": "Accessible PMR",
+      "free": "Gratuit",
+      "paid": "Payant"
+    }
   },
   "footer": {
     "about": "Sport Hub",

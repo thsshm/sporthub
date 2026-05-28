@@ -86,7 +86,15 @@
     "filtersAll": "all",
     "filtersNone": "none",
     "openFilters": "Open filters",
-    "closeFilters": "Close filters"
+    "closeFilters": "Close filters",
+    "criteriaTitle": "Criteria",
+    "feat": {
+      "lit": "Lighting",
+      "indoor": "Indoor",
+      "wheelchair": "Wheelchair access",
+      "free": "Free",
+      "paid": "Paid"
+    }
   },
   "footer": {
     "about": "Sport Hub",

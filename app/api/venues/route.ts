@@ -4,14 +4,22 @@ import { captureException } from "@/lib/monitoring";
 import type { VenuePin } from "@/lib/supabase/types";
 
 /**
- * GET /api/venues?bbox=west,south,east,north[&families=raquette,glisse][&limit=2000]
+ * GET /api/venues?bbox=west,south,east,north
+ *   [&families=raquette,glisse]
+ *   [&sport=padel]
+ *   [&feat=lit,indoor,wheelchair,free,paid]
+ *   [&limit=2000]
  *
  * Retourne les venues publiés dans la bounding box, optionnellement filtrés
- * par familles. Utilise la fonction RPC venues_in_bbox (migration 0004) qui
- * exploite l'index GIST PostGIS sur venue.geom.
+ * par familles, sport, et critères universels. Utilise la RPC venues_in_bbox
+ * (migration 0007) qui exploite l'index GIST PostGIS sur venue.geom.
+ *
+ * `feat` (critères) : valeurs reconnues = lit, indoor, wheelchair, free, paid.
+ * Sémantique AND entre critères. Valeurs inconnues ignorées (no-op côté SQL).
  *
  * Limite : 5 000 venues max (cap côté DB pour éviter d'envoyer un MB+ au client).
  */
+const KNOWN_FEAT = new Set(["lit", "indoor", "wheelchair", "free", "paid"]);
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
@@ -45,6 +53,16 @@ export async function GET(request: Request) {
 
   const sport = searchParams.get("sport")?.trim() || null;
 
+  const featParam = searchParams.get("feat");
+  const featRaw = featParam
+    ? featParam.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+    : [];
+  const feat = featRaw.filter((s) => KNOWN_FEAT.has(s));
+  // "free" et "paid" sont mutuellement exclusifs : si les deux sont demandés,
+  // aucun venue ne match (fee_required ne peut être à la fois TRUE et FALSE).
+  // On laisse passer pour cohérence (count = 0), c'est le comportement attendu
+  // si l'utilisateur coche les deux.
+
   const limitRaw = parseInt(searchParams.get("limit") ?? "2000", 10);
   const limit = Math.max(1, Math.min(Number.isNaN(limitRaw) ? 2000 : limitRaw, 5000));
 
@@ -57,6 +75,7 @@ export async function GET(request: Request) {
       north,
       fams: families,
       sport,
+      feat: feat.length > 0 ? feat : null,
       max_results: limit,
     });
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
-import { SportFilters } from "@/app/[locale]/map/SportFilters";
+import { SportFilters, type CriteriaKey } from "@/app/[locale]/map/SportFilters";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
 import type { FlyTarget } from "@/app/[locale]/map/MapClient";
@@ -57,6 +57,9 @@ export function MapWithSearch({
   const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(
     () => new Set(FAMILIES.map((f) => f.slug)),
   );
+  const [selectedCriteria, setSelectedCriteria] = useState<Set<CriteriaKey>>(
+    () => new Set(),
+  );
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
 
@@ -66,6 +69,8 @@ export function MapWithSearch({
       <SportFilters
         selected={selectedFamilies}
         onChange={setSelectedFamilies}
+        selectedCriteria={selectedCriteria}
+        onCriteriaChange={setSelectedCriteria}
         className="absolute left-4 top-4 z-20 hidden max-h-[calc(100%-2rem)] w-56 overflow-auto md:flex"
       />
 
@@ -104,6 +109,8 @@ export function MapWithSearch({
               <SportFilters
                 selected={selectedFamilies}
                 onChange={setSelectedFamilies}
+                selectedCriteria={selectedCriteria}
+                onCriteriaChange={setSelectedCriteria}
                 className="border-0 p-0 shadow-none"
               />
             </div>
@@ -128,6 +135,7 @@ export function MapWithSearch({
         initialZoom={initialZoom}
         selectedFamilies={selectedFamilies}
         totalFamilies={FAMILIES.length}
+        selectedCriteria={selectedCriteria}
         onVenuesChange={setVisibleCount}
         flyTarget={flyTarget}
         initialVenues={initialVenues}

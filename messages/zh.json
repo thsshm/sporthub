@@ -86,7 +86,15 @@
     "filtersAll": "全选",
     "filtersNone": "全不选",
     "openFilters": "打开筛选",
-    "closeFilters": "关闭筛选"
+    "closeFilters": "关闭筛选",
+    "criteriaTitle": "条件",
+    "feat": {
+      "lit": "照明",
+      "indoor": "室内",
+      "wheelchair": "无障碍",
+      "free": "免费",
+      "paid": "付费"
+    }
   },
   "footer": {
     "about": "Sport Hub",

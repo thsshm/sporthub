@@ -76,6 +76,9 @@ type Props = {
   /** Venues SSR pré-fetched (bbox d'initialisation). Affichés immédiatement
    * pour améliorer le LCP, avant que le premier bbox-aware fetch client retourne. */
   initialVenues?: VenuePin[];
+  /** Critères universels cochés (lit / indoor / wheelchair / free / paid).
+   * Envoyés à /api/venues?feat=... — AND entre critères côté DB. */
+  selectedCriteria?: Set<string>;
 };
 
 export default function MapClient({
@@ -89,6 +92,7 @@ export default function MapClient({
   presetVenues,
   selectedSport,
   initialVenues,
+  selectedCriteria,
 }: Props) {
   const mapRef = useRef<MapRef | null>(null);
   const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(
@@ -148,6 +152,9 @@ export default function MapClient({
       if (selectedSport) {
         params.set("sport", selectedSport);
       }
+      if (selectedCriteria && selectedCriteria.size > 0) {
+        params.set("feat", Array.from(selectedCriteria).join(","));
+      }
       try {
         const res = await fetch(`/api/venues?${params}`);
         if (!res.ok) {
@@ -166,7 +173,7 @@ export default function MapClient({
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, [bounds, selectedFamilies, totalFamilies, onVenuesChange, presetVenues, selectedSport]);
+  }, [bounds, selectedFamilies, totalFamilies, onVenuesChange, presetVenues, selectedSport, selectedCriteria]);
 
   // Supercluster index
   const supercluster = useMemo(() => {
