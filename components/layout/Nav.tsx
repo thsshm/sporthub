@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MapPin, Heart, Globe } from "lucide-react";
 import { FAMILIES } from "@/lib/families";
-import { STRINGS, DEFAULT_LANG, STORAGE_KEY, type Lang } from "@/lib/i18n";
+import { STRINGS, DEFAULT_LANG, STORAGE_KEY, nextLang, type Lang } from "@/lib/i18n";
 import { MobileNav } from "./MobileNav";
 
 export function Nav() {
@@ -12,11 +12,11 @@ export function Nav() {
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === "fr" || stored === "en") setLang(stored);
+    if (stored === "fr" || stored === "en" || stored === "zh") setLang(stored);
   }, []);
 
   const toggleLang = () => {
-    const next: Lang = lang === "fr" ? "en" : "fr";
+    const next = nextLang(lang);
     setLang(next);
     window.localStorage.setItem(STORAGE_KEY, next);
     document.documentElement.lang = next;

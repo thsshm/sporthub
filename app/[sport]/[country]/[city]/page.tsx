@@ -88,7 +88,7 @@ async function fetchVenues(ctx: Ctx, page: number) {
     .eq("is_published", true)
     .is("deleted_at", null)
     .range(offset, offset + PAGE_SIZE - 1)
-    .order("name");
+    .order("id");
 
   if (error) return [];
 
