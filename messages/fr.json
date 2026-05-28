@@ -1,0 +1,76 @@
+{
+  "nav": {
+    "disciplines": "Disciplines",
+    "map": "Carte",
+    "favorites": "Favoris",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer le menu",
+    "changeLang": "Changer la langue",
+    "home": "Sport Hub — accueil"
+  },
+  "home": {
+    "heroTitle": "Sport Hub",
+    "heroSubtitle": "Une seule carte pour tous tes sports.",
+    "heroDescription": "{count} spots dans 13 familles, partout dans le monde. Données ouvertes, sans pub, sans inscription.",
+    "ctaMap": "Explorer la carte",
+    "ctaList": "Liste par sport",
+    "familiesTitle": "Explorer par famille",
+    "familiesSubtitle": "13 familles de sport · cliquez sur une famille ou un sport",
+    "spotsCount": "{count, plural, =0 {à venir} one {1 spot} other {{count} spots}}",
+    "comingSoon": "à venir",
+    "dataSourcesTitle": "Données ouvertes",
+    "dataSourcesDescription": "Sources : OpenStreetMap (ODbL) · RES Étalab · Wikidata (CC0). Géolocalisation PostGIS · clusterisation Supercluster · carte MapLibre GL."
+  },
+  "families": {
+    "raquette": "Raquette",
+    "ballon": "Ballon",
+    "fitness": "Fitness",
+    "combat": "Combat",
+    "yoga": "Bien-être",
+    "baignade": "Baignade",
+    "boules": "Boules",
+    "nautique": "Nautique",
+    "glisse": "Glisse",
+    "snow": "Sport d'hiver",
+    "hike": "Plein air & endurance",
+    "retraites": "Retraites & camps",
+    "plus": "Plus de sports"
+  },
+  "sport": {
+    "venuesIndexed": "{count, plural, =0 {Aucun venue} one {1 venue indexé} other {{count} venues indexés}}",
+    "page": "page {current} / {total}",
+    "emptyMessage": "Aucun venue pour ce sport pour l'instant.",
+    "exploreOthers": "Explorer les autres sports",
+    "previous": "← Précédent",
+    "next": "Suivant →",
+    "mapHint": "Carte interactive — pan/zoom recharge les venues {sport} du viewport (jusqu'à 2 000)."
+  },
+  "venue": {
+    "sportsPracticed": "Sports pratiqués",
+    "address": "Adresse",
+    "website": "Site web",
+    "phone": "Téléphone",
+    "coordinates": "Coordonnées GPS",
+    "notFoundTitle": "Venue introuvable"
+  },
+  "map": {
+    "title": "Carte des spots sportifs",
+    "loading": "Chargement de la carte…",
+    "spotsInView": "{count} spots dans la vue",
+    "searchPlaceholder": "Rechercher une ville…",
+    "filtersTitle": "Familles",
+    "filtersAll": "tout",
+    "filtersNone": "aucun",
+    "openFilters": "Ouvrir les filtres",
+    "closeFilters": "Fermer les filtres"
+  },
+  "footer": {
+    "about": "Sport Hub",
+    "aboutText": "Une seule carte pour tous tes sports. Données ouvertes, sans pub, sans inscription.",
+    "explore": "Explorer",
+    "dataLicense": "Données & licence",
+    "legal": "Mentions légales",
+    "source": "Code source (GitHub)",
+    "copyright": "© {year} Sport Hub — Licence MIT — Données sous licences respectives des sources"
+  }
+}

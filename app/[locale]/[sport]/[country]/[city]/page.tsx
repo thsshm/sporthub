@@ -7,7 +7,7 @@ import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { formatCount } from "@/lib/utils";
-import { SportPageMap } from "@/app/sports/[sport]/SportPageMap";
+import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
 
 const PAGE_SIZE = 24;

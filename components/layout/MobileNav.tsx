@@ -1,18 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Menu, X } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/routing";
 import { FAMILIES } from "@/lib/families";
-import { STRINGS, type Lang } from "@/lib/i18n";
 
-type Props = {
-  lang: Lang;
-};
-
-export function MobileNav({ lang }: Props) {
+export function MobileNav() {
+  const t = useTranslations("nav");
+  const tFamilies = useTranslations("families");
   const [open, setOpen] = useState(false);
-  const t = STRINGS[lang].nav;
 
   useEffect(() => {
     if (!open) return;
@@ -29,14 +26,19 @@ export function MobileNav({ lang }: Props) {
         type="button"
         className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
         onClick={() => setOpen(true)}
-        aria-label={t.open_menu}
+        aria-label={t("openMenu")}
         aria-expanded={open}
       >
         <Menu className="h-5 w-5" aria-hidden="true" />
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label={t.disciplines}>
+        <div
+          className="fixed inset-0 z-50 md:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("disciplines")}
+        >
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => setOpen(false)}
@@ -44,12 +46,12 @@ export function MobileNav({ lang }: Props) {
           />
           <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-background shadow-lg">
             <div className="flex items-center justify-between border-b px-4 py-3">
-              <span className="text-sm font-semibold">{t.disciplines}</span>
+              <span className="text-sm font-semibold">{t("disciplines")}</span>
               <button
                 type="button"
                 className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
                 onClick={() => setOpen(false)}
-                aria-label={t.close_menu}
+                aria-label={t("closeMenu")}
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -62,8 +64,10 @@ export function MobileNav({ lang }: Props) {
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent"
                 >
-                  <span aria-hidden="true" className="text-lg">{family.emoji}</span>
-                  <span>{lang === "fr" ? family.name_fr : family.name_en}</span>
+                  <span aria-hidden="true" className="text-lg">
+                    {family.emoji}
+                  </span>
+                  <span>{tFamilies(family.slug)}</span>
                 </Link>
               ))}
             </nav>
@@ -73,14 +77,14 @@ export function MobileNav({ lang }: Props) {
                 onClick={() => setOpen(false)}
                 className="block rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
               >
-                {t.map}
+                {t("map")}
               </Link>
               <Link
                 href="/favoris"
                 onClick={() => setOpen(false)}
                 className="block rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
               >
-                {t.favorites}
+                {t("favorites")}
               </Link>
             </div>
           </div>

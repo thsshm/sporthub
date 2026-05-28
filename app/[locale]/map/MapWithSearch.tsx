@@ -4,12 +4,12 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
-import { SportFilters } from "@/app/map/SportFilters";
+import { SportFilters } from "@/app/[locale]/map/SportFilters";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
-import type { FlyTarget } from "@/app/map/MapClient";
+import type { FlyTarget } from "@/app/[locale]/map/MapClient";
 
-const MapClient = dynamic(() => import("@/app/map/MapClient"), {
+const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ssr: false,
   loading: () => (
     <div className="flex h-full w-full items-center justify-center bg-muted/20">

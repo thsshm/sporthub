@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { VenuePin } from "@/lib/supabase/types";
 import { formatCount } from "@/lib/utils";
 
-const MapClient = dynamic(() => import("@/app/map/MapClient"), {
+const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ssr: false,
   loading: () => (
     <div className="flex h-full w-full items-center justify-center bg-muted/20 text-sm text-muted-foreground">
