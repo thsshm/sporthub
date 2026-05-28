@@ -6,7 +6,7 @@ import { FAMILIES } from "@/lib/families";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { formatCount } from "@/lib/utils";
 
-export const revalidate = 3600;
+export const revalidate = 300;  // 5 min : compromis fraîcheur (counts) vs perf
 
 async function fetchFamilyCounts(): Promise<Record<string, number>> {
   const sb = getSupabaseServerClient();
@@ -33,6 +33,7 @@ export default async function HomePage({
   setRequestLocale(locale);
   const t = await getTranslations("home");
   const tFamilies = await getTranslations("families");
+  const tSports = await getTranslations("sports");
 
   const counts = await fetchFamilyCounts();
   const totalVenues = Object.values(counts).reduce((a, b) => a + b, 0);
@@ -126,7 +127,7 @@ export default async function HomePage({
                           {sport.emoji && (
                             <span aria-hidden="true">{sport.emoji}</span>
                           )}
-                          <span>{sport.name_fr}</span>
+                          <span>{tSports(sport.slug)}</span>
                         </Link>
                       ))}
                     </div>

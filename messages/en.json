@@ -36,6 +36,21 @@
     "retraites": "Retreats & camps",
     "plus": "More sports"
   },
+  "sports": {
+    "tennis": "Tennis", "padel": "Padel", "table_tennis": "Table tennis", "badminton": "Badminton", "squash": "Squash",
+    "football": "Football", "basketball": "Basketball", "handball": "Handball", "volleyball": "Volleyball", "rugby": "Rugby",
+    "gym": "Gym", "crossfit": "CrossFit", "hyrox": "Hyrox", "pilates": "Pilates", "dance": "Dance",
+    "yoga": "Yoga", "meditation": "Meditation", "spa": "Spa", "sauna": "Sauna", "hammam": "Hammam",
+    "boxing": "Boxing", "judo": "Judo", "karate": "Karate", "mma": "MMA", "bjj": "BJJ",
+    "petanque": "Pétanque", "boules": "Lyonnaises",
+    "beach": "Beach", "pool": "Pool",
+    "surf": "Surf", "kitesurf": "Kitesurfing", "windsurf": "Windsurfing", "sup": "SUP", "wakeboard": "Wakeboard",
+    "marina": "Marina", "diving": "Diving", "lighthouse": "Lighthouse",
+    "skiing": "Skiing", "snowboarding": "Snowboarding", "cross_country": "Cross-country",
+    "trail": "Trail", "long_trail": "Long trail", "trailrun": "Trail run", "running": "Running", "cycling": "Cycling", "mtb": "MTB",
+    "golf": "Golf", "equestrian": "Equestrian", "climbing_indoor": "Climbing", "archery": "Archery", "paragliding": "Paragliding",
+    "yoga_retreat": "Yoga retreat", "surf_camp": "Surf camp", "wellness_retreat": "Wellness"
+  },
   "sport": {
     "venuesIndexed": "{count, plural, =0 {No venue} one {1 venue indexed} other {{count} venues indexed}}",
     "page": "page {current} / {total}",

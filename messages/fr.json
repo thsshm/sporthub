@@ -36,6 +36,21 @@
     "retraites": "Retraites & camps",
     "plus": "Plus de sports"
   },
+  "sports": {
+    "tennis": "Tennis", "padel": "Padel", "table_tennis": "Ping-pong", "badminton": "Badminton", "squash": "Squash",
+    "football": "Football", "basketball": "Basket", "handball": "Handball", "volleyball": "Volley", "rugby": "Rugby",
+    "gym": "Salle de sport", "crossfit": "CrossFit", "hyrox": "Hyrox", "pilates": "Pilates", "dance": "Danse",
+    "yoga": "Yoga", "meditation": "Méditation", "spa": "Spa", "sauna": "Sauna", "hammam": "Hammam",
+    "boxing": "Boxe", "judo": "Judo", "karate": "Karaté", "mma": "MMA", "bjj": "BJJ",
+    "petanque": "Pétanque", "boules": "Boules lyonnaises",
+    "beach": "Plage", "pool": "Piscine",
+    "surf": "Surf", "kitesurf": "Kitesurf", "windsurf": "Windsurf", "sup": "SUP", "wakeboard": "Wakeboard",
+    "marina": "Marina", "diving": "Plongée", "lighthouse": "Phare",
+    "skiing": "Ski alpin", "snowboarding": "Snowboard", "cross_country": "Ski de fond",
+    "trail": "Sentier", "long_trail": "GR", "trailrun": "Trail running", "running": "Course", "cycling": "Vélo", "mtb": "VTT",
+    "golf": "Golf", "equestrian": "Équitation", "climbing_indoor": "Escalade", "archery": "Tir à l'arc", "paragliding": "Parapente",
+    "yoga_retreat": "Retraite yoga", "surf_camp": "Surf camp", "wellness_retreat": "Bien-être"
+  },
   "sport": {
     "venuesIndexed": "{count, plural, =0 {Aucun venue} one {1 venue indexé} other {{count} venues indexés}}",
     "page": "page {current} / {total}",
