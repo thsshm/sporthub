@@ -22,7 +22,7 @@ describe("renderSitemapIndexXml", () => {
 
   it("référence /sitemap/0.xml à /sitemap/N.xml", () => {
     for (let i = 0; i < 9; i++) {
-      expect(xml).toContain(`${SITE_URL}/sitemap/${i}.xml`);
+      expect(xml).toContain(`${SITE_URL}/sitemap/${i}`);
     }
   });
 

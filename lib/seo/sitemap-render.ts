@@ -54,7 +54,13 @@ ${urls}
 </urlset>`;
 }
 
-/** Sérialise un sitemap-index XML qui référence des sous-sitemaps. */
+/** Sérialise un sitemap-index XML qui référence des sous-sitemaps.
+ *
+ * Note : les URLs des sous-sitemaps n'ont PAS d'extension `.xml`. Vercel
+ * intercepte les paths `.xml` comme fichiers statiques et court-circuite
+ * Next.js Route Handlers, retournant 404. Le Content-Type XML servi par
+ * `/sitemap/<n>` (200) est ce que Google parse — l'extension n'a pas
+ * d'importance pour les crawlers. */
 export function renderSitemapIndexXml(
   siteUrl: string,
   totalShards: number,
@@ -62,7 +68,7 @@ export function renderSitemapIndexXml(
 ): string {
   const items = Array.from({ length: totalShards }, (_, i) => {
     return `  <sitemap>
-    <loc>${siteUrl}/sitemap/${i}.xml</loc>
+    <loc>${siteUrl}/sitemap/${i}</loc>
     <lastmod>${lastmod}</lastmod>
   </sitemap>`;
   }).join("\n");

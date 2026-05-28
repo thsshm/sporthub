@@ -21,9 +21,13 @@ import {
 export const revalidate = 86_400;
 
 // Pré-rend les 9 shards à build time, le reste est 404.
+// NOTE : `.xml` est volontairement OMIS du segment dynamique. Vercel intercepte
+// les paths se terminant en .xml comme fichiers statiques avant que Next.js
+// ait la main → 404 systématique. Sans extension, le Route Handler est appelé
+// normalement. Google parse le Content-Type, pas l'URL.
 export function generateStaticParams(): { shard: string }[] {
   return Array.from({ length: TOTAL_SHARD_COUNT }, (_, i) => ({
-    shard: `${i}.xml`,
+    shard: `${i}`,
   }));
 }
 
@@ -31,7 +35,7 @@ export async function GET(
   _req: Request,
   { params }: { params: { shard: string } },
 ) {
-  // Accepte "<n>.xml" ou "<n>" pour tolérance.
+  // Accepte "<n>" ou "<n>.xml" pour tolérance (anciens liens crawlés).
   const match = /^(\d+)(?:\.xml)?$/.exec(params.shard);
   if (!match) {
     return new NextResponse("Not Found", { status: 404 });
