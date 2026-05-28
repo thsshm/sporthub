@@ -71,6 +71,8 @@ type Props = {
    * et skip l'API bbox-aware fetch. Utile pour /sports/[sport] qui veut
    * afficher seulement la page courante. */
   presetVenues?: VenuePin[];
+  /** Filtre sport pour le bbox-aware fetch. Quand set, appelle /api/venues?sport=... */
+  selectedSport?: string | null;
 };
 
 export default function MapClient({
@@ -82,6 +84,7 @@ export default function MapClient({
   onVenuesChange,
   flyTarget,
   presetVenues,
+  selectedSport,
 }: Props) {
   const mapRef = useRef<MapRef | null>(null);
   const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>([]);
@@ -128,6 +131,9 @@ export default function MapClient({
       ) {
         params.set("families", Array.from(selectedFamilies).join(","));
       }
+      if (selectedSport) {
+        params.set("sport", selectedSport);
+      }
       try {
         const res = await fetch(`/api/venues?${params}`);
         if (!res.ok) {
@@ -146,7 +152,7 @@ export default function MapClient({
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, [bounds, selectedFamilies, totalFamilies, onVenuesChange, presetVenues]);
+  }, [bounds, selectedFamilies, totalFamilies, onVenuesChange, presetVenues, selectedSport]);
 
   // Supercluster index
   const supercluster = useMemo(() => {

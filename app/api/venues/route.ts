@@ -43,6 +43,8 @@ export async function GET(request: Request) {
     ? familiesParam.split(",").map((s) => s.trim()).filter(Boolean)
     : null;
 
+  const sport = searchParams.get("sport")?.trim() || null;
+
   const limitRaw = parseInt(searchParams.get("limit") ?? "2000", 10);
   const limit = Math.max(1, Math.min(Number.isNaN(limitRaw) ? 2000 : limitRaw, 5000));
 
@@ -54,6 +56,7 @@ export async function GET(request: Request) {
       east,
       north,
       fams: families,
+      sport,
       max_results: limit,
     });
 
