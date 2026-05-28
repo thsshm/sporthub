@@ -3,6 +3,8 @@ import { Link } from "@/i18n/routing";
 
 export function Footer() {
   const t = useTranslations("footer");
+  const tSports = useTranslations("sports");
+  const tMap = useTranslations("map");
 
   return (
     <footer className="mt-auto border-t bg-muted/40">
@@ -20,29 +22,19 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
                 <Link href="/map" className="hover:text-foreground">
-                  Sport Hub map
+                  {tMap("title")}
                 </Link>
               </li>
-              <li>
-                <Link href="/sports/tennis" className="hover:text-foreground">
-                  Tennis
-                </Link>
-              </li>
-              <li>
-                <Link href="/sports/padel" className="hover:text-foreground">
-                  Padel
-                </Link>
-              </li>
-              <li>
-                <Link href="/sports/surf" className="hover:text-foreground">
-                  Surf
-                </Link>
-              </li>
-              <li>
-                <Link href="/sports/yoga" className="hover:text-foreground">
-                  Yoga
-                </Link>
-              </li>
+              {(["tennis", "padel", "surf", "yoga"] as const).map((slug) => (
+                <li key={slug}>
+                  <Link
+                    href={`/sports/${slug}`}
+                    className="hover:text-foreground"
+                  >
+                    {tSports(slug)}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
