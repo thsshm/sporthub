@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { MapView } from "@/components/map/MapView";
-import { formatCount } from "@/lib/utils";
+import { MapWithSearch } from "@/app/map/MapWithSearch";
 import type { VenuePin } from "@/lib/supabase/types";
 
 const MAP_LIMIT = 1000;
@@ -31,24 +30,12 @@ export default async function MapPage() {
 
   return (
     <div className="relative h-[calc(100vh-4rem)] w-full">
-      <MapView
+      <MapWithSearch
         venues={venues}
         initialLat={46.5}
         initialLon={2.5}
         initialZoom={5}
-        className="h-full"
       />
-
-      {/* Overlay info */}
-      <div className="pointer-events-none absolute left-4 top-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur">
-        <span className="font-semibold">{formatCount(venues.length)}</span> spots
-        {venues.length === MAP_LIMIT && (
-          <span className="text-muted-foreground">
-            {" "}
-            (échantillon — bbox-aware fetch à venir)
-          </span>
-        )}
-      </div>
     </div>
   );
 }
