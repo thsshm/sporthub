@@ -1,12 +1,10 @@
 /**
- * Helpers partagés pour les sitemaps shardés.
+ * Helpers de fetching des entries pour les sitemap shards.
  *
- * Pourquoi des Route Handlers à la place du convention metadata sitemap.ts ?
- * Next.js 14.2 `generateSitemaps()` produit des routes `/sitemap/[id].xml`
- * MAIS sur Vercel ces routes retournent 404 (cf. tentative initiale #88 v1).
- * Le pattern Route Handler manuel est plus prévisible et debug facile.
+ * Cette couche TOUCHE Supabase et next-intl (routing). Les sérialiseurs XML
+ * purs sont dans `sitemap-render.ts` (pour les tests sans DB).
  *
- * Structure :
+ * Structure des routes :
  *   - /sitemap.xml              → sitemap-index (liste les 9 sous-sitemaps)
  *   - /sitemap/0.xml            → pages statiques + familles + programmatiques
  *   - /sitemap/1.xml … /8.xml   → venues paginés (45 000 chacun = 360k max)
@@ -15,6 +13,7 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
 import { routing } from "@/i18n/routing";
+import type { SitemapEntry } from "@/lib/seo/sitemap-render";
 
 export const SITE_URL = "https://sporthubmap.com";
 
@@ -26,15 +25,6 @@ export const VENUE_SHARD_COUNT = 8;
 
 /** Total = 1 shard metadata + 8 shards venues = 9 sous-sitemaps. */
 export const TOTAL_SHARD_COUNT = VENUE_SHARD_COUNT + 1;
-
-type SitemapEntry = {
-  loc: string;
-  lastmod?: string;
-  changefreq?: "daily" | "weekly" | "monthly";
-  priority?: number;
-  /** alternates hreflang par locale (FR/EN/ZH) */
-  alternates?: Record<string, string>;
-};
 
 type VenueRow = { slug: string; updated_at: string | null };
 type ComboRow = {
@@ -64,63 +54,6 @@ function localized(
     alternates,
     ...meta,
   };
-}
-
-/** Échappe les caractères XML spéciaux. */
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-/** Sérialise un array d'entries en XML urlset standard avec hreflang. */
-export function renderUrlsetXml(entries: SitemapEntry[]): string {
-  const urls = entries
-    .map((e) => {
-      const lastmod = e.lastmod ? `    <lastmod>${e.lastmod}</lastmod>\n` : "";
-      const changefreq = e.changefreq
-        ? `    <changefreq>${e.changefreq}</changefreq>\n`
-        : "";
-      const priority =
-        typeof e.priority === "number"
-          ? `    <priority>${e.priority.toFixed(1)}</priority>\n`
-          : "";
-      const links = e.alternates
-        ? Object.entries(e.alternates)
-            .map(
-              ([lang, href]) =>
-                `    <xhtml:link rel="alternate" hreflang="${escapeXml(lang)}" href="${escapeXml(href)}" />`,
-            )
-            .join("\n") + "\n"
-        : "";
-      return `  <url>
-    <loc>${escapeXml(e.loc)}</loc>
-${lastmod}${changefreq}${priority}${links}  </url>`;
-    })
-    .join("\n");
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${urls}
-</urlset>`;
-}
-
-/** Sérialise un sitemap-index XML qui référence tous les sous-sitemaps. */
-export function renderSitemapIndexXml(lastmod: string): string {
-  const items = Array.from({ length: TOTAL_SHARD_COUNT }, (_, i) => {
-    return `  <sitemap>
-    <loc>${SITE_URL}/sitemap/${i}.xml</loc>
-    <lastmod>${lastmod}</lastmod>
-  </sitemap>`;
-  }).join("\n");
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${items}
-</sitemapindex>`;
 }
 
 /** Shard 0 : pages statiques + familles + programmatiques (dédupliqués). */

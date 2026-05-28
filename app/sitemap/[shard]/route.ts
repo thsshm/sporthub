@@ -11,11 +11,11 @@
  * Cache 24h (mêmes raisons que l'index).
  */
 import { NextResponse } from "next/server";
+import { renderUrlsetXml } from "@/lib/seo/sitemap-render";
 import {
   TOTAL_SHARD_COUNT,
   buildMetadataShard,
   buildVenueShard,
-  renderUrlsetXml,
 } from "@/lib/seo/sitemap-shards";
 
 export const revalidate = 86_400;
