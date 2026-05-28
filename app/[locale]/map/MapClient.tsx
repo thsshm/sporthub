@@ -242,6 +242,25 @@ export default function MapClient({
     setZoom(map.getZoom());
   };
 
+  // Force le premier render MapLibre après le mount.
+  //
+  // Bug observé : MapClient est dynamic-imported (next/dynamic, ssr:false), donc
+  // monté APRÈS l'hydration. À ce moment-là, le container peut avoir une taille
+  // transitoire (CSS layout pas encore stabilisé), et MapLibre s'initialise avec
+  // les mauvaises dimensions. Son ResizeObserver ne re-trigger pas toujours un
+  // repaint quand le container atteint sa taille finale. Résultat : style chargé,
+  // tiles chargées, mais canvas WebGL jamais peint → carte blanche (cf. #100).
+  //
+  // Le fix : au onLoad, on force resize() + triggerRepaint() pour s'assurer
+  // que le 1er frame est dessiné avec les bonnes dimensions.
+  const handleLoad = () => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    map.resize();
+    map.triggerRepaint();
+    updateViewport();
+  };
+
   // Empty filter (l'user a tout décoché) — pas la peine de fetch
   const emptyFilter =
     selectedFamilies !== undefined && selectedFamilies.size === 0;
@@ -256,7 +275,7 @@ export default function MapClient({
       }}
       style={MAP_CONTAINER_STYLE}
       mapStyle={MAP_STYLE}
-      onLoad={updateViewport}
+      onLoad={handleLoad}
       onMoveEnd={updateViewport}
     >
       <NavigationControl position="top-right" />
