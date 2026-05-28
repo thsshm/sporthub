@@ -1,14 +1,76 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Prêt à recevoir les redirects 301 V1→V2 — voir MIGRATION.md
+  /**
+   * Redirects 301 V1 → V2 (cutover Phase 4 — voir MIGRATION.md).
+   *
+   * Toutes les ~150 URLs HTML statiques de la V1 (sporthubmap.com sur Netlify)
+   * doivent rediriger vers la nouvelle structure App Router V2, pour
+   * préserver le ranking SEO Google accumulé sur V1.
+   *
+   * Les patterns dynamiques (:slug, :city) sont supportés par Next.js
+   * via path-to-regexp. Ils matchent un segment sans `/`.
+   */
   async redirects() {
     return [
-      // Exemple de redirect V1 → V2 (à décommenter et compléter au cutover)
-      // {
-      //   source: "/family-raquette.html",
-      //   destination: "/sports/tennis",
-      //   permanent: true,
-      // },
+      // ── Pages famille (13) ────────────────────────────────────────────
+      {
+        source: "/family-:slug.html",
+        destination: "/sports/:slug",
+        permanent: true,
+      },
+
+      // ── Pages programmatiques sport × ville ───────────────────────────
+      // Slugs FR qui matchent directement le seed sport (padel, tennis, yoga, petanque)
+      {
+        source: "/padel-:city.html",
+        destination: "/padel/fr/:city",
+        permanent: true,
+      },
+      {
+        source: "/tennis-:city.html",
+        destination: "/tennis/fr/:city",
+        permanent: true,
+      },
+      {
+        source: "/yoga-:city.html",
+        destination: "/yoga/fr/:city",
+        permanent: true,
+      },
+      {
+        source: "/petanque-:city.html",
+        destination: "/petanque/fr/:city",
+        permanent: true,
+      },
+
+      // Slugs FR remappés vers le slug canonique anglais du seed
+      // (boxe → boxing, salle-de-sport → gym)
+      {
+        source: "/boxe-:city.html",
+        destination: "/boxing/fr/:city",
+        permanent: true,
+      },
+      {
+        source: "/salle-de-sport-:city.html",
+        destination: "/gym/fr/:city",
+        permanent: true,
+      },
+
+      // ── Pages statiques V1 ────────────────────────────────────────────
+      { source: "/index.html", destination: "/", permanent: true },
+      {
+        source: "/academies-de-tennis.html",
+        destination: "/sports/tennis",
+        permanent: true,
+      },
+
+      // Routes V1 sans équivalent V2 → renvoi vers /map (point d'entrée logique)
+      { source: "/villes.html", destination: "/map", permanent: true },
+      { source: "/explore.html", destination: "/map", permanent: true },
+
+      // Routes internes V1 jamais indexées (mais on garde le redirect au cas où)
+      { source: "/dashboard.html", destination: "/", permanent: true },
+      { source: "/seo-hotpicks.html", destination: "/", permanent: true },
+      { source: "/favoris.html", destination: "/", permanent: true },
     ];
   },
 
