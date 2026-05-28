@@ -1,3 +1,19 @@
+/**
+ * Home Sport Hub — Server Component.
+ *
+ * Restitue la richesse de la V1 (sporthubmap.com/index.html) :
+ *   - Hero + CTA
+ *   - Grille des 13 familles (avec counts live Supabase)
+ *   - "Comment ça marche" / pourquoi Sport Hub (4 engagements V1)
+ *   - Top spots du moment (Google ratings)
+ *   - Villes featured (counts venues)
+ *   - Recherches populaires (liens programmatiques)
+ *   - FAQ 8 Q/R + JSON-LD FAQPage (SEO)
+ *   - Bandeau "données ouvertes"
+ *
+ * Toutes les sections sont des Server Components dans `components/home/*`.
+ * Aucun "use client" — fetch direct Supabase via getSupabaseServerClient.
+ */
 import { MapPin } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/routing";
@@ -5,8 +21,13 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { formatCount } from "@/lib/utils";
+import { HomeFAQ } from "@/components/home/HomeFAQ";
+import { HomeFeaturedCities } from "@/components/home/HomeFeaturedCities";
+import { HomeHowItWorks } from "@/components/home/HomeHowItWorks";
+import { HomePopularSearches } from "@/components/home/HomePopularSearches";
+import { HomeTopSpots } from "@/components/home/HomeTopSpots";
 
-export const revalidate = 300;  // 5 min : compromis fraîcheur (counts) vs perf
+export const revalidate = 300; // 5 min : compromis fraîcheur (counts) vs perf
 
 async function fetchFamilyCounts(): Promise<Record<string, number>> {
   const sb = getSupabaseServerClient();
@@ -147,6 +168,21 @@ export default async function HomePage({
           })}
         </div>
       </section>
+
+      {/* Comment ça marche / pourquoi Sport Hub */}
+      <HomeHowItWorks />
+
+      {/* Top spots du moment (Google ratings) */}
+      <HomeTopSpots />
+
+      {/* Villes featured */}
+      <HomeFeaturedCities />
+
+      {/* Recherches populaires : pages programmatiques sport × ville */}
+      <HomePopularSearches />
+
+      {/* FAQ 8 Q/R + JSON-LD FAQPage */}
+      <HomeFAQ />
 
       {/* Données ouvertes */}
       <section className="border-t bg-muted/20">

@@ -21,6 +21,54 @@
     "dataSourcesTitle": "开放数据",
     "dataSourcesDescription": "来源:OpenStreetMap (ODbL) · RES Étalab · Wikidata (CC0)。PostGIS 地理定位 · Supercluster 聚合 · MapLibre GL 地图。"
   },
+  "howItWorks": {
+    "title": "为何选择 Sport Hub",
+    "subtitle": "四项承诺,让你又快又好地找到合适的场所。",
+    "step1Title": "所有运动,一张地图",
+    "step1Desc": "网球、冲浪、瑜伽、健身、足球、滚球…… 不再为 12 个 App 烦恼。所有场所聚合并去重,尽在此处。",
+    "step2Title": "只有真实场所",
+    "step2Desc": "数据来自官方公开数据库 (OpenStreetMap、法国体育部 RES、Wikidata)。球场存在?它就在这里。它关闭了?你可以修正。",
+    "step3Title": "用户优先,而非广告",
+    "step3Desc": "无广告、无注册、无隐藏佣金。你搜索、你找到、你运动——不会被中途倒卖。",
+    "step4Title": "鲜活且开放",
+    "step4Desc": "缺少某个场所?1 分钟内即可添加。开放数据让每个人受益——而不是又一个封闭花园。"
+  },
+  "featuredCities": {
+    "title": "热门城市",
+    "subtitle": "收录场所最多的城市——点击查看筛选后的地图。",
+    "venuesCount": "{count, plural, =0 {无场所} other {{count} 个场所}}",
+    "viewOnMap": "在地图上查看"
+  },
+  "topSpots": {
+    "title": "精选场所",
+    "subtitle": "评分最高的场所——根据 Google 评分自动筛选。",
+    "viewAll": "查看完整地图"
+  },
+  "popularSearches": {
+    "title": "热门搜索",
+    "subtitle": "最受欢迎的运动 × 城市页面。",
+    "viewAll": "所有城市"
+  },
+  "faq": {
+    "title": "常见问题",
+    "subtitle": "我们被问得最多的问题。",
+    "q1": "是免费的吗?",
+    "a1": "是的,完全免费且无广告。数据来自开放源 (OpenStreetMap、RES France、Wikidata、Overture Maps),浏览免费。无需注册,无付费墙。",
+    "q2": "~250,000 个场所从何而来?",
+    "a2": "来自四个公开来源的交叉:OpenStreetMap (ODbL)、法国体育部 RES (Etalab)、Wikidata (CC0) 和 Overture Maps。同一场所被多个来源记录时自动去重 (50 米 + 名称归一化)。",
+    "q3": "如何添加我的俱乐部或场所?",
+    "a3": "三种方式: (1) 填写我们的表单 (1 分钟,一周内收录); (2) 直接在 OpenStreetMap 上编辑——24 小时内会同步过来; (3) 写信给 hello@sporthubmap.com。",
+    "q4": "如何预订课程或找到教练?",
+    "a4": "Sport Hub 不直接处理预订。根据运动类型,我们会推荐相应的合作伙伴:Anybuddy (网球/帕德尔)、ClassPass 和 Mindbody (健身/瑜伽)、Superprof (私人教练) 等。",
+    "q5": "数据是最新的吗?",
+    "a5": "数据源自动刷新:OSM 接近实时,RES France 每月,Overture 每季度。Google 评分按需获取,缓存 30 天。",
+    "q6": "接下来会添加哪些家族?",
+    "a6": "短期:田径 (跑道、体育场)、攀岩 (室内+岩壁)、高尔夫。长期:马术、冬季运动、机动运动。",
+    "q7": "我是开发者——有 API 吗?",
+    "a7": "暂无公共 API。项目是开放的 (参见 OSM Overpass 进行临时查询),REST / vector tiles API 在规划中。联系:hello@sporthubmap.com。",
+    "q8": "在法国之外能用吗?",
+    "a8": "可以。通过 OpenStreetMap 和 Overture 实现全球覆盖。法国密度最高 (交叉了 RES + OSM),但我们已索引 200 多个国家的场所。"
+  },
   "families": {
     "raquette": "球拍运动",
     "ballon": "球类运动",
