@@ -46,6 +46,42 @@ function persistFavorites(favs: Set<string>) {
 type Bounds = [number, number, number, number]; // [west, south, east, north]
 type PointProps = { venue: VenuePin };
 
+// IMPORTANT : `mapStyle` doit être une référence STABLE entre les renders
+// React, sinon react-map-gl appelle `map.setStyle()` à chaque render → MapLibre
+// rebuild le style en boucle (warning "Unable to perform style diff: Style is
+// not done loading.. Rebuilding the style from scratch") → le canvas n'a jamais
+// le temps de peindre et reste blanc (cf. issue #100).
+//
+// Sortir en constante module-level garantit l'identité de référence. Le style
+// est statique pour SportHub — tile source unique, pas de switch dark/light.
+const MAP_STYLE = {
+  version: 8 as const,
+  sources: {
+    // CartoCDN "Voyager" — CDN global rapide (vs tile.openstreetmap.org
+    // qui est lent, capacity-policy 1 req/s/IP, et HTTP/1.1).
+    // Carto fournit ces tiles publiques gratuites pour usage modéré.
+    // Subdomains a-d permettent au navigateur de paralléliser jusqu'à 4×.
+    basemap: {
+      type: "raster" as const,
+      tiles: [
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+      ],
+      tileSize: 256,
+      attribution:
+        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+    },
+  },
+  layers: [
+    { id: "basemap-layer", type: "raster" as const, source: "basemap" },
+  ],
+};
+
+// Idem pour le style CSS du <Map> : référence stable.
+const MAP_CONTAINER_STYLE = { width: "100%", height: "100%" };
+
 export type FlyTarget = {
   lat: number;
   lon: number;
@@ -218,30 +254,8 @@ export default function MapClient({
         longitude: initialLon,
         zoom: initialZoom,
       }}
-      style={{ width: "100%", height: "100%" }}
-      mapStyle={{
-        version: 8,
-        sources: {
-          // CartoCDN "Voyager" — CDN global rapide (vs tile.openstreetmap.org
-          // qui est lent, capacity-policy 1 req/s/IP, et HTTP/1.1).
-          // Carto fournit ces tiles publiques gratuites pour usage modéré.
-          // Subdomains a-d permettent au navigateur de paralléliser jusqu'à 4×.
-          // Style "voyager" = look équivalent à OSM mais plus lisible.
-          basemap: {
-            type: "raster",
-            tiles: [
-              "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-              "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-              "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-              "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-            ],
-            tileSize: 256,
-            attribution:
-              '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-          },
-        },
-        layers: [{ id: "basemap-layer", type: "raster", source: "basemap" }],
-      }}
+      style={MAP_CONTAINER_STYLE}
+      mapStyle={MAP_STYLE}
       onLoad={updateViewport}
       onMoveEnd={updateViewport}
     >
