@@ -78,26 +78,6 @@ export function buildVenueMetadata(venue: VenueDetail, cityName?: string): Metad
 }
 
 /**
- * Metadata pour une page sport.
- */
-export function buildSportMetadata(sportName: string, count?: number): Metadata {
-  const title = `${sportName} · Trouver un club ou terrain`;
-  const description = `Carte et liste de ${count ? `${count} ` : ""}clubs et terrains de ${sportName} partout dans le monde — Sport Hub.`;
-
-  return {
-    title,
-    description,
-    openGraph: {
-      type: "website",
-      siteName: SITE_NAME,
-      title,
-      description,
-      images: [{ url: DEFAULT_OG_IMAGE, width: 1200, height: 630, alt: `${sportName} · Sport Hub` }],
-    },
-  };
-}
-
-/**
  * Schema.org JSON-LD pour une venue (SportsActivityLocation).
  * À injecter dans <script type="application/ld+json">.
  */
