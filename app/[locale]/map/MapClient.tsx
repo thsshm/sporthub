@@ -117,7 +117,10 @@ export default function MapClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fly to target quand le token change (clic suggestion SearchBar)
+  // Fly to target quand le token change (clic suggestion SearchBar).
+  // On dépend des champs scalaires (token, lat, lon, zoom) et PAS de l'objet
+  // flyTarget complet : un re-render sans changement de coordonnées ne doit
+  // pas re-trigger un flyTo (sinon la carte saccade à chaque setState parent).
   useEffect(() => {
     if (!flyTarget) return;
     const map = mapRef.current?.getMap();
@@ -128,6 +131,7 @@ export default function MapClient({
       duration: 800,
       essential: true,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flyTarget?.token, flyTarget?.lat, flyTarget?.lon, flyTarget?.zoom]);
 
   // Fetch venues debounced quand bbox ou filtres changent.
