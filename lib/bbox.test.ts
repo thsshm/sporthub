@@ -22,6 +22,14 @@ describe("parseBbox — validation d'entrée", () => {
     expect(r.kind).toBe("error");
   });
 
+  it("rejette les valeurs non-finies (Infinity, -Infinity)", () => {
+    // Number.isNaN(Infinity) === false, donc une validation purement isNaN
+    // laisserait passer ces valeurs et produirait une bbox dégénérée côté SQL.
+    expect(parseBbox("Infinity,-90,180,90").kind).toBe("error");
+    expect(parseBbox("-180,-Infinity,180,90").kind).toBe("error");
+    expect(parseBbox("-180,-90,Infinity,90").kind).toBe("error");
+  });
+
   it("rejette une bbox où south >= north", () => {
     const r = parseBbox("0,10,10,10");
     expect(r.kind).toBe("error");

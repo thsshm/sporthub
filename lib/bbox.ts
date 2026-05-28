@@ -76,7 +76,9 @@ function clamp(value: number, min: number, max: number): number {
  */
 export function parseBbox(raw: string): NormalizedBbox | BboxParseError {
   const parts = raw.split(",").map((s) => Number.parseFloat(s.trim()));
-  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) {
+  // `Number.isFinite` rejette NaN, +Infinity et -Infinity en un seul check
+  // (Number.isNaN(Infinity) === false, donc isNaN seul laissait passer Infinity).
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
     return { kind: "error", message: "bbox must be 4 numbers: west,south,east,north" };
   }
 

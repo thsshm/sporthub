@@ -16,8 +16,8 @@ import type { VenuePin } from "@/lib/supabase/types";
  * (migration 0007) qui exploite l'index GIST PostGIS sur venue.geom.
  *
  * Gestion des bbox "exotiques" (cf. issue #101) — déléguée à `parseBbox` :
- *   - bbox mondiale (vue dézoomée par défaut MapLibre) → query sans filtre
- *     spatial (skip ST_MakeEnvelope qui plante sur ±180).
+ *   - bbox mondiale (vue dézoomée par défaut MapLibre) → enveloppe clampée à
+ *     ±179.9/±89.9 (évite l'erreur antipodale de ST_MakeEnvelope sur ±180).
  *   - bbox antiméridien (Pacifique, west > east) → split en 2 requêtes RPC
  *     puis dédup en mémoire.
  *   - bbox normale → clamping à ±179.9/±89.9 pour éviter l'edge antipodale.
@@ -113,10 +113,10 @@ async function fetchVenues(
   const sb = getSupabaseServerClient();
 
   if (bbox.kind === "global") {
-    // Bbox mondiale : on skip ST_MakeEnvelope (qui plante sur ±180) en passant
-    // une enveloppe légèrement réduite mais qui couvre toujours toutes les
-    // venues réalistes. C'est plus simple qu'une nouvelle RPC sans filtre
-    // spatial et utilise le même index GIST.
+    // Bbox mondiale : on appelle la RPC avec une enveloppe clampée ±179.9/±89.9
+    // qui couvre toutes les venues réalistes tout en évitant l'erreur antipodale
+    // de ST_MakeEnvelope sur exactement ±180. Plus simple qu'une nouvelle RPC
+    // sans filtre spatial, et exploite le même index GIST.
     const { data, error } = await sb.rpc("venues_in_bbox", {
       west: -179.9,
       south: -89.9,
