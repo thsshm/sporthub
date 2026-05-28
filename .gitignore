@@ -45,3 +45,4 @@ coverage
 # Supabase local
 supabase/.branches
 supabase/.temp
+.claude
