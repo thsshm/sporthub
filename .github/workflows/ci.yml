@@ -47,3 +47,6 @@ jobs:
 
       - name: ESLint
         run: pnpm exec next lint --max-warnings 0
+
+      - name: Unit tests (Vitest)
+        run: pnpm test
