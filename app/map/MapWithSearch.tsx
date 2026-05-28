@@ -7,6 +7,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { SportFilters } from "@/app/map/SportFilters";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
+import type { FlyTarget } from "@/app/map/MapClient";
 
 const MapClient = dynamic(() => import("@/app/map/MapClient"), { ssr: false });
 
@@ -17,11 +18,7 @@ type Props = {
 };
 
 export function MapWithSearch({ initialLat, initialLon, initialZoom }: Props) {
-  const [view, setView] = useState({
-    lat: initialLat,
-    lon: initialLon,
-    zoom: initialZoom,
-  });
+  const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
   const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(
     () => new Set(FAMILIES.map((f) => f.slug)),
   );
@@ -80,7 +77,9 @@ export function MapWithSearch({ initialLat, initialLon, initialZoom }: Props) {
       )}
 
       <SearchBar
-        onSelect={(r) => setView({ lat: r.lat, lon: r.lon, zoom: 12 })}
+        onSelect={(r) =>
+          setFlyTarget({ lat: r.lat, lon: r.lon, zoom: 12, token: Date.now() })
+        }
         className="absolute right-4 top-4 z-20 w-[min(320px,calc(100vw-180px))] md:w-80"
       />
 
@@ -89,13 +88,13 @@ export function MapWithSearch({ initialLat, initialLon, initialZoom }: Props) {
       </div>
 
       <MapClient
-        key={`${view.lat.toFixed(4)},${view.lon.toFixed(4)},${view.zoom}`}
-        initialLat={view.lat}
-        initialLon={view.lon}
-        initialZoom={view.zoom}
+        initialLat={initialLat}
+        initialLon={initialLon}
+        initialZoom={initialZoom}
         selectedFamilies={selectedFamilies}
         totalFamilies={FAMILIES.length}
         onVenuesChange={setVisibleCount}
+        flyTarget={flyTarget}
       />
     </div>
   );
