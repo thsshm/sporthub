@@ -30,10 +30,11 @@ export async function generateMetadata({
     return { title: t("notFoundTitle") };
   }
   const tSports = await getTranslations({ locale, namespace: "sports" });
+  const tSport = await getTranslations({ locale, namespace: "sport" });
   const name = tSports.has(sportSlug) ? tSports(sportSlug) : sport.name_fr;
   return {
     title: name,
-    description: name,
+    description: tSport("metaDescription", { sport: name }),
   };
 }
 

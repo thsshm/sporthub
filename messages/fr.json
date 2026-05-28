@@ -58,7 +58,8 @@
     "exploreOthers": "Explorer les autres sports",
     "previous": "← Précédent",
     "next": "Suivant →",
-    "mapHint": "Carte interactive — pan/zoom recharge les venues {sport} du viewport (jusqu'à 2 000)."
+    "mapHint": "Carte interactive — pan/zoom recharge les venues {sport} du viewport (jusqu'à 2 000).",
+    "metaDescription": "Carte et liste des clubs et terrains de {sport} partout dans le monde — Sport Hub."
   },
   "programmatic": {
     "title": "Clubs de {sport} à {city} ({count} adresses)",

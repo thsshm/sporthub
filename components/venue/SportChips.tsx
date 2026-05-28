@@ -1,7 +1,8 @@
 /**
  * Chips colorées pour les sports d'un venue.
- * Couleur par famille, emoji par sport.
+ * Couleur par famille, emoji par sport, nom traduit via next-intl.
  */
+import { useTranslations } from "next-intl";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export function SportChips({ sportSlugs, className }: Props) {
+  const tSports = useTranslations("sports");
   if (!sportSlugs.length) return null;
 
   return (
@@ -21,16 +23,17 @@ export function SportChips({ sportSlugs, className }: Props) {
 
         const family = FAMILIES_BY_SLUG[sport.family_slug];
         const color = family?.color ?? "#6b7280";
+        const name = tSports.has(sport.slug) ? tSports(sport.slug) : sport.name_fr;
 
         return (
           <span
             key={slug}
             className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
             style={{ backgroundColor: color }}
-            title={sport.name_fr}
+            title={name}
           >
             {sport.emoji && <span aria-hidden="true">{sport.emoji}</span>}
-            {sport.name_fr}
+            {name}
           </span>
         );
       })}

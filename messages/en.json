@@ -58,7 +58,8 @@
     "exploreOthers": "Explore other sports",
     "previous": "← Previous",
     "next": "Next →",
-    "mapHint": "Interactive map — pan/zoom reloads the {sport} venues in view (up to 2 000)."
+    "mapHint": "Interactive map — pan/zoom reloads the {sport} venues in view (up to 2 000).",
+    "metaDescription": "Map and list of {sport} clubs and courts worldwide — Sport Hub."
   },
   "programmatic": {
     "title": "{sport} clubs in {city} ({count} addresses)",

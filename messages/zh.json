@@ -58,7 +58,8 @@
     "exploreOthers": "浏览其他运动",
     "previous": "← 上一页",
     "next": "下一页 →",
-    "mapHint": "交互地图 — 拖动/缩放重新加载视图中的{sport}场所(最多 2 000 个)。"
+    "mapHint": "交互地图 — 拖动/缩放重新加载视图中的{sport}场所(最多 2 000 个)。",
+    "metaDescription": "全球 {sport} 俱乐部和场地的地图与列表 — Sport Hub。"
   },
   "programmatic": {
     "title": "{city}的{sport}俱乐部({count} 个地址)",
