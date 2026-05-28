@@ -2,9 +2,15 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Map, Marker, NavigationControl, Popup } from "react-map-gl/maplibre";
+import {
+  Map,
+  Marker,
+  NavigationControl,
+  Popup,
+  type MapRef,
+} from "react-map-gl/maplibre";
 import { Star } from "lucide-react";
 import type { VenuePin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji } from "@/lib/families";
@@ -35,11 +41,22 @@ function persistFavorites(favs: Set<string>) {
   }
 }
 
+export type FlyTarget = {
+  lat: number;
+  lon: number;
+  zoom?: number;
+  /** Token qui change à chaque demande de fly, même vers le même target.
+   * Permet de re-déclencher l'effet quand l'user clique 2x la même suggestion. */
+  token: number;
+};
+
 type Props = {
   venues: VenuePin[];
   initialLat: number;
   initialLon: number;
   initialZoom: number;
+  /** Optionnel : si set, MapClient appelle map.flyTo() à chaque changement de token. */
+  flyTarget?: FlyTarget | null;
   onVenueClick?: (venue: VenuePin) => void;
 };
 
@@ -48,13 +65,28 @@ export default function MapClient({
   initialLat,
   initialLon,
   initialZoom,
+  flyTarget,
 }: Props) {
+  const mapRef = useRef<MapRef | null>(null);
   const [selected, setSelected] = useState<VenuePin | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setFavorites(loadFavorites());
   }, []);
+
+  // Fly to target quand le token change (search bar suggestion clic)
+  useEffect(() => {
+    if (!flyTarget) return;
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    map.flyTo({
+      center: [flyTarget.lon, flyTarget.lat],
+      zoom: flyTarget.zoom ?? 12,
+      duration: 800,
+      essential: true,
+    });
+  }, [flyTarget?.token, flyTarget?.lat, flyTarget?.lon, flyTarget?.zoom]);
 
   const toggleFavorite = (slug: string) => {
     setFavorites((prev) => {
@@ -68,6 +100,7 @@ export default function MapClient({
 
   return (
     <Map
+      ref={mapRef}
       initialViewState={{
         latitude: initialLat,
         longitude: initialLon,
