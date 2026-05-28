@@ -56,6 +56,19 @@ export function SportFilters({
   const selectAll = () => onChange(new Set(FAMILIES.map((f) => f.slug)));
   const selectNone = () => onChange(new Set());
 
+  // Reset = "tout cocher familles + aucun critère + autoUpdate on".
+  // Pratique : un seul clic pour revenir à la vue par défaut après explorer
+  // une sélection fine.
+  const hasActiveFilters =
+    selected.size < FAMILIES.length ||
+    selectedCriteria.size > 0 ||
+    !autoUpdate;
+  const resetAll = () => {
+    onChange(new Set(FAMILIES.map((f) => f.slug)));
+    onCriteriaChange(new Set());
+    onAutoUpdateChange(true);
+  };
+
   const toggleCriterion = (key: CriteriaKey) => {
     const next = new Set(selectedCriteria);
     if (next.has(key)) next.delete(key);
@@ -68,6 +81,17 @@ export function SportFilters({
       aria-label={tMap("filtersTitle")}
       className={`flex flex-col gap-3 rounded-lg border bg-background/95 p-3 shadow-md backdrop-blur ${className ?? ""}`}
     >
+      {/* Bouton Reset global — visible uniquement si filtres actifs */}
+      {hasActiveFilters && (
+        <button
+          type="button"
+          onClick={resetAll}
+          className="flex items-center justify-center gap-1 rounded-md border border-dashed border-muted-foreground/30 px-2 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-foreground hover:text-foreground"
+        >
+          ↺ {tMap("resetFilters")}
+        </button>
+      )}
+
       {/* Familles */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">

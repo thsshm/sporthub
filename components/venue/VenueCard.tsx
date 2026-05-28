@@ -4,6 +4,7 @@
  */
 import Link from "next/link";
 import { MapPin } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SportChips } from "@/components/venue/SportChips";
 import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
@@ -19,10 +20,11 @@ type Props = {
   };
 };
 
-export function VenueCard({ venue }: Props) {
+export async function VenueCard({ venue }: Props) {
   const emoji = getFamilyEmoji(venue.family_slug);
   const familyColor = getFamilyColor(venue.family_slug);
   const location = venue.city_name ?? venue.address ?? "";
+  const t = await getTranslations("venue");
 
   return (
     <Link href={`/venue/${venue.slug}`} className="group block" tabIndex={0}>
@@ -69,7 +71,7 @@ export function VenueCard({ venue }: Props) {
           {/* Courts / installations */}
           {venue.courts_count != null && venue.courts_count > 0 && (
             <p className="mt-2 text-xs text-muted-foreground">
-              {venue.courts_count} terrain{venue.courts_count > 1 ? "s" : ""}
+              {t("courtsCount", { count: venue.courts_count })}
             </p>
           )}
         </CardContent>
