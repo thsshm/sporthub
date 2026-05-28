@@ -1,29 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import { SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import { SportFilters } from "@/app/map/SportFilters";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
-import type { VenuePin } from "@/lib/supabase/types";
 
 const MapClient = dynamic(() => import("@/app/map/MapClient"), { ssr: false });
 
 type Props = {
-  venues: VenuePin[];
   initialLat: number;
   initialLon: number;
   initialZoom: number;
 };
 
-export function MapWithSearch({
-  venues,
-  initialLat,
-  initialLon,
-  initialZoom,
-}: Props) {
+export function MapWithSearch({ initialLat, initialLon, initialZoom }: Props) {
   const [view, setView] = useState({
     lat: initialLat,
     lon: initialLon,
@@ -33,11 +26,7 @@ export function MapWithSearch({
     () => new Set(FAMILIES.map((f) => f.slug)),
   );
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-
-  const filteredVenues = useMemo(
-    () => venues.filter((v) => selectedFamilies.has(v.family_slug)),
-    [venues, selectedFamilies],
-  );
+  const [visibleCount, setVisibleCount] = useState(0);
 
   return (
     <div className="relative h-full w-full">
@@ -96,16 +85,17 @@ export function MapWithSearch({
       />
 
       <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
-        <span className="font-semibold">{formatCount(filteredVenues.length)}</span>{" "}
-        / {formatCount(venues.length)} spots
+        <span className="font-semibold">{formatCount(visibleCount)}</span> spots dans la vue
       </div>
 
       <MapClient
         key={`${view.lat.toFixed(4)},${view.lon.toFixed(4)},${view.zoom}`}
-        venues={filteredVenues}
         initialLat={view.lat}
         initialLon={view.lon}
         initialZoom={view.zoom}
+        selectedFamilies={selectedFamilies}
+        totalFamilies={FAMILIES.length}
+        onVenuesChange={setVisibleCount}
       />
     </div>
   );
