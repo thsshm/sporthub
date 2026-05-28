@@ -88,6 +88,26 @@ async redirects() {
 | `rule` (ex `G_geo_50m`) | `enrichments.cluster_rule` |
 | `created_at` | `enrichments.v1_created_at` |
 
+## Sitemap V2 — structure index + sub-sitemaps
+
+Depuis #88, `/sitemap.xml` est un **sitemap-index** qui référence des sub-sitemaps pour
+contourner la limite Google (50 000 URLs ou 50 MB par fichier). Avec ~348k venues en
+prod, on découpe en 7 sub-sitemaps venues (50k chacun max).
+
+| URL | Contenu |
+|---|---|
+| `/sitemap.xml` | Sitemap-index (liste les sub-sitemaps ci-dessous) |
+| `/sitemap/static.xml` | Home, `/map`, 13 pages famille `/sports/[sport]` |
+| `/sitemap/programmatic.xml` | Pages `/[sport]/[country]/[city]` (capé à 50k combos) |
+| `/sitemap/venues-0.xml` | Venues 0..49999 (paginé par `id` croissant) |
+| `/sitemap/venues-1.xml` | Venues 50000..99999 |
+| `/sitemap/venues-N.xml` | … jusqu'à couvrir tous les venues publiés |
+
+`robots.txt` continue de pointer vers `/sitemap.xml` (l'index) — Google découvre les
+sub-sitemaps automatiquement.
+
+Code : `lib/seo/sitemap.ts` (helpers) + `app/sitemap.xml/route.ts` + `app/sitemap/[slug]/route.ts`.
+
 ## Checklist parité avant cutover
 
 À cocher avant de basculer le domaine sporthubmap.com vers V2.
