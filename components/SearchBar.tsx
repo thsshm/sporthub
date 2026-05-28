@@ -97,7 +97,6 @@ export function SearchBar({
           placeholder={placeholder}
           aria-label="Rechercher une ville"
           aria-autocomplete="list"
-          aria-expanded={open}
           className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
         {loading && (
