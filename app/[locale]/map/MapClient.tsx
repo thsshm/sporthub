@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
   Map,
   Marker,
@@ -13,9 +14,10 @@ import {
 } from "react-map-gl/maplibre";
 import Supercluster from "supercluster";
 import type { ClusterFeature, PointFeature } from "supercluster";
-import { Star } from "lucide-react";
+import { Search, Star } from "lucide-react";
 import type { VenuePin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji } from "@/lib/families";
+import { saveViewport } from "@/lib/map-storage";
 import {
   appleMapsUrl,
   googleMapsUrl,
@@ -115,6 +117,11 @@ type Props = {
   /** Critères universels cochés (lit / indoor / wheelchair / free / paid).
    * Envoyés à /api/venues?feat=... — AND entre critères côté DB. */
   selectedCriteria?: Set<string>;
+  /** Quand true (défaut), MapClient re-fetch automatiquement à chaque pan/zoom.
+   * Quand false, le pan/zoom ne déclenche pas de fetch — un bouton "Rechercher
+   * dans cette zone" apparaît à la place, et c'est le user qui décide quand
+   * recharger. Cf. #124. */
+  autoUpdate?: boolean;
 };
 
 export default function MapClient({
@@ -129,7 +136,9 @@ export default function MapClient({
   selectedSport,
   initialVenues,
   selectedCriteria,
+  autoUpdate = true,
 }: Props) {
+  const tMap = useTranslations("map");
   const mapRef = useRef<MapRef | null>(null);
   const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(
     () => initialVenues ?? [],
@@ -140,6 +149,14 @@ export default function MapClient({
   const [selected, setSelected] = useState<VenuePin | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  // Clé "filtres + bounds" du dernier fetch réussi. Permet de détecter si
+  // l'utilisateur a pané/zoomé depuis (afficher "Rechercher dans cette zone").
+  const lastFetchedKeyRef = useRef<string | null>(null);
+  // Token incrémenté quand l'utilisateur clique sur "Rechercher dans cette zone".
+  // Stocké en state pour déclencher le re-run du useEffect, comparé via ref
+  // pour savoir si "ce tour-ci" est dû à un user-force.
+  const [forceFetchToken, setForceFetchToken] = useState(0);
+  const prevForceFetchTokenRef = useRef(0);
 
   useEffect(() => {
     setFavorites(loadFavorites());
@@ -170,6 +187,27 @@ export default function MapClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flyTarget?.token, flyTarget?.lat, flyTarget?.lon, flyTarget?.zoom]);
 
+  // Clés normalisées pour comparer "ce qui changerait le résultat".
+  // On les sépare pour distinguer "filtres ont changé" vs "uniquement bbox".
+  // Filtres → toujours re-fetch (intent utilisateur explicite).
+  // Bbox seul → re-fetch SEULEMENT si autoUpdate=true OU si forceFetchToken bouge.
+  const filtersKey = useMemo(() => {
+    const fam =
+      selectedFamilies &&
+      totalFamilies &&
+      selectedFamilies.size > 0 &&
+      selectedFamilies.size < totalFamilies
+        ? Array.from(selectedFamilies).sort().join(",")
+        : "";
+    const crit =
+      selectedCriteria && selectedCriteria.size > 0
+        ? Array.from(selectedCriteria).sort().join(",")
+        : "";
+    return `${fam}|${selectedSport || ""}|${crit}`;
+  }, [selectedFamilies, totalFamilies, selectedSport, selectedCriteria]);
+
+  const boundsKey = useMemo(() => (bounds ? bounds.join(",") : ""), [bounds]);
+
   // Fetch venues debounced quand bbox ou filtres changent.
   // Skip si on est en mode presetVenues (venues fixes passées en prop).
   useEffect(() => {
@@ -178,6 +216,23 @@ export default function MapClient({
       return;
     }
     if (!bounds) return;
+    const currentKey = `${boundsKey}|${filtersKey}`;
+    if (currentKey === lastFetchedKeyRef.current) return;
+    // Détecte si l'effect tourne suite à un user-click "Rechercher dans cette
+    // zone" (forceFetchToken a bougé). Si oui, on bypass le gate autoUpdate.
+    const userForcedFetch =
+      forceFetchToken !== prevForceFetchTokenRef.current;
+    prevForceFetchTokenRef.current = forceFetchToken;
+    // Si autoUpdate=off ET pas un force user ET que SEUL le bbox a bougé
+    // (filtres identiques au dernier fetch), on n'auto-fetch pas. L'user
+    // déclenchera via "Rechercher dans cette zone".
+    if (!autoUpdate && !userForcedFetch) {
+      const last = lastFetchedKeyRef.current;
+      const lastFiltersKey = last ? last.split("|").slice(1).join("|") : null;
+      if (lastFiltersKey !== null && lastFiltersKey === filtersKey) {
+        return;
+      }
+    }
     setLoading(true);
     const handle = setTimeout(async () => {
       const params = new URLSearchParams({ bbox: bounds.join(",") });
@@ -205,6 +260,7 @@ export default function MapClient({
         const data = (await res.json()) as { venues: VenuePin[] };
         setFetchedVenues(data.venues);
         onVenuesChange?.(data.venues.length);
+        lastFetchedKeyRef.current = currentKey;
       } catch {
         setFetchedVenues([]);
         onVenuesChange?.(0);
@@ -213,7 +269,33 @@ export default function MapClient({
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, [bounds, selectedFamilies, totalFamilies, onVenuesChange, presetVenues, selectedSport, selectedCriteria]);
+  }, [
+    boundsKey,
+    filtersKey,
+    bounds,
+    selectedFamilies,
+    totalFamilies,
+    onVenuesChange,
+    presetVenues,
+    selectedSport,
+    selectedCriteria,
+    autoUpdate,
+    forceFetchToken,
+  ]);
+
+  // Bouton "Rechercher dans cette zone" visible quand autoUpdate=false ET
+  // le bbox/filtres actuels diffèrent du dernier fetch.
+  const isStale = useMemo(() => {
+    if (presetVenues) return false;
+    if (!bounds) return false;
+    if (autoUpdate) return false;
+    const currentKey = `${boundsKey}|${filtersKey}`;
+    return currentKey !== lastFetchedKeyRef.current;
+  }, [presetVenues, bounds, autoUpdate, boundsKey, filtersKey]);
+
+  const handleSearchThisArea = () => {
+    setForceFetchToken((t) => t + 1);
+  };
 
   // Supercluster index
   const supercluster = useMemo(() => {
@@ -233,13 +315,17 @@ export default function MapClient({
     return supercluster.getClusters(bounds, Math.floor(zoom));
   }, [supercluster, bounds, zoom]);
 
-  // Sync bounds + zoom à chaque interaction
+  // Sync bounds + zoom à chaque interaction + persistance localStorage du
+  // viewport (l'user retrouve sa dernière position au prochain /map).
   const updateViewport = () => {
     const map = mapRef.current?.getMap();
     if (!map) return;
     const b = map.getBounds();
     setBounds([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
-    setZoom(map.getZoom());
+    const newZoom = map.getZoom();
+    setZoom(newZoom);
+    const c = map.getCenter();
+    saveViewport({ lat: c.lat, lon: c.lng, zoom: newZoom });
   };
 
   // Force le premier render MapLibre après le mount.
@@ -266,6 +352,20 @@ export default function MapClient({
     selectedFamilies !== undefined && selectedFamilies.size === 0;
 
   return (
+    <div className="relative h-full w-full">
+      {/* Bouton "Rechercher dans cette zone" — visible quand autoUpdate=off
+          ET le bbox courant diffère du dernier fetch. Pattern Airbnb/Google Maps. */}
+      {isStale && !loading && (
+        <button
+          type="button"
+          onClick={handleSearchThisArea}
+          className="pointer-events-auto absolute left-1/2 top-4 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full border bg-background/95 px-4 py-2 text-sm font-medium shadow-lg backdrop-blur transition hover:bg-accent"
+        >
+          <Search className="h-4 w-4" aria-hidden="true" />
+          {tMap("searchInThisArea")}
+        </button>
+      )}
+
     <Map
       ref={mapRef}
       initialViewState={{
@@ -443,5 +543,6 @@ export default function MapClient({
         </Popup>
       )}
     </Map>
+    </div>
   );
 }

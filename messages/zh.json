@@ -142,7 +142,13 @@
       "wheelchair": "无障碍",
       "free": "免费",
       "paid": "付费"
-    }
+    },
+    "myLocation": "我的位置",
+    "myLocationDenied": "浏览器拒绝定位权限。",
+    "myLocationUnavailable": "无法获取位置。请重试或手动搜索。",
+    "autoUpdate": "自动更新",
+    "autoUpdateHint": "拖动/缩放时自动重新加载场所",
+    "searchInThisArea": "搜索此区域"
   },
   "footer": {
     "about": "Sport Hub",
