@@ -239,6 +239,22 @@ def yield_venues_from_clubs(conn: sqlite3.Connection, city_index: dict, limit: i
         yield venue, sports, features
 
 
+def _load_valid_sport_slugs() -> set[str]:
+    """Cache la liste des sport.slug valides Supabase pour valider le FK."""
+    rows = sb.table("sport").select("slug").execute().data
+    return {r["slug"] for r in rows}
+
+
+_VALID_SPORTS: set[str] | None = None
+
+
+def _is_valid_sport(slug: str | None) -> bool:
+    global _VALID_SPORTS
+    if _VALID_SPORTS is None:
+        _VALID_SPORTS = _load_valid_sport_slugs()
+    return bool(slug) and slug in _VALID_SPORTS
+
+
 def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: int | None):
     """Itère sur la table spots (granularité fine : 1 spot = 1 venue, ~522k au max)."""
     sql = """
@@ -260,7 +276,11 @@ def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: i
         country = (r["country"] or "").upper()
         country_code = country if len(country) == 2 else None
         city_id = city_index.get((country, slugify(r["city"] or ""))) if country else None
-        sports = safe_json(r["sports"]) or ([r["sport_type"]] if r["sport_type"] else [])
+        raw_sports = safe_json(r["sports"]) or ([r["sport_type"]] if r["sport_type"] else [])
+        # Filtre les sports inconnus (FK violation sinon). Ex: "climbing_adventure"
+        # apparaît dans V1 mais pas dans le seed 0001 → on les drop.
+        sports = [s for s in raw_sports if _is_valid_sport(s)]
+        primary_sport_slug = r["sport_type"] if _is_valid_sport(r["sport_type"]) else None
         # public_id de la forme "osm/way/12345" — garantit unicité
         slug_suffix = slugify(r["public_id"])[:30]
         features = {
@@ -285,7 +305,7 @@ def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: i
             "phone": r["phone"],
             "email": r["email"],
             "family_slug": r["sport_family"],
-            "primary_sport_slug": r["sport_type"],
+            "primary_sport_slug": primary_sport_slug,
             "courts_count": r["courts_count"],
             "is_indoor": bool(r["covered"]) if r["covered"] is not None else None,
             "has_lighting": bool(r["lit"]) if r["lit"] is not None else None,
