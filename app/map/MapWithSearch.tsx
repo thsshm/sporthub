@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
-import type { VenuePin } from "@/lib/supabase/types";
+import { SportFilters } from "@/app/map/SportFilters";
+import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
+import type { VenuePin } from "@/lib/supabase/types";
 
 const MapClient = dynamic(() => import("@/app/map/MapClient"), { ssr: false });
 
@@ -15,13 +18,6 @@ type Props = {
   initialZoom: number;
 };
 
-/**
- * Wrapper Client qui lie SearchBar et MapClient.
- * Au clic sur une suggestion ville, on remonte le composant Map avec une
- * nouvelle initialViewState (via `key` qui force remount) — c'est une
- * solution MVP. Pour un fly-to fluide on passera par un mapRef +
- * useImperativeHandle dans une issue dédiée.
- */
 export function MapWithSearch({
   venues,
   initialLat,
@@ -33,24 +29,80 @@ export function MapWithSearch({
     lon: initialLon,
     zoom: initialZoom,
   });
+  const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(
+    () => new Set(FAMILIES.map((f) => f.slug)),
+  );
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  const filteredVenues = useMemo(
+    () => venues.filter((v) => selectedFamilies.has(v.family_slug)),
+    [venues, selectedFamilies],
+  );
 
   return (
     <div className="relative h-full w-full">
-      <SearchBar
-        onSelect={(r) => setView({ lat: r.lat, lon: r.lon, zoom: 12 })}
-        className="absolute left-4 top-4 z-20 w-[min(380px,calc(100vw-32px))]"
+      {/* Sidebar desktop */}
+      <SportFilters
+        selected={selectedFamilies}
+        onChange={setSelectedFamilies}
+        className="absolute left-4 top-4 z-20 hidden max-h-[calc(100%-2rem)] w-56 overflow-auto md:flex"
       />
 
-      <div
-        className="pointer-events-none absolute left-4 bottom-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur"
+      {/* Bouton filtres mobile */}
+      <button
+        type="button"
+        onClick={() => setMobileFiltersOpen(true)}
+        aria-label="Ouvrir les filtres"
+        className="absolute left-4 top-4 z-20 flex items-center gap-1.5 rounded-md border bg-background/95 px-3 py-2 text-sm shadow-md backdrop-blur md:hidden"
       >
-        <span className="font-semibold">{formatCount(venues.length)}</span>{" "}
-        spots
+        <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+        Filtres
+      </button>
+
+      {/* Drawer filtres mobile */}
+      {mobileFiltersOpen && (
+        <div className="absolute inset-0 z-30 md:hidden" role="dialog" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMobileFiltersOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-background shadow-lg">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <span className="text-sm font-semibold">Filtres familles</span>
+              <button
+                type="button"
+                onClick={() => setMobileFiltersOpen(false)}
+                aria-label="Fermer les filtres"
+                className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-3">
+              <SportFilters
+                selected={selectedFamilies}
+                onChange={setSelectedFamilies}
+                className="border-0 p-0 shadow-none"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SearchBar
+        onSelect={(r) => setView({ lat: r.lat, lon: r.lon, zoom: 12 })}
+        className="absolute right-4 top-4 z-20 w-[min(320px,calc(100vw-180px))] md:w-80"
+      />
+
+      <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
+        <span className="font-semibold">{formatCount(filteredVenues.length)}</span>{" "}
+        / {formatCount(venues.length)} spots
       </div>
 
       <MapClient
         key={`${view.lat.toFixed(4)},${view.lon.toFixed(4)},${view.zoom}`}
-        venues={venues}
+        venues={filteredVenues}
         initialLat={view.lat}
         initialLon={view.lon}
         initialZoom={view.zoom}
