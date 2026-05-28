@@ -43,8 +43,8 @@ const resolveContext = cache(async (params: Props["params"]): Promise<Ctx | null
 
   const { count } = await sb
     .from("venue")
-    .select("id, venue_sport!inner(sport_slug)", { count: "exact", head: true })
-    .eq("venue_sport.sport_slug", params.sport)
+    .select("id", { count: "exact", head: true })
+    .eq("primary_sport_slug", params.sport)
     .eq("city_id", (city as { id: string }).id)
     .eq("is_published", true)
     .is("deleted_at", null);
@@ -67,23 +67,23 @@ type VenueRow = {
   address: string | null;
   courts_count: number | null;
   country_code: string | null;
-  venue_sport?: { sport_slug: string }[];
 };
 
 async function fetchVenues(ctx: Ctx, page: number) {
   const sb = getSupabaseServerClient();
   const offset = (page - 1) * PAGE_SIZE;
 
+  // Mono-table query (primary_sport_slug) au lieu du inner join venue_sport.
+  // Le inner-join timeout à >3s pour ce combo (sport + city + paginated).
+  // Trade-off : on loupe les venues qui ont le sport en secondaire (vs primary).
+  // Pour les pages programmatiques city × sport, l'utilisateur cherche les
+  // venues *dédiés* à ce sport, donc primary_sport_slug est le bon filtre.
   const { data, error } = await sb
     .from("venue")
     .select(
-      `
-      id, slug, name, lat, lon, family_slug, primary_sport_slug,
-      address, courts_count, country_code,
-      venue_sport!inner ( sport_slug )
-    `,
+      "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code",
     )
-    .eq("venue_sport.sport_slug", ctx.sport.slug)
+    .eq("primary_sport_slug", ctx.sport.slug)
     .eq("city_id", ctx.city.id)
     .eq("is_published", true)
     .is("deleted_at", null)
@@ -96,7 +96,7 @@ async function fetchVenues(ctx: Ctx, page: number) {
     ...v,
     city_name: ctx.city.name,
     country_code: v.country_code ?? ctx.city.country_code ?? undefined,
-    sport_slugs: v.venue_sport?.map((vs) => vs.sport_slug) ?? [],
+    sport_slugs: v.primary_sport_slug ? [v.primary_sport_slug] : [],
   }));
 }
 
