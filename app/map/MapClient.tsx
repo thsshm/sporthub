@@ -2,9 +2,17 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Map, Marker, NavigationControl, Popup } from "react-map-gl/maplibre";
+import {
+  Map,
+  Marker,
+  NavigationControl,
+  Popup,
+  type MapRef,
+} from "react-map-gl/maplibre";
+import Supercluster from "supercluster";
+import type { ClusterFeature, PointFeature } from "supercluster";
 import { Star } from "lucide-react";
 import type { VenuePin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji } from "@/lib/families";
@@ -31,43 +39,112 @@ function persistFavorites(favs: Set<string>) {
   try {
     window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(Array.from(favs)));
   } catch {
-    // localStorage plein ou mode privé — on ignore silencieusement
+    /* localStorage plein/privé → silent */
   }
 }
 
+type Bounds = [number, number, number, number]; // [west, south, east, north]
+type PointProps = { venue: VenuePin };
+
 type Props = {
-  venues: VenuePin[];
   initialLat: number;
   initialLon: number;
   initialZoom: number;
-  onVenueClick?: (venue: VenuePin) => void;
+  /** Familles cochées. Si toutes ou vide, on n'envoie pas le param families au backend. */
+  selectedFamilies?: Set<string>;
+  totalFamilies?: number;
+  /** Callback pour reporter le count de venues fetched (overlay UI parent). */
+  onVenuesChange?: (count: number) => void;
 };
 
 export default function MapClient({
-  venues,
   initialLat,
   initialLon,
   initialZoom,
+  selectedFamilies,
+  totalFamilies,
+  onVenuesChange,
 }: Props) {
+  const mapRef = useRef<MapRef | null>(null);
+  const [venues, setVenues] = useState<VenuePin[]>([]);
+  const [bounds, setBounds] = useState<Bounds | null>(null);
+  const [zoom, setZoom] = useState<number>(initialZoom);
   const [selected, setSelected] = useState<VenuePin | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setFavorites(loadFavorites());
   }, []);
 
-  const toggleFavorite = (slug: string) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(slug)) next.delete(slug);
-      else next.add(slug);
-      persistFavorites(next);
-      return next;
-    });
+  // Fetch venues debounced quand bbox ou filtres changent
+  useEffect(() => {
+    if (!bounds) return;
+    setLoading(true);
+    const handle = setTimeout(async () => {
+      const params = new URLSearchParams({ bbox: bounds.join(",") });
+      if (
+        selectedFamilies &&
+        totalFamilies &&
+        selectedFamilies.size > 0 &&
+        selectedFamilies.size < totalFamilies
+      ) {
+        params.set("families", Array.from(selectedFamilies).join(","));
+      }
+      try {
+        const res = await fetch(`/api/venues?${params}`);
+        if (!res.ok) {
+          setVenues([]);
+          onVenuesChange?.(0);
+          return;
+        }
+        const data = (await res.json()) as { venues: VenuePin[] };
+        setVenues(data.venues);
+        onVenuesChange?.(data.venues.length);
+      } catch {
+        setVenues([]);
+        onVenuesChange?.(0);
+      } finally {
+        setLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [bounds, selectedFamilies, totalFamilies, onVenuesChange]);
+
+  // Supercluster index
+  const supercluster = useMemo(() => {
+    const sc = new Supercluster<PointProps>({ radius: 60, maxZoom: 16 });
+    sc.load(
+      venues.map((v) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [v.lon, v.lat] },
+        properties: { venue: v },
+      })),
+    );
+    return sc;
+  }, [venues]);
+
+  const clusters = useMemo(() => {
+    if (!bounds) return [];
+    return supercluster.getClusters(bounds, Math.floor(zoom));
+  }, [supercluster, bounds, zoom]);
+
+  // Sync bounds + zoom à chaque interaction
+  const updateViewport = () => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const b = map.getBounds();
+    setBounds([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+    setZoom(map.getZoom());
   };
+
+  // Empty filter (l'user a tout décoché) — pas la peine de fetch
+  const emptyFilter =
+    selectedFamilies !== undefined && selectedFamilies.size === 0;
 
   return (
     <Map
+      ref={mapRef}
       initialViewState={{
         latitude: initialLat,
         longitude: initialLon,
@@ -86,29 +163,81 @@ export default function MapClient({
         },
         layers: [{ id: "osm-layer", type: "raster", source: "osm" }],
       }}
+      onLoad={updateViewport}
+      onMoveEnd={updateViewport}
     >
       <NavigationControl position="top-right" />
 
-      {venues.map((v) => (
-        <Marker
-          key={v.id}
-          latitude={v.lat}
-          longitude={v.lon}
-          anchor="center"
-          onClick={(e) => {
-            e.originalEvent.stopPropagation();
-            setSelected(v);
-          }}
-        >
-          <button
-            type="button"
-            aria-label={v.name}
-            title={v.name}
-            className="block h-3 w-3 cursor-pointer rounded-full border-2 border-white shadow-md transition-transform hover:scale-150"
-            style={{ backgroundColor: getFamilyColor(v.family_slug) }}
-          />
-        </Marker>
-      ))}
+      {!emptyFilter &&
+        clusters.map((feature) => {
+          const [lon, lat] = feature.geometry.coordinates;
+
+          // Cluster bubble (count)
+          if ("cluster" in feature.properties && feature.properties.cluster) {
+            const cf = feature as ClusterFeature<PointProps>;
+            const count = cf.properties.point_count;
+            const size = Math.min(60, 20 + Math.log2(count) * 8);
+            return (
+              <Marker
+                key={`cluster-${cf.id}`}
+                latitude={lat}
+                longitude={lon}
+                anchor="center"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  const expansionZoom = Math.min(
+                    supercluster.getClusterExpansionZoom(Number(cf.id)),
+                    18,
+                  );
+                  mapRef.current?.getMap().flyTo({
+                    center: [lon, lat],
+                    zoom: expansionZoom,
+                    duration: 500,
+                  });
+                }}
+              >
+                <button
+                  type="button"
+                  aria-label={`${count} spots — zoomer`}
+                  className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary/90 font-semibold text-white shadow-md transition-transform hover:scale-110"
+                  style={{ width: size, height: size, fontSize: size > 36 ? 14 : 12 }}
+                >
+                  {count}
+                </button>
+              </Marker>
+            );
+          }
+
+          // Pin individuel
+          const pf = feature as PointFeature<PointProps>;
+          const v = pf.properties.venue;
+          return (
+            <Marker
+              key={v.id}
+              latitude={lat}
+              longitude={lon}
+              anchor="center"
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                setSelected(v);
+              }}
+            >
+              <button
+                type="button"
+                aria-label={v.name}
+                title={v.name}
+                className="block h-3 w-3 cursor-pointer rounded-full border-2 border-white shadow-md transition-transform hover:scale-150"
+                style={{ backgroundColor: getFamilyColor(v.family_slug) }}
+              />
+            </Marker>
+          );
+        })}
+
+      {loading && (
+        <div className="pointer-events-none absolute right-4 top-20 z-10 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
+          chargement…
+        </div>
+      )}
 
       {selected && (
         <Popup
@@ -122,7 +251,6 @@ export default function MapClient({
           maxWidth="280px"
         >
           <div className="min-w-[220px] space-y-2 p-1">
-            {/* Header : famille + bouton favori */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-xs text-gray-600">
                 <span aria-hidden="true">{getFamilyEmoji(selected.family_slug)}</span>
@@ -130,7 +258,15 @@ export default function MapClient({
               </div>
               <button
                 type="button"
-                onClick={() => toggleFavorite(selected.slug)}
+                onClick={() =>
+                  setFavorites((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(selected.slug)) next.delete(selected.slug);
+                    else next.add(selected.slug);
+                    persistFavorites(next);
+                    return next;
+                  })
+                }
                 aria-label={
                   favorites.has(selected.slug)
                     ? "Retirer des favoris"
@@ -147,7 +283,6 @@ export default function MapClient({
               </button>
             </div>
 
-            {/* Nom + lien détail */}
             <Link
               href={`/venue/${selected.slug}`}
               className="block text-sm font-semibold leading-tight text-gray-900 hover:underline"
@@ -155,14 +290,12 @@ export default function MapClient({
               {selected.name}
             </Link>
 
-            {/* Boutons Itinéraire */}
             <div className="flex flex-wrap gap-1 text-[11px]">
               <a
                 href={googleMapsUrl(selected.lat, selected.lon, selected.name)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded border border-gray-200 px-2 py-1 text-gray-700 hover:bg-gray-50"
-                title="Itinéraire Google Maps"
               >
                 📍 Google
               </a>
@@ -171,7 +304,6 @@ export default function MapClient({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded border border-gray-200 px-2 py-1 text-gray-700 hover:bg-gray-50"
-                title="Itinéraire Apple Maps"
               >
                 🗺️ Apple
               </a>
@@ -180,7 +312,6 @@ export default function MapClient({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded border border-gray-200 px-2 py-1 text-gray-700 hover:bg-gray-50"
-                title="Itinéraire Waze"
               >
                 🚗 Waze
               </a>
@@ -192,7 +323,6 @@ export default function MapClient({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded border border-gray-200 px-2 py-1 text-gray-700 hover:bg-gray-50"
-                title="Partager sur WhatsApp"
               >
                 💬 WhatsApp
               </a>
