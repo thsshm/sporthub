@@ -46,6 +46,16 @@ function persistFavorites(favs: Set<string>) {
 type Bounds = [number, number, number, number]; // [west, south, east, north]
 type PointProps = { venue: VenuePin };
 
+export type FlyTarget = {
+  lat: number;
+  lon: number;
+  zoom?: number;
+  /** Token (timestamp) qui change à chaque demande, re-déclenche l'effet
+   * même si le user clique 2× la même suggestion (sinon le state inchangé
+   * ne re-trigger pas le useEffect). */
+  token: number;
+};
+
 type Props = {
   initialLat: number;
   initialLon: number;
@@ -55,6 +65,8 @@ type Props = {
   totalFamilies?: number;
   /** Callback pour reporter le count de venues fetched (overlay UI parent). */
   onVenuesChange?: (count: number) => void;
+  /** Quand set, MapClient appelle map.flyTo() à chaque changement de token. */
+  flyTarget?: FlyTarget | null;
 };
 
 export default function MapClient({
@@ -64,6 +76,7 @@ export default function MapClient({
   selectedFamilies,
   totalFamilies,
   onVenuesChange,
+  flyTarget,
 }: Props) {
   const mapRef = useRef<MapRef | null>(null);
   const [venues, setVenues] = useState<VenuePin[]>([]);
@@ -76,6 +89,19 @@ export default function MapClient({
   useEffect(() => {
     setFavorites(loadFavorites());
   }, []);
+
+  // Fly to target quand le token change (clic suggestion SearchBar)
+  useEffect(() => {
+    if (!flyTarget) return;
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    map.flyTo({
+      center: [flyTarget.lon, flyTarget.lat],
+      zoom: flyTarget.zoom ?? 12,
+      duration: 800,
+      essential: true,
+    });
+  }, [flyTarget?.token, flyTarget?.lat, flyTarget?.lon, flyTarget?.zoom]);
 
   // Fetch venues debounced quand bbox ou filtres changent
   useEffect(() => {
