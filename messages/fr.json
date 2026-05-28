@@ -142,7 +142,13 @@
       "wheelchair": "Accessible PMR",
       "free": "Gratuit",
       "paid": "Payant"
-    }
+    },
+    "myLocation": "Ma position",
+    "myLocationDenied": "Géolocalisation refusée par le navigateur.",
+    "myLocationUnavailable": "Position indisponible. Réessaie ou cherche manuellement.",
+    "autoUpdate": "Mise à jour auto",
+    "autoUpdateHint": "Recharge les spots à chaque pan/zoom",
+    "searchInThisArea": "Rechercher dans cette zone"
   },
   "footer": {
     "about": "Sport Hub",

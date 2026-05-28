@@ -26,6 +26,10 @@ type Props = {
   onChange: (next: Set<string>) => void;
   selectedCriteria: Set<CriteriaKey>;
   onCriteriaChange: (next: Set<CriteriaKey>) => void;
+  /** Toggle "Mise à jour auto" (recharge à chaque pan/zoom). Quand off,
+   * un bouton "Rechercher dans cette zone" apparaît dans MapClient. */
+  autoUpdate: boolean;
+  onAutoUpdateChange: (next: boolean) => void;
   className?: string;
 };
 
@@ -34,6 +38,8 @@ export function SportFilters({
   onChange,
   selectedCriteria,
   onCriteriaChange,
+  autoUpdate,
+  onAutoUpdateChange,
   className,
 }: Props) {
   const tMap = useTranslations("map");
@@ -134,6 +140,23 @@ export function SportFilters({
             );
           })}
         </ul>
+      </div>
+
+      {/* Toggle mise à jour auto (recharge en pan/zoom) */}
+      <div className="flex flex-col gap-1 border-t pt-3">
+        <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent">
+          <span className="font-medium">{tMap("autoUpdate")}</span>
+          <input
+            type="checkbox"
+            checked={autoUpdate}
+            onChange={(e) => onAutoUpdateChange(e.target.checked)}
+            className="h-4 w-4 cursor-pointer"
+            aria-label={tMap("autoUpdate")}
+          />
+        </label>
+        <p className="px-1.5 text-[11px] leading-tight text-muted-foreground">
+          {tMap("autoUpdateHint")}
+        </p>
       </div>
     </aside>
   );

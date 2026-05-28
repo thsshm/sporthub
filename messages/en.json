@@ -142,7 +142,13 @@
       "wheelchair": "Wheelchair access",
       "free": "Free",
       "paid": "Paid"
-    }
+    },
+    "myLocation": "My location",
+    "myLocationDenied": "Location access denied by browser.",
+    "myLocationUnavailable": "Location unavailable. Try again or search manually.",
+    "autoUpdate": "Auto-update",
+    "autoUpdateHint": "Reload spots on every pan/zoom",
+    "searchInThisArea": "Search this area"
   },
   "footer": {
     "about": "Sport Hub",
