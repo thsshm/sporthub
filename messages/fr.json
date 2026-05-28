@@ -60,6 +60,14 @@
     "next": "Suivant →",
     "mapHint": "Carte interactive — pan/zoom recharge les venues {sport} du viewport (jusqu'à 2 000)."
   },
+  "programmatic": {
+    "title": "Clubs de {sport} à {city} ({count} adresses)",
+    "description": "Liste complète des {count} clubs et terrains de {sport} à {city} — adresses, contacts, horaires.",
+    "h1": "{sport} à {city}",
+    "addresses": "{count, plural, =0 {Aucune adresse} one {1 adresse} other {{count} adresses}}",
+    "emptyMessage": "Pas encore de venue pour {sport} à {city}.",
+    "seeOtherCities": "Voir les autres villes"
+  },
   "venue": {
     "sportsPracticed": "Sports pratiqués",
     "address": "Adresse",

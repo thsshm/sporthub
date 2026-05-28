@@ -60,6 +60,14 @@
     "next": "Next →",
     "mapHint": "Interactive map — pan/zoom reloads the {sport} venues in view (up to 2 000)."
   },
+  "programmatic": {
+    "title": "{sport} clubs in {city} ({count} addresses)",
+    "description": "Complete list of {count} {sport} clubs and courts in {city} — addresses, contacts, hours.",
+    "h1": "{sport} in {city}",
+    "addresses": "{count, plural, =0 {No address} one {1 address} other {{count} addresses}}",
+    "emptyMessage": "No venue yet for {sport} in {city}.",
+    "seeOtherCities": "See other cities"
+  },
   "venue": {
     "sportsPracticed": "Sports played",
     "address": "Address",
