@@ -1,0 +1,49 @@
+name: CI
+
+# Garde-fou complémentaire à Vercel : si Vercel skip un check (rare mais arrive),
+# on est sûrs que typecheck + lint tournent quand même avant le merge.
+#
+# - Pull request : typecheck + lint sur la branche
+# - Push main    : pareil + cache pnpm partagé
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Annule les jobs en cours quand un nouveau commit arrive sur la même PR.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck + lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # pnpm 11 nécessite Node ≥ 22.13
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        run: pnpm exec tsc --noEmit
+
+      - name: ESLint
+        run: pnpm exec next lint --max-warnings 0
