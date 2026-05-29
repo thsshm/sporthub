@@ -294,9 +294,32 @@
       "actionUnpublish": "Dépublier",
       "actionPublish": "Publier",
       "actionDelete": "Supprimer",
+      "actionEdit": "Modifier",
       "previous": "← Précédent",
       "next": "Suivant →",
-      "editNote": "Édition complète (name/description/contacts) : à venir dans une PR dédiée."
+      "edit": {
+        "title": "Modifier la venue",
+        "subtitle": "Édition de {name}",
+        "backToList": "← Retour à la liste",
+        "deletedNotice": "Cette venue est supprimée. Restaurez-la depuis la liste pour pouvoir l'éditer.",
+        "fieldName": "Nom",
+        "fieldDescription": "Description",
+        "fieldWebsite": "Site web",
+        "fieldWebsiteHint": "URL complète avec http:// ou https://",
+        "fieldPhone": "Téléphone",
+        "fieldAddress": "Adresse",
+        "fieldPostalCode": "Code postal",
+        "submit": "Enregistrer",
+        "submitPending": "Enregistrement…",
+        "cancel": "Annuler",
+        "saving": "Sauvegarde en cours…",
+        "formErrorPrefix": "Erreur",
+        "errors": {
+          "name_required": "Le nom est requis.",
+          "name_too_long": "Le nom est trop long.",
+          "website_invalid": "URL invalide (doit commencer par http:// ou https://)."
+        }
+      }
     },
     "claimRequests": {
       "title": "Demandes de claim",
