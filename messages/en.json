@@ -320,6 +320,19 @@
       "statusRejected": "rejected"
     }
   },
+  "favorites": {
+    "metaTitle": "My favorites",
+    "metaDescription": "The spots you've favorited on Sport Hub.",
+    "title": "My favorites",
+    "loginRequired": "Sign in to access your favorite spots on every device.",
+    "loginCta": "Sign in",
+    "empty": "No favorites yet. Tap the star on any spot to add it here.",
+    "exploreMap": "Explore the map",
+    "count": "{count, plural, =0 {0 spots} one {1 spot} other {{count} spots}}",
+    "errorLoading": "Couldn't load your favorites right now. Please retry.",
+    "addLabel": "Add to favorites",
+    "removeLabel": "Remove from favorites"
+  },
   "claim": {
     "successTitle": "Request sent!",
     "successHint": "Returning to the venue page in a moment…",

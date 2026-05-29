@@ -127,6 +127,16 @@ export type BookingLink = {
   created_at: string;
 };
 
+// Favoris persistés en DB pour les users authentifiés (cf. migration 0010).
+// Les visiteurs non authentifiés gardent leurs favoris en localStorage
+// (clé `sporthub-favorites`). Le helper `lib/favorites-sync.ts` migre le
+// localStorage vers la DB au moment du login (one-shot).
+export type UserFavorite = {
+  user_id: string;
+  venue_id: string;
+  created_at: string;
+};
+
 // Type étendu pour la page détail venue — résultat d'un join
 export type VenueDetail = Venue & {
   city_name?: string;

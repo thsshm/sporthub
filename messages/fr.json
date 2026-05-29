@@ -320,6 +320,19 @@
       "statusRejected": "rejeté"
     }
   },
+  "favorites": {
+    "metaTitle": "Mes favoris",
+    "metaDescription": "Les spots que tu as mis en favoris sur Sport Hub.",
+    "title": "Mes favoris",
+    "loginRequired": "Connecte-toi pour retrouver tes spots favoris sur tous tes appareils.",
+    "loginCta": "Se connecter",
+    "empty": "Aucun favori pour l'instant. Clique sur l'étoile d'un spot pour l'ajouter ici.",
+    "exploreMap": "Explorer la carte",
+    "count": "{count, plural, =0 {0 spot} one {1 spot} other {{count} spots}}",
+    "errorLoading": "Impossible de charger tes favoris pour le moment. Réessaie dans un instant.",
+    "addLabel": "Ajouter aux favoris",
+    "removeLabel": "Retirer des favoris"
+  },
   "claim": {
     "successTitle": "Demande envoyée !",
     "successHint": "Retour à la fiche venue dans un instant…",
