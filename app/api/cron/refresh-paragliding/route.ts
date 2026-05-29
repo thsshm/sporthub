@@ -243,7 +243,7 @@ export async function GET(request: Request) {
       const chunk = allRows.slice(i, i + BATCH);
       const { error } = await sb
         .from("venue")
-        .upsert(chunk, { onConflict: "slug", ignoreDuplicates: false });
+        .upsert(chunk as never, { onConflict: "slug", ignoreDuplicates: false }); // eslint-disable-line @typescript-eslint/no-explicit-any -- types Supabase régénérés trop stricts vs enrichments Record<string,unknown>
       if (error) {
         failed += chunk.length;
         captureException(error, {

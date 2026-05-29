@@ -6,7 +6,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
-import { SportPageMap } from "./SportPageMap";
+import { SportVenuesSection } from "./SportVenuesSection";
 import type { VenuePin } from "@/lib/supabase/types";
 import {
   buildBreadcrumbJsonLd,
@@ -172,29 +172,24 @@ export default async function SportPage({ params, searchParams }: Props) {
           </Link>
         </p>
       ) : (
-        <>
-          <div className="mt-6">
-            <SportPageMap
-              sportSlug={sport.slug}
-              initialVenues={
-                venues.map((v) => ({
-                  id: v.id,
-                  slug: v.slug,
-                  name: v.name,
-                  lat: v.lat,
-                  lon: v.lon,
-                  family_slug: v.family_slug,
-                  primary_sport_slug: v.primary_sport_slug,
-                })) as VenuePin[]
-              }
-              totalSportVenues={total}
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              {t("mapHint", { sport: sportName.toLowerCase() })}
-            </p>
-          </div>
-
-          <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <SportVenuesSection
+          sportSlug={sport.slug}
+          initialVenues={
+            venues.map((v) => ({
+              id: v.id,
+              slug: v.slug,
+              name: v.name,
+              lat: v.lat,
+              lon: v.lon,
+              family_slug: v.family_slug,
+              primary_sport_slug: v.primary_sport_slug,
+            })) as VenuePin[]
+          }
+          totalSportVenues={total}
+          mapHint={t("mapHint", { sport: sportName.toLowerCase() })}
+        >
+          {/* Mode "ancré" (défaut) : grille SSR indexable + pagination. */}
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {venues.map((venue) => (
               <VenueCard key={venue.id} venue={venue} />
             ))}
@@ -234,7 +229,7 @@ export default async function SportPage({ params, searchParams }: Props) {
               )}
             </nav>
           )}
-        </>
+        </SportVenuesSection>
       )}
     </main>
   );

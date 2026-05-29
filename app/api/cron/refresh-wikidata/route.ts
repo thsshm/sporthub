@@ -212,7 +212,7 @@ export async function GET(request: Request) {
             const merged = mergeEnrichments(venue.enrichments, patch);
             const { error: updErr } = await sb
               .from("venue")
-              .update({ enrichments: merged })
+              .update({ enrichments: merged } as never)
               .eq("id", venue.id);
             if (updErr) {
               failed++;

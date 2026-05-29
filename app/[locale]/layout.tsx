@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Nav } from "@/components/layout/Nav";
 import { Footer } from "@/components/layout/Footer";
 import { FavoritesSyncOnLogin } from "@/components/FavoritesSyncOnLogin";
+import { PostHogProvider } from "@/components/PostHogProvider";
 import { routing, type Locale } from "@/i18n/routing";
 import "../globals.css";
 
@@ -12,6 +13,10 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#2d7a3e",
+  // viewport-fit=cover : permet d'utiliser env(safe-area-inset-*) dans le CSS
+  // pour éviter que les overlays bottom soient masqués par la home indicator iOS.
+  // Cf. issue #185.
+  viewportFit: "cover",
 };
 
 export async function generateMetadata({
@@ -60,12 +65,16 @@ export default async function LocaleLayout({
     <html lang={locale}>
       <body className="flex min-h-screen flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <Nav />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          {/* Watcher invisible : sync favoris localStorage → DB au login.
-              Issue #91. No UI, juste un useEffect onAuthStateChange. */}
-          <FavoritesSyncOnLogin />
+          {/* Provider analytics PostHog. No-op total sans
+              NEXT_PUBLIC_POSTHOG_KEY (pass-through). Issue #96. */}
+          <PostHogProvider>
+            <Nav />
+            <main className="flex-1">{children}</main>
+            <Footer />
+            {/* Watcher invisible : sync favoris localStorage → DB au login.
+                Issue #91. No UI, juste un useEffect onAuthStateChange. */}
+            <FavoritesSyncOnLogin />
+          </PostHogProvider>
         </NextIntlClientProvider>
       </body>
     </html>
