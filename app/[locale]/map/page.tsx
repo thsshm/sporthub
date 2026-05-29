@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { MapWithSearch } from "@/app/[locale]/map/MapWithSearch";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { isViewMode, type ViewMode } from "@/lib/map-storage";
 import type { VenuePin } from "@/lib/supabase/types";
 
 // Bbox d'initialisation : Europe élargie centrée sur la France.
@@ -43,16 +44,21 @@ async function fetchInitialVenues(): Promise<VenuePin[]> {
 
 type MapPageProps = {
   // Next.js 14 expose les query params en prop des Server Components.
-  // Ici on extrait `?family=X` pour le switcher #121 : le SSR évite
-  // l'erreur "useSearchParams should be wrapped in Suspense" et garde
-  // le prerender ISR actif.
-  searchParams: { family?: string };
+  // On extrait :
+  //   ?family=X → switcher #121
+  //   ?view=X   → mode d'affichage #123 (map / list / split)
+  // Lecture côté Server pour éviter "useSearchParams should be wrapped in
+  // Suspense" qui casserait le prerender ISR.
+  searchParams: { family?: string; view?: string };
 };
 
 export default async function MapPage({ searchParams }: MapPageProps) {
   const initialVenues = await fetchInitialVenues();
   const initialFamily =
     typeof searchParams.family === "string" ? searchParams.family : null;
+  const initialViewMode: ViewMode | null = isViewMode(searchParams.view)
+    ? searchParams.view
+    : null;
 
   return (
     <>
@@ -72,6 +78,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
           initialZoom={5}
           initialVenues={initialVenues}
           initialFamily={initialFamily}
+          initialViewMode={initialViewMode}
         />
       </div>
     </>

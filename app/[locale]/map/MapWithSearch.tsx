@@ -8,15 +8,25 @@ import { Crosshair, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import { SportFilters, type CriteriaKey } from "@/app/[locale]/map/SportFilters";
 import { EmptyStateOverlay } from "@/app/[locale]/map/EmptyStateOverlay";
+import { ViewModeToggle } from "@/app/[locale]/map/ViewModeToggle";
+import { VenueListPanel } from "@/app/[locale]/map/VenueListPanel";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
 import {
+  isViewMode,
   loadAutoUpdate,
+  loadViewMode,
   loadViewport,
   saveAutoUpdate,
+  saveViewMode,
+  type ViewMode,
 } from "@/lib/map-storage";
 import type { FlyTarget } from "@/app/[locale]/map/MapClient";
 import type { VenuePin } from "@/lib/supabase/types";
+
+/** Breakpoint en dessous duquel "split" retombe en "map" (le panneau liste
+ * passerait sinon par-dessus la carte sur étroit). Matche le min desktop V1. */
+const SPLIT_MIN_PX = 1100;
 
 const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ssr: false,
@@ -56,6 +66,9 @@ type Props = {
   /** Slug famille passé via ?family=X dans l'URL (lu côté Server par page.tsx
    * pour éviter le bailout dynamic de useSearchParams). Cf. #121. */
   initialFamily?: string | null;
+  /** Mode d'affichage initial (?view=X dans l'URL, lu côté Server). Cf. #123.
+   * URL prioritaire sur localStorage si valide. */
+  initialViewMode?: ViewMode | null;
 };
 
 export function MapWithSearch({
@@ -64,6 +77,7 @@ export function MapWithSearch({
   initialZoom,
   initialVenues,
   initialFamily,
+  initialViewMode,
 }: Props) {
   const tMap = useTranslations("map");
 
@@ -131,6 +145,68 @@ export function MapWithSearch({
   const [visibleCount, setVisibleCount] = useState(0);
   const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
   const [geolocError, setGeolocError] = useState<string | null>(null);
+
+  // Mode d'affichage carte / liste / split (#123).
+  // Précédence : URL (?view=…) → localStorage → "map" par défaut.
+  // initialViewMode est résolu côté Server par page.tsx pour éviter Suspense.
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
+    if (initialViewMode && isViewMode(initialViewMode)) return initialViewMode;
+    return loadViewMode() ?? "map";
+  });
+
+  // Wrapper qui persiste + sync URL via router.replace (pas d'historique).
+  const setViewMode = (next: ViewMode) => {
+    setViewModeState(next);
+    saveViewMode(next);
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (next === "map") {
+      // map = défaut → on retire le param pour garder l'URL propre
+      if (params.has("view")) {
+        params.delete("view");
+        const qs = params.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      }
+    } else if (params.get("view") !== next) {
+      params.set("view", next);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+  };
+
+  // Détection responsive : sur < 1100px, "split" retombe en "map" côté UI
+  // (mais on garde la valeur "split" en storage pour retrouver le 3-cols
+  // au redimensionnement). matchMedia réagit au resize/rotation.
+  const [isWideEnoughForSplit, setIsWideEnoughForSplit] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(`(min-width: ${SPLIT_MIN_PX}px)`);
+    setIsWideEnoughForSplit(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsWideEnoughForSplit(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  /** Mode effectivement appliqué — split dégradé en map sur étroit. */
+  const effectiveMode: ViewMode =
+    viewMode === "split" && !isWideEnoughForSplit ? "map" : viewMode;
+
+  // Snapshot venues + center reporté par MapClient pour alimenter
+  // VenueListPanel sans re-fetch propre (#123).
+  const [venuesSnapshot, setVenuesSnapshot] = useState<{
+    venues: VenuePin[];
+    center: { lat: number; lon: number };
+  }>({ venues: [], center: { lat: initialLat, lon: initialLon } });
+
+  const handleVenuesData = (
+    venues: VenuePin[],
+    center: { lat: number; lon: number },
+  ) => {
+    setVenuesSnapshot({ venues, center });
+  };
+
+  const handleListVenueSelect = (v: VenuePin) => {
+    setFlyTarget({ lat: v.lat, lon: v.lon, zoom: 14, token: Date.now() });
+  };
 
   // Wrapper qui persiste le toggle autoUpdate.
   const setAutoUpdate = (v: boolean) => {
@@ -282,19 +358,57 @@ export function MapWithSearch({
         selectedCriteria={selectedCriteria}
       />
 
-      <MapClient
-        initialLat={initialView.lat}
-        initialLon={initialView.lon}
-        initialZoom={initialView.zoom}
-        selectedFamilies={selectedFamilies}
-        totalFamilies={FAMILIES.length}
-        selectedCriteria={selectedCriteria}
-        autoUpdate={autoUpdate}
-        onVenuesChange={setVisibleCount}
-        onZoomChange={setCurrentZoom}
-        flyTarget={flyTarget}
-        initialVenues={effectiveInitialVenues}
+      {/* Toggle mode d'affichage (#123) — top-right, à côté du SearchBar.
+          Visible uniquement desktop (mobile garde la carte plein écran). */}
+      <ViewModeToggle
+        active={viewMode}
+        onChange={setViewMode}
+        disableSplit={!isWideEnoughForSplit}
+        className="absolute right-4 top-16 z-20 hidden md:inline-flex"
       />
+
+      {/* Panneau liste (#123) — overlay à droite en split, full-width en list.
+          Toujours monté (reçoit les venues snapshot du MapClient) pour ne pas
+          perdre l'état au switch de mode. CSS visibility gère le rendu. */}
+      {effectiveMode !== "map" && (
+        <VenueListPanel
+          venues={venuesSnapshot.venues}
+          center={venuesSnapshot.center}
+          onSelect={handleListVenueSelect}
+          className={
+            effectiveMode === "split"
+              ? "absolute right-0 top-0 z-10 h-full w-[380px] border-l bg-background shadow-xl"
+              : "absolute inset-0 z-10 bg-background"
+          }
+        />
+      )}
+
+      {/* MapClient : caché en mode list (mais monté pour garder l'état MapLibre).
+          En mode split, on rétrécit son conteneur pour laisser place au panel. */}
+      <div
+        className={
+          effectiveMode === "list"
+            ? "invisible h-0 w-0 overflow-hidden"
+            : effectiveMode === "split"
+              ? "absolute inset-y-0 left-0 right-[380px]"
+              : "h-full w-full"
+        }
+      >
+        <MapClient
+          initialLat={initialView.lat}
+          initialLon={initialView.lon}
+          initialZoom={initialView.zoom}
+          selectedFamilies={selectedFamilies}
+          totalFamilies={FAMILIES.length}
+          selectedCriteria={selectedCriteria}
+          autoUpdate={autoUpdate}
+          onVenuesChange={setVisibleCount}
+          onZoomChange={setCurrentZoom}
+          onVenuesData={handleVenuesData}
+          flyTarget={flyTarget}
+          initialVenues={effectiveInitialVenues}
+        />
+      </div>
     </div>
   );
 }
