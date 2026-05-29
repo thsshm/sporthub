@@ -5,6 +5,7 @@
 import type { Metadata } from "next";
 import type { VenueDetail } from "@/lib/supabase/types";
 import { getFamilyEmoji } from "@/lib/families";
+import { parseOpeningHours, toSchemaOpeningHours } from "@/lib/venue/opening-hours";
 
 const SITE_URL = "https://sporthubmap.com";
 const SITE_NAME = "Sport Hub";
@@ -80,9 +81,48 @@ export function buildVenueMetadata(venue: VenueDetail, cityName?: string): Metad
 /**
  * Schema.org JSON-LD pour une venue (SportsActivityLocation).
  * À injecter dans <script type="application/ld+json">.
+ *
+ * Champs enrichis (issue #127) : `openingHoursSpecification`, `priceRange`,
+ * `amenityFeature`, `image`. Tous omis si la donnée correspondante est absente,
+ * pour rester gracieux face aux venues pauvres (terrains de pétanque rural,
+ * etc.).
  */
 export function buildVenueJsonLd(venue: VenueDetail, cityName?: string): object {
-  const enrichments = venue.enrichments as Record<string, unknown>;
+  const enrichments = (venue.enrichments ?? {}) as Record<string, unknown>;
+  const rawTags = (enrichments.raw_tags ?? {}) as Record<string, string>;
+
+  // openingHoursSpecification — parse OSM si dispo
+  const openingHoursRaw = rawTags.opening_hours;
+  const openingHoursSpecs = openingHoursRaw ? parseOpeningHours(openingHoursRaw) : null;
+  const openingHoursSpecification = openingHoursSpecs
+    ? toSchemaOpeningHours(openingHoursSpecs)
+    : undefined;
+
+  // amenityFeature : booléens scalaires → LocationFeatureSpecification
+  const amenityFeature: Record<string, unknown>[] = [];
+  if (venue.is_indoor === true) {
+    amenityFeature.push({
+      "@type": "LocationFeatureSpecification",
+      name: "Indoor",
+      value: true,
+    });
+  }
+  if (venue.has_lighting === true) {
+    amenityFeature.push({
+      "@type": "LocationFeatureSpecification",
+      name: "Lighting",
+      value: true,
+    });
+  }
+  if (venue.is_wheelchair_accessible === true) {
+    amenityFeature.push({
+      "@type": "LocationFeatureSpecification",
+      name: "Wheelchair accessible",
+      value: true,
+    });
+  }
+
+  const photoUrl = (enrichments.photo_url as string | undefined) ?? undefined;
 
   return {
     "@context": "https://schema.org",
@@ -90,6 +130,7 @@ export function buildVenueJsonLd(venue: VenueDetail, cityName?: string): object 
     name: venue.name,
     url: `${SITE_URL}/venue/${venue.slug}`,
     description: venue.description,
+    image: photoUrl,
     address: {
       "@type": "PostalAddress",
       streetAddress: venue.address,
@@ -104,6 +145,9 @@ export function buildVenueJsonLd(venue: VenueDetail, cityName?: string): object 
     },
     telephone: venue.phone,
     email: venue.email,
+    priceRange: venue.price_range ?? undefined,
+    openingHoursSpecification,
+    amenityFeature: amenityFeature.length > 0 ? amenityFeature : undefined,
     sameAs: enrichments?.wikipedia_url
       ? [enrichments.wikipedia_url as string]
       : undefined,
