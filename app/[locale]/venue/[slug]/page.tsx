@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { buildVenueMetadata, buildVenueJsonLd } from "@/lib/seo/metadata";
+import {
+  buildVenueMetadata,
+  buildVenueJsonLd,
+  buildBreadcrumbJsonLd,
+} from "@/lib/seo/metadata";
 import { SportChips } from "@/components/venue/SportChips";
 import { VenueHero } from "@/components/venue/VenueHero";
 import { VenueInfoCard } from "@/components/venue/VenueInfoCard";
@@ -10,6 +14,7 @@ import { VenueReviewBadge } from "@/components/venue/VenueReviewBadge";
 import { VenueAmenitiesList } from "@/components/venue/VenueAmenitiesList";
 import { VenueRelated } from "@/components/venue/VenueRelated";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
+import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenueDetail } from "@/lib/supabase/types";
 
 type Props = { params: { locale: string; slug: string } };
@@ -77,12 +82,36 @@ export default async function VenuePage({ params }: Props) {
   const safeLocale: "fr" | "en" | "zh" =
     locale === "en" || locale === "zh" ? locale : "fr";
 
+  // BreadcrumbList — aide Google à comprendre Home → Famille → Venue (#94).
+  const SITE_URL = "https://sporthubmap.com";
+  const tFamilies = await getTranslations("families");
+  const family = FAMILIES_BY_SLUG[venue.family_slug];
+  const breadcrumbItems: { name: string; url: string }[] = [
+    { name: "Sport Hub", url: SITE_URL },
+  ];
+  if (family) {
+    breadcrumbItems.push({
+      name: tFamilies(venue.family_slug),
+      url: `${SITE_URL}/${locale}/sports/${family.slug}`,
+    });
+  }
+  breadcrumbItems.push({
+    name: venue.name,
+    url: `${SITE_URL}/${locale}/venue/${venue.slug}`,
+  });
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd(breadcrumbItems);
+
   return (
     <article className="container mx-auto max-w-4xl px-6 py-8">
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       <VenueHero venue={venue} cityName={venue.city_name} locale={locale} />

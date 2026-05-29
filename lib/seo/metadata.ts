@@ -183,3 +183,72 @@ export function buildWebsiteJsonLd(): object {
     },
   };
 }
+
+/**
+ * BreadcrumbList — fil d'Ariane Schema.org pour aider Google à comprendre
+ * la hiérarchie des pages. À utiliser sur toutes les pages "profondes"
+ * (venue, sports, [sport]/[country]/[city]).
+ *
+ * @param items - [{name, url}] dans l'ordre du parcours (home → … → page courante)
+ */
+export function buildBreadcrumbJsonLd(
+  items: { name: string; url: string }[],
+): object {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  };
+}
+
+/**
+ * ItemList — liste ordonnée d'éléments (ex. venues d'un sport ou d'une ville).
+ * Utile pour les SERP rich results "carousel" de Google.
+ *
+ * @param name - Nom de la liste (ex. "Courts de tennis à Paris")
+ * @param items - [{name, url}] des venues affichées
+ */
+export function buildItemListJsonLd(
+  name: string,
+  items: { name: string; url: string }[],
+): object {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name,
+    numberOfItems: items.length,
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      url: item.url,
+    })),
+  };
+}
+
+/**
+ * Place — entité géographique (ville). Permet à Google de comprendre que
+ * la page `/[sport]/[country]/[city]` parle d'un lieu, pas juste d'un sport.
+ */
+export function buildPlaceJsonLd(city: {
+  name: string;
+  country_code: string;
+  url: string;
+}): object {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Place",
+    name: city.name,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: city.name,
+      addressCountry: city.country_code,
+    },
+    url: city.url,
+  };
+}

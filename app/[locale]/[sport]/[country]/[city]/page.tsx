@@ -9,6 +9,11 @@ import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
+import {
+  buildBreadcrumbJsonLd,
+  buildItemListJsonLd,
+  buildPlaceJsonLd,
+} from "@/lib/seo/metadata";
 
 const PAGE_SIZE = 24;
 const SITE_URL = "https://sporthubmap.com";
@@ -149,8 +154,48 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
   const basePath = `/${sport}/${country}/${city}`;
   const sportName = tSports.has(ctx.sport.slug) ? tSports(ctx.sport.slug) : ctx.sport.name_fr;
 
+  // ── Schema.org JSON-LD : BreadcrumbList + Place (ville) + ItemList (venues).
+  //    Trois marqueurs distincts pour aider Google à comprendre que la page
+  //    parle d'un sport ET d'un lieu géographique ET liste des venues.
+  const cityUrl = `${SITE_URL}/${locale}${basePath}`;
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Sport Hub", url: SITE_URL },
+    {
+      name: sportName,
+      url: `${SITE_URL}/${locale}/sports/${ctx.sport.slug}`,
+    },
+    { name: ctx.city.name, url: cityUrl },
+  ]);
+  const placeJsonLd = buildPlaceJsonLd({
+    name: ctx.city.name,
+    country_code: ctx.city.country_code,
+    url: cityUrl,
+  });
+  const itemListJsonLd = buildItemListJsonLd(
+    `${sportName} · ${ctx.city.name}`,
+    venues.map((v) => ({
+      name: v.name,
+      url: `${SITE_URL}/${locale}/venue/${v.slug}`,
+    })),
+  );
+
   return (
     <main className="container mx-auto max-w-6xl px-6 py-12">
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+      />
       <header className="border-b pb-6">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <Link href="/" className="hover:text-foreground">
