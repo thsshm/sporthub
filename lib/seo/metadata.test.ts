@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { VenueDetail } from "@/lib/supabase/types";
 import {
+  buildBreadcrumbJsonLd,
   buildHomeMetadata,
+  buildItemListJsonLd,
+  buildPlaceJsonLd,
   buildVenueJsonLd,
   buildVenueMetadata,
   buildWebsiteJsonLd,
@@ -223,6 +226,82 @@ describe("buildWebsiteJsonLd", () => {
     expect(ld["url"]).toContain("sporthubmap.com");
     const action = ld["potentialAction"] as { "@type": string };
     expect(action["@type"]).toBe("SearchAction");
+  });
+});
+
+type ListItem = {
+  "@type": string;
+  position: number;
+  name: string;
+  item?: string;
+  url?: string;
+};
+
+describe("buildBreadcrumbJsonLd", () => {
+  it("produit un BreadcrumbList avec positions séquentielles et item = url", () => {
+    const ld = buildBreadcrumbJsonLd([
+      { name: "Accueil", url: "https://sporthubmap.com/" },
+      { name: "Tennis", url: "https://sporthubmap.com/sports/tennis" },
+    ]) as Record<string, unknown>;
+    expect(ld["@context"]).toBe("https://schema.org");
+    expect(ld["@type"]).toBe("BreadcrumbList");
+    const items = ld["itemListElement"] as ListItem[];
+    expect(items).toHaveLength(2);
+    expect(items[0]["@type"]).toBe("ListItem");
+    expect(items[0].position).toBe(1);
+    expect(items[0].name).toBe("Accueil");
+    expect(items[0].item).toBe("https://sporthubmap.com/");
+    expect(items[1].position).toBe(2);
+    expect(items[1].item).toBe("https://sporthubmap.com/sports/tennis");
+  });
+
+  it("liste vide ne crashe pas", () => {
+    const ld = buildBreadcrumbJsonLd([]) as Record<string, unknown>;
+    expect(ld["itemListElement"]).toHaveLength(0);
+  });
+});
+
+describe("buildItemListJsonLd", () => {
+  it("produit une ItemList avec name, numberOfItems et positions séquentielles", () => {
+    const ld = buildItemListJsonLd("Courts de tennis à Paris", [
+      { name: "Tennis Club Paris 15", url: "https://sporthubmap.com/venue/tcp15" },
+      { name: "Padel Marseille 7", url: "https://sporthubmap.com/venue/pm7" },
+    ]) as Record<string, unknown>;
+    expect(ld["@context"]).toBe("https://schema.org");
+    expect(ld["@type"]).toBe("ItemList");
+    expect(ld["name"]).toBe("Courts de tennis à Paris");
+    expect(ld["numberOfItems"]).toBe(2);
+    const items = ld["itemListElement"] as ListItem[];
+    expect(items).toHaveLength(2);
+    expect(items[0]["@type"]).toBe("ListItem");
+    expect(items[0].position).toBe(1);
+    expect(items[0].name).toBe("Tennis Club Paris 15");
+    expect(items[0].url).toBe("https://sporthubmap.com/venue/tcp15");
+    expect(items[1].position).toBe(2);
+  });
+
+  it("liste vide → numberOfItems 0 et itemListElement vide", () => {
+    const ld = buildItemListJsonLd("Vide", []) as Record<string, unknown>;
+    expect(ld["numberOfItems"]).toBe(0);
+    expect(ld["itemListElement"]).toHaveLength(0);
+  });
+});
+
+describe("buildPlaceJsonLd", () => {
+  it("produit un Place avec PostalAddress", () => {
+    const ld = buildPlaceJsonLd({
+      name: "Paris",
+      country_code: "FR",
+      url: "https://sporthubmap.com/tennis/fr/paris",
+    }) as Record<string, unknown>;
+    expect(ld["@context"]).toBe("https://schema.org");
+    expect(ld["@type"]).toBe("Place");
+    expect(ld["name"]).toBe("Paris");
+    expect(ld["url"]).toBe("https://sporthubmap.com/tennis/fr/paris");
+    const addr = ld["address"] as Record<string, unknown>;
+    expect(addr["@type"]).toBe("PostalAddress");
+    expect(addr["addressLocality"]).toBe("Paris");
+    expect(addr["addressCountry"]).toBe("FR");
   });
 });
 
