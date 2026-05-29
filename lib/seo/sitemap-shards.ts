@@ -74,19 +74,31 @@ export async function buildMetadataShard(): Promise<SitemapEntry[]> {
     }),
   );
 
-  const { data: combosData } = await sb
-    .from("venue")
-    .select("primary_sport_slug, country_code, city:city_id ( slug )")
-    .eq("is_published", true)
-    .is("deleted_at", null)
-    .not("city_id", "is", null)
-    .not("country_code", "is", null)
-    .not("primary_sport_slug", "is", null)
-    .limit(URLS_PER_SHARD);
+  // Paginé pour contourner le cap PostgREST 1000 rows. On scanne jusqu'à
+  // URLS_PER_SHARD rows sources, ce qui après dédup (sport × pays × ville)
+  // donne un nombre de combos bien inférieur. Cf. PAGE_SIZE plus bas.
+  const PAGE_SIZE_LOCAL = 1000;
+  const allCombos: ComboRow[] = [];
+  for (let from = 0; from < URLS_PER_SHARD; from += PAGE_SIZE_LOCAL) {
+    const to = Math.min(from + PAGE_SIZE_LOCAL - 1, URLS_PER_SHARD - 1);
+    const { data, error } = await sb
+      .from("venue")
+      .select("primary_sport_slug, country_code, city:city_id ( slug )")
+      .eq("is_published", true)
+      .is("deleted_at", null)
+      .not("city_id", "is", null)
+      .not("country_code", "is", null)
+      .not("primary_sport_slug", "is", null)
+      .order("id")
+      .range(from, to);
+    if (error || !data) break;
+    allCombos.push(...(data as ComboRow[]));
+    if (data.length < to - from + 1) break;
+  }
 
   const seen = new Set<string>();
   const programmaticEntries: SitemapEntry[] = [];
-  for (const row of (combosData as ComboRow[]) ?? []) {
+  for (const row of allCombos) {
     if (!row.primary_sport_slug || !row.country_code || !row.city?.slug) {
       continue;
     }
@@ -105,21 +117,43 @@ export async function buildMetadataShard(): Promise<SitemapEntry[]> {
   return [...staticEntries, ...familyEntries, ...programmaticEntries];
 }
 
-/** Shards 1..N : venues paginées par tranche de URLS_PER_SHARD. */
+/**
+ * Cap PostgREST par requête sur Supabase (max-rows = 1000 par défaut).
+ * Pour récupérer URLS_PER_SHARD (45 000), on doit paginer en interne.
+ */
+const PAGE_SIZE = 1000;
+
+/**
+ * Shards 1..N : venues paginées par tranche de URLS_PER_SHARD.
+ *
+ * Implémentation : on accumule en batches de 1000 (limite PostgREST par
+ * défaut). 45 batches × 8 shards = 360 requêtes par rebuild complet, exécuté
+ * 1x/24h grâce à revalidate=86400.
+ */
 export async function buildVenueShard(shardIndex: number): Promise<SitemapEntry[]> {
   const sb = getSupabaseServerClient();
   const now = new Date().toISOString();
-  const offset = (shardIndex - 1) * URLS_PER_SHARD;
+  const shardStart = (shardIndex - 1) * URLS_PER_SHARD;
+  const shardEnd = shardStart + URLS_PER_SHARD - 1;
 
-  const { data } = await sb
-    .from("venue")
-    .select("slug, updated_at")
-    .eq("is_published", true)
-    .is("deleted_at", null)
-    .order("id")
-    .range(offset, offset + URLS_PER_SHARD - 1);
+  const venues: VenueRow[] = [];
+  for (let from = shardStart; from <= shardEnd; from += PAGE_SIZE) {
+    const to = Math.min(from + PAGE_SIZE - 1, shardEnd);
+    const { data, error } = await sb
+      .from("venue")
+      .select("slug, updated_at")
+      .eq("is_published", true)
+      .is("deleted_at", null)
+      .order("id")
+      .range(from, to);
+    if (error || !data) break;
+    venues.push(...(data as VenueRow[]));
+    // Si on a reçu moins que la taille demandée, on a atteint la fin de la
+    // table — pas la peine de continuer les batches suivants pour ce shard.
+    if (data.length < to - from + 1) break;
+  }
 
-  return ((data as VenueRow[]) ?? []).map((v) =>
+  return venues.map((v) =>
     localized(`/venue/${v.slug}`, {
       lastmod: v.updated_at ?? now,
       changefreq: "weekly",
