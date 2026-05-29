@@ -213,7 +213,13 @@
     },
     "googleReviewsCount": "{count, plural, =0 {暂无评价} other {{count} 条 Google 评价}}",
     "googleReviewsAria": "Google 评分：5 分中 {rating} 分 — {count} 条评价",
-    "relatedTitle": "附近相似场所"
+    "relatedTitle": "附近相似场所",
+    "about": {
+      "title": "关于",
+      "learnMore": "了解更多",
+      "wikipedia": "维基百科",
+      "officialWebsite": "官方网站 ({host})"
+    }
   },
   "map": {
     "title": "运动场所地图",

@@ -9,6 +9,7 @@ import {
 } from "@/lib/seo/metadata";
 import { SportChips } from "@/components/venue/SportChips";
 import { VenueHero } from "@/components/venue/VenueHero";
+import { VenueAbout } from "@/components/venue/VenueAbout";
 import { VenueInfoCard } from "@/components/venue/VenueInfoCard";
 import { VenueReviewBadge } from "@/components/venue/VenueReviewBadge";
 import { VenueAmenitiesList } from "@/components/venue/VenueAmenitiesList";
@@ -150,6 +151,8 @@ export default async function VenuePage({ params }: Props) {
               <SportChips sportSlugs={sportSlugs} />
             </section>
           )}
+
+          <VenueAbout venue={venue} />
 
           <VenueSportsList venue={venue} locale={safeLocale} />
 

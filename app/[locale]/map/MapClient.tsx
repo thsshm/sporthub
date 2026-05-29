@@ -18,6 +18,7 @@ import { Search, Star } from "lucide-react";
 import type { VenuePin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
 import { saveViewport } from "@/lib/map-storage";
+import { VenuePopupEnrichments } from "@/components/map/VenuePopupEnrichments";
 import {
   appleMapsUrl,
   googleMapsUrl,
@@ -492,6 +493,10 @@ export default function MapClient({
             maxWidth="320px"
           >
             <div className="min-w-[260px] max-w-[300px] space-y-2.5 p-1 text-sm">
+              {/* Enrichissements Wikimedia/Wikipedia (#107) — lazy-fetch.
+                  Ne rend rien si le venue n'est pas enrichi. */}
+              <VenuePopupEnrichments slug={selected.slug} />
+
               {/* Header : chip famille (gauche) + étoile favori (droite) */}
               <div className="flex items-start justify-between gap-2">
                 <span
