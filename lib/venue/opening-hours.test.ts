@@ -3,6 +3,7 @@ import {
   parseOpeningHours,
   toSchemaOpeningHours,
   formatRange,
+  getOpenStatus,
 } from "@/lib/venue/opening-hours";
 
 describe("parseOpeningHours", () => {
@@ -103,5 +104,64 @@ describe("formatRange", () => {
 
   it("anglais : 9:00-22:00", () => {
     expect(formatRange("09:00", "22:00", "en")).toBe("9:00-22:00");
+  });
+});
+
+describe("getOpenStatus", () => {
+  // 8 janvier 2024 = lundi (Mo).
+  const monday10 = new Date(2024, 0, 8, 10, 0);
+  const monday6 = new Date(2024, 0, 8, 6, 0);
+  const monday23 = new Date(2024, 0, 8, 23, 0);
+
+  it("retourne null pour specs null/vide", () => {
+    expect(getOpenStatus(null, monday10)).toBeNull();
+    expect(getOpenStatus([], monday10)).toBeNull();
+  });
+
+  it("ouvert : lundi 10h dans Mo-Fr 09:00-22:00", () => {
+    const specs = parseOpeningHours("Mo-Fr 09:00-22:00");
+    const status = getOpenStatus(specs, monday10);
+    if (status === null) throw new Error("expected non-null status");
+    expect(status.isOpen).toBe(true);
+    if (status.isOpen) {
+      expect(status.closesAt).toBe("22:00");
+    }
+  });
+
+  it("fermé après l'horaire : lundi 23h hors 09:00-22:00", () => {
+    const specs = parseOpeningHours("Mo-Fr 09:00-22:00");
+    const status = getOpenStatus(specs, monday23);
+    if (status === null) throw new Error("expected non-null status");
+    expect(status.isOpen).toBe(false);
+  });
+
+  it("fermé avant l'horaire : lundi 6h donne next opensAt 9h", () => {
+    const specs = parseOpeningHours("Mo-Fr 09:00-22:00");
+    const status = getOpenStatus(specs, monday6);
+    if (status === null) throw new Error("expected non-null status");
+    expect(status.isOpen).toBe(false);
+    if (!status.isOpen) {
+      expect(status.opensAt).toBe("09:00");
+    }
+  });
+
+  it("24/7 : toujours ouvert", () => {
+    const specs = parseOpeningHours("24/7");
+    const a = getOpenStatus(specs, monday23);
+    const b = getOpenStatus(specs, monday6);
+    if (a === null || b === null) throw new Error("expected non-null status");
+    expect(a.isOpen).toBe(true);
+    expect(b.isOpen).toBe(true);
+  });
+
+  it("pause méridienne : 13h fermé entre les 2 créneaux", () => {
+    const specs = parseOpeningHours("Mo-Fr 09:00-12:00,14:00-18:00");
+    const monday13 = new Date(2024, 0, 8, 13, 0);
+    const status = getOpenStatus(specs, monday13);
+    if (status === null) throw new Error("expected non-null status");
+    expect(status.isOpen).toBe(false);
+    if (!status.isOpen) {
+      expect(status.opensAt).toBe("14:00");
+    }
   });
 });
