@@ -225,7 +225,9 @@
       "sentDescription": "Clique sur le lien dans le mail reçu à <strong>{email}</strong> pour te connecter. Vérifie aussi tes spams.",
       "errorTitle": "Erreur",
       "noPasswordHint": "Pas de mot de passe à retenir.",
-      "backHome": "Retour à l'accueil"
+      "backHome": "Retour à l'accueil",
+      "signInWithGoogle": "Continuer avec Google",
+      "or": "ou"
     },
     "layout": {
       "accessDeniedTitle": "Accès refusé",

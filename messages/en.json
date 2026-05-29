@@ -225,7 +225,9 @@
       "sentDescription": "Click the link in the email sent to <strong>{email}</strong> to sign in. Check your spam folder too.",
       "errorTitle": "Error",
       "noPasswordHint": "No password to remember.",
-      "backHome": "Back to home"
+      "backHome": "Back to home",
+      "signInWithGoogle": "Continue with Google",
+      "or": "or"
     },
     "layout": {
       "accessDeniedTitle": "Access denied",
