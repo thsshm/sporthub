@@ -148,6 +148,9 @@
     "previous": "← Previous",
     "next": "Next →",
     "mapHint": "Interactive map — pan/zoom reloads the {sport} venues in view (up to 2 000).",
+    "listModeAll": "All venues",
+    "listModeViewport": "In this view ({count})",
+    "viewportHint": "The list follows the map — move it to discover other venues.",
     "metaDescription": "Map and list of {sport} clubs and courts worldwide — Sport Hub."
   },
   "programmatic": {

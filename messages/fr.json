@@ -148,6 +148,9 @@
     "previous": "← Précédent",
     "next": "Suivant →",
     "mapHint": "Carte interactive — pan/zoom recharge les venues {sport} du viewport (jusqu'à 2 000).",
+    "listModeAll": "Tous les venues",
+    "listModeViewport": "Dans cette vue ({count})",
+    "viewportHint": "La liste suit la carte — déplacez-la pour découvrir d'autres venues.",
     "metaDescription": "Carte et liste des clubs et terrains de {sport} partout dans le monde — Sport Hub."
   },
   "programmatic": {
