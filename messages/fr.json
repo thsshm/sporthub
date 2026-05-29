@@ -227,6 +227,17 @@
       "filtersEmptyDescription": "Essayez de retirer un filtre ou de déplacer la carte.",
       "genericTitle": "Aucun spot dans cette zone",
       "genericDescription": "Déplacez la carte ou zoomez sur une autre région."
+    },
+    "viewMode": {
+      "toggleLabel": "Mode d'affichage",
+      "map": "Carte",
+      "list": "Liste",
+      "split": "Côte à côte"
+    },
+    "list": {
+      "title": "Liste des spots",
+      "empty": "Aucun spot dans la vue.",
+      "countNearest": "{count} spots les plus proches"
     }
   },
   "footer": {
