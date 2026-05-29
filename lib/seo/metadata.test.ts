@@ -152,6 +152,67 @@ describe("buildVenueJsonLd", () => {
     ) as Record<string, unknown>;
     expect(ld["sameAs"]).toEqual(["https://fr.wikipedia.org/wiki/X"]);
   });
+
+  it("inclut image depuis enrichments.photo_url", () => {
+    const ld = buildVenueJsonLd(
+      makeVenue({
+        enrichments: { photo_url: "https://example.com/p.jpg" },
+      }),
+    ) as Record<string, unknown>;
+    expect(ld["image"]).toBe("https://example.com/p.jpg");
+  });
+
+  it("inclut priceRange si venue.price_range présent", () => {
+    const ld = buildVenueJsonLd(
+      makeVenue({ price_range: "€€" }),
+    ) as Record<string, unknown>;
+    expect(ld["priceRange"]).toBe("€€");
+  });
+
+  it("omet priceRange si absent", () => {
+    const ld = buildVenueJsonLd(makeVenue()) as Record<string, unknown>;
+    expect(ld["priceRange"]).toBeUndefined();
+  });
+
+  it("inclut amenityFeature pour les flags scalaires true", () => {
+    const ld = buildVenueJsonLd(
+      makeVenue({
+        is_indoor: true,
+        has_lighting: true,
+        is_wheelchair_accessible: true,
+      }),
+    ) as Record<string, unknown>;
+    const features = ld["amenityFeature"] as Array<Record<string, unknown>>;
+    expect(features).toHaveLength(3);
+    expect(features[0]["@type"]).toBe("LocationFeatureSpecification");
+  });
+
+  it("omet amenityFeature si aucun flag true", () => {
+    const ld = buildVenueJsonLd(makeVenue()) as Record<string, unknown>;
+    expect(ld["amenityFeature"]).toBeUndefined();
+  });
+
+  it("inclut openingHoursSpecification quand raw_tags.opening_hours est parsable", () => {
+    const ld = buildVenueJsonLd(
+      makeVenue({
+        enrichments: {
+          raw_tags: { opening_hours: "Mo-Fr 09:00-22:00" },
+        },
+      }),
+    ) as Record<string, unknown>;
+    const ohs = ld["openingHoursSpecification"] as Array<Record<string, unknown>>;
+    expect(ohs).toHaveLength(5);
+    expect(ohs[0]["dayOfWeek"]).toBe("Monday");
+  });
+
+  it("omet openingHoursSpecification quand format non parsable", () => {
+    const ld = buildVenueJsonLd(
+      makeVenue({
+        enrichments: { raw_tags: { opening_hours: "PH off; sunset" } },
+      }),
+    ) as Record<string, unknown>;
+    expect(ld["openingHoursSpecification"]).toBeUndefined();
+  });
 });
 
 describe("buildWebsiteJsonLd", () => {

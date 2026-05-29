@@ -165,7 +165,33 @@
     "phone": "Phone",
     "coordinates": "GPS coordinates",
     "notFoundTitle": "Venue not found",
-    "courtsCount": "{count, plural, =0 {no court} one {1 court} other {{count} courts}}"
+    "courtsCount": "{count, plural, =0 {no court} one {1 court} other {{count} courts}}",
+    "infoCardTitle": "Practical info",
+    "openingHours": "Opening hours",
+    "capacity": "Capacity",
+    "price": "Price",
+    "free": "Free access",
+    "paid": "Paid",
+    "amenitiesTitle": "Features",
+    "amenity": {
+      "indoor": "Indoor",
+      "lighting": "Lighting",
+      "wheelchair": "Wheelchair accessible",
+      "free": "Free",
+      "paid": "Paid"
+    },
+    "day": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "googleReviewsCount": "{count, plural, =0 {no review} one {1 Google review} other {{count} Google reviews}}",
+    "googleReviewsAria": "Google rating: {rating} out of 5 — {count} reviews",
+    "relatedTitle": "Similar spots nearby"
   },
   "map": {
     "title": "Map of sport spots",
@@ -225,7 +251,9 @@
       "sentDescription": "Click the link in the email sent to <strong>{email}</strong> to sign in. Check your spam folder too.",
       "errorTitle": "Error",
       "noPasswordHint": "No password to remember.",
-      "backHome": "Back to home"
+      "backHome": "Back to home",
+      "signInWithGoogle": "Continue with Google",
+      "or": "or"
     },
     "layout": {
       "accessDeniedTitle": "Access denied",
@@ -293,5 +321,21 @@
     "errorLoading": "Couldn't load your favorites right now. Please retry.",
     "addLabel": "Add to favorites",
     "removeLabel": "Remove from favorites"
+  },
+  "claim": {
+    "successTitle": "Request sent!",
+    "successHint": "Returning to the venue page in a moment…",
+    "emailLabel": "Contact email *",
+    "nameLabel": "Your name",
+    "roleLabel": "Role at the venue",
+    "roleChoose": "— choose —",
+    "roleOwner": "Owner",
+    "roleManager": "Manager / Director",
+    "roleMarketing": "Marketing / Communications",
+    "roleOther": "Other",
+    "proofLabel": "Proof (free text)",
+    "proofPlaceholder": "Official website, business registry, social media link that confirms your connection to this venue…",
+    "submitButton": "Submit request",
+    "errorUnknown": "Unknown error"
   }
 }
