@@ -13,6 +13,7 @@ import {
   buildBreadcrumbJsonLd,
   buildItemListJsonLd,
   buildPlaceJsonLd,
+  jsonLdHtml,
 } from "@/lib/seo/metadata";
 
 const PAGE_SIZE = 24;
@@ -184,17 +185,17 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd) }}
       />
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(placeJsonLd) }}
       />
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(itemListJsonLd) }}
       />
       <header className="border-b pb-6">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
