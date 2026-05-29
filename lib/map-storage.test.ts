@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  isViewMode,
   loadAutoUpdate,
+  loadViewMode,
   loadViewport,
   saveAutoUpdate,
+  saveViewMode,
   saveViewport,
 } from "@/lib/map-storage";
 
@@ -108,6 +111,48 @@ describe("loadAutoUpdate / saveAutoUpdate", () => {
   });
 });
 
+describe("isViewMode", () => {
+  it("accepte les 3 modes valides", () => {
+    expect(isViewMode("map")).toBe(true);
+    expect(isViewMode("list")).toBe(true);
+    expect(isViewMode("split")).toBe(true);
+  });
+
+  it("refuse les autres valeurs", () => {
+    expect(isViewMode("grid")).toBe(false);
+    expect(isViewMode("")).toBe(false);
+    expect(isViewMode(null)).toBe(false);
+    expect(isViewMode(undefined)).toBe(false);
+    expect(isViewMode(42)).toBe(false);
+    expect(isViewMode({})).toBe(false);
+  });
+});
+
+describe("loadViewMode / saveViewMode", () => {
+  it("retourne null si rien en storage", () => {
+    expect(loadViewMode()).toBeNull();
+  });
+
+  it("retourne le mode sauvé", () => {
+    saveViewMode("split");
+    expect(loadViewMode()).toBe("split");
+    saveViewMode("list");
+    expect(loadViewMode()).toBe("list");
+    saveViewMode("map");
+    expect(loadViewMode()).toBe("map");
+  });
+
+  it("retourne null sur valeur invalide en storage", () => {
+    fakeStorage.setItem("sporthub_view_mode", "grid");
+    expect(loadViewMode()).toBeNull();
+  });
+
+  it("sauve la valeur brute (sans JSON)", () => {
+    saveViewMode("split");
+    expect(fakeStorage.getItem("sporthub_view_mode")).toBe("split");
+  });
+});
+
 describe("SSR-safe (window indéfini)", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -123,11 +168,19 @@ describe("SSR-safe (window indéfini)", () => {
     expect(loadAutoUpdate(false)).toBe(false);
   });
 
+  it("loadViewMode retourne null", () => {
+    expect(loadViewMode()).toBeNull();
+  });
+
   it("saveViewport ne throw pas", () => {
     expect(() => saveViewport({ lat: 0, lon: 0, zoom: 5 })).not.toThrow();
   });
 
   it("saveAutoUpdate ne throw pas", () => {
     expect(() => saveAutoUpdate(true)).not.toThrow();
+  });
+
+  it("saveViewMode ne throw pas", () => {
+    expect(() => saveViewMode("split")).not.toThrow();
   });
 });

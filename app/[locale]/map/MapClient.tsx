@@ -103,6 +103,13 @@ type Props = {
   totalFamilies?: number;
   /** Callback pour reporter le count de venues fetched (overlay UI parent). */
   onVenuesChange?: (count: number) => void;
+  /** Callback pour reporter la *liste* des venues fetched + le centre courant
+   * — utilisé par `VenueListPanel` (#123) pour partager la même source de data
+   * que la carte sans re-fetcher. Optionnel. */
+  onVenuesData?: (
+    venues: VenuePin[],
+    center: { lat: number; lon: number },
+  ) => void;
   /** Callback pour reporter le zoom courant (overlay empty state intelligent, #125). */
   onZoomChange?: (zoom: number) => void;
   /** Quand set, MapClient appelle map.flyTo() à chaque changement de token. */
@@ -133,6 +140,7 @@ export default function MapClient({
   selectedFamilies,
   totalFamilies,
   onVenuesChange,
+  onVenuesData,
   onZoomChange,
   flyTarget,
   presetVenues,
@@ -149,6 +157,12 @@ export default function MapClient({
   const venues = presetVenues ?? fetchedVenues;
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [zoom, setZoom] = useState<number>(initialZoom);
+  // Centre courant — exposé via onVenuesData pour permettre au panel liste
+  // (#123) de trier les venues par distance.
+  const [center, setCenter] = useState<{ lat: number; lon: number }>({
+    lat: initialLat,
+    lon: initialLon,
+  });
   const [selected, setSelected] = useState<VenuePin | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -172,6 +186,14 @@ export default function MapClient({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Reporte au parent la liste des venues + le centre courant à chaque update
+  // (#123 — partage avec VenueListPanel sans re-fetch). On déclenche aussi
+  // quand seul le centre bouge : utile en mode split pour re-trier la liste.
+  useEffect(() => {
+    onVenuesData?.(venues, center);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [venues, center.lat, center.lon]);
 
   // Fly to target quand le token change (clic suggestion SearchBar).
   // On dépend des champs scalaires (token, lat, lon, zoom) et PAS de l'objet
@@ -329,6 +351,7 @@ export default function MapClient({
     setZoom(newZoom);
     onZoomChange?.(newZoom);
     const c = map.getCenter();
+    setCenter({ lat: c.lat, lon: c.lng });
     saveViewport({ lat: c.lat, lon: c.lng, zoom: newZoom });
   };
 

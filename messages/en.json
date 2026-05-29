@@ -227,6 +227,18 @@
       "filtersEmptyDescription": "Try removing a filter or moving the map.",
       "genericTitle": "No spots in this area",
       "genericDescription": "Move the map or zoom into another region."
+    },
+    "viewMode": {
+      "toggleLabel": "View mode",
+      "map": "Map",
+      "list": "List",
+      "split": "Side-by-side",
+      "openListDrawer": "Open list",
+      "closeListDrawer": "Close list",
+      "listLabel": "Spot list",
+      "listCount": "{count, plural, =0 {No spots} one {1 spot} other {{count} spots}}",
+      "listEmpty": "No spots in this area. Move the map or zoom elsewhere.",
+      "listLoadMore": "Show more"
     }
   },
   "footer": {
