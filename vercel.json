@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    { "path": "/api/cron/refresh-hyrox", "schedule": "0 3 * * 1" },
+    { "path": "/api/cron/refresh-paragliding", "schedule": "0 4 * * 1" },
+    { "path": "/api/cron/refresh-diving", "schedule": "0 5 * * 1" },
+    { "path": "/api/cron/refresh-wikidata", "schedule": "0 6 * * 1" }
+  ]
+}
