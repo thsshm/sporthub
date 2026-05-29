@@ -103,6 +103,8 @@ type Props = {
   totalFamilies?: number;
   /** Callback pour reporter le count de venues fetched (overlay UI parent). */
   onVenuesChange?: (count: number) => void;
+  /** Callback pour reporter le zoom courant (overlay empty state intelligent, #125). */
+  onZoomChange?: (zoom: number) => void;
   /** Quand set, MapClient appelle map.flyTo() à chaque changement de token. */
   flyTarget?: FlyTarget | null;
   /** Mode "venues fixes" : si fourni, MapClient utilise ces venues directement
@@ -131,6 +133,7 @@ export default function MapClient({
   selectedFamilies,
   totalFamilies,
   onVenuesChange,
+  onZoomChange,
   flyTarget,
   presetVenues,
   selectedSport,
@@ -324,6 +327,7 @@ export default function MapClient({
     setBounds([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
     const newZoom = map.getZoom();
     setZoom(newZoom);
+    onZoomChange?.(newZoom);
     const c = map.getCenter();
     saveViewport({ lat: c.lat, lon: c.lng, zoom: newZoom });
   };

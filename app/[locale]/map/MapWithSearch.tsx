@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Crosshair, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import { SportFilters, type CriteriaKey } from "@/app/[locale]/map/SportFilters";
+import { EmptyStateOverlay } from "@/app/[locale]/map/EmptyStateOverlay";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
 import {
@@ -128,6 +129,7 @@ export function MapWithSearch({
   );
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
+  const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
   const [geolocError, setGeolocError] = useState<string | null>(null);
 
   // Wrapper qui persiste le toggle autoUpdate.
@@ -269,6 +271,17 @@ export function MapWithSearch({
         <span className="font-semibold">{formatCount(visibleCount)}</span> spots dans la vue
       </div>
 
+      {/* Empty state intelligent (#125) : overlay centré quand 0 spots dans la
+          vue, avec message contextuel (zoom trop bas/haut, filtres restrictifs,
+          fallback générique). Pas affiché en mode presetVenues. */}
+      <EmptyStateOverlay
+        count={visibleCount}
+        zoom={currentZoom}
+        selectedFamilies={selectedFamilies}
+        totalFamilies={FAMILIES.length}
+        selectedCriteria={selectedCriteria}
+      />
+
       <MapClient
         initialLat={initialView.lat}
         initialLon={initialView.lon}
@@ -278,6 +291,7 @@ export function MapWithSearch({
         selectedCriteria={selectedCriteria}
         autoUpdate={autoUpdate}
         onVenuesChange={setVisibleCount}
+        onZoomChange={setCurrentZoom}
         flyTarget={flyTarget}
         initialVenues={effectiveInitialVenues}
       />
