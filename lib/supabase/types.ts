@@ -14,6 +14,19 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Database = any;
 
+/**
+ * Type JSON canonique Supabase — représente le contenu d'une colonne `jsonb`.
+ * Utilisé par les routes cron (`enrichments: Json`). Identique à la définition
+ * générée par `supabase gen types`.
+ */
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 // Types utilitaires pour les tables principales — à affiner après génération complète
 
 export type Venue = {
