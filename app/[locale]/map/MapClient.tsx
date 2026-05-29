@@ -15,7 +15,7 @@ import {
 import Supercluster from "supercluster";
 import type { ClusterFeature, PointFeature } from "supercluster";
 import { Search, Star } from "lucide-react";
-import type { VenuePin } from "@/lib/supabase/types";
+import type { VenuePin, VenueMapPin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji } from "@/lib/families";
 import { saveViewport } from "@/lib/map-storage";
 import {
@@ -46,7 +46,7 @@ function persistFavorites(favs: Set<string>) {
 }
 
 type Bounds = [number, number, number, number]; // [west, south, east, north]
-type PointProps = { venue: VenuePin };
+type PointProps = { venue: VenueMapPin };
 
 // IMPORTANT : `mapStyle` doit être une référence STABLE entre les renders
 // React, sinon react-map-gl appelle `map.setStyle()` à chaque render → MapLibre
@@ -112,8 +112,10 @@ type Props = {
   /** Filtre sport pour le bbox-aware fetch. Quand set, appelle /api/venues?sport=... */
   selectedSport?: string | null;
   /** Venues SSR pré-fetched (bbox d'initialisation). Affichés immédiatement
-   * pour améliorer le LCP, avant que le premier bbox-aware fetch client retourne. */
-  initialVenues?: VenuePin[];
+   * pour améliorer le LCP, avant que le premier bbox-aware fetch client retourne.
+   * Accepte VenuePin (Server Components Supabase direct) OU VenueMapPin (RPC
+   * minimale /api/venues) — la carte n'utilise que le subset minimal. */
+  initialVenues?: VenueMapPin[];
   /** Critères universels cochés (lit / indoor / wheelchair / free / paid).
    * Envoyés à /api/venues?feat=... — AND entre critères côté DB. */
   selectedCriteria?: Set<string>;
@@ -140,13 +142,13 @@ export default function MapClient({
 }: Props) {
   const tMap = useTranslations("map");
   const mapRef = useRef<MapRef | null>(null);
-  const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(
+  const [fetchedVenues, setFetchedVenues] = useState<VenueMapPin[]>(
     () => initialVenues ?? [],
   );
   const venues = presetVenues ?? fetchedVenues;
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [zoom, setZoom] = useState<number>(initialZoom);
-  const [selected, setSelected] = useState<VenuePin | null>(null);
+  const [selected, setSelected] = useState<VenueMapPin | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   // Clé "filtres + bounds" du dernier fetch réussi. Permet de détecter si
@@ -257,7 +259,7 @@ export default function MapClient({
           onVenuesChange?.(0);
           return;
         }
-        const data = (await res.json()) as { venues: VenuePin[] };
+        const data = (await res.json()) as { venues: VenueMapPin[] };
         setFetchedVenues(data.venues);
         onVenuesChange?.(data.venues.length);
         lastFetchedKeyRef.current = currentKey;

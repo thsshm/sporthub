@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBbox } from "@/lib/bbox";
+import { parseBbox, roundBbox } from "@/lib/bbox";
 
 describe("parseBbox — validation d'entrée", () => {
   it("rejette une bbox vide", () => {
@@ -134,6 +134,59 @@ describe("parseBbox — clamping aux pôles", () => {
       expect(r.north).toBeLessThan(90);
       expect(r.south).toBeCloseTo(-89.9);
       expect(r.north).toBeCloseTo(89.9);
+    }
+  });
+});
+
+describe("roundBbox — arrondi à 0.01° pour cache key CDN", () => {
+  it("arrondit une bbox normale à 0.01°", () => {
+    const parsed = parseBbox("2.2873,48.8219,2.4123,48.9012");
+    if (parsed.kind !== "normal") throw new Error("expected normal");
+    const r = roundBbox(parsed);
+    expect(r.kind).toBe("normal");
+    if (r.kind === "normal") {
+      expect(r.west).toBe(2.29);
+      expect(r.south).toBe(48.82);
+      expect(r.east).toBe(2.41);
+      expect(r.north).toBe(48.9);
+    }
+  });
+
+  it("retourne le même résultat pour deux bbox tombant sur la même cellule 0.01°", () => {
+    // Deux viewports légèrement décalés mais arrondis au même 0.01° → CDN HIT.
+    // NB: l'arrondi est `Math.round(n * 100) / 100` (cf. issue #113) ; toute
+    // paire de bbox dont les 4 coords sont strictement dans la même cellule
+    // 0.01° (delta < 0.005 de chaque côté du centre de cellule) HIT le même
+    // cache. Pour des bbox tirées au hasard à ≤1 km de distance, le HIT n'est
+    // pas garanti à 100 % (cas frontalier), mais le ratio statistique reste
+    // largement supérieur au sans-arrondi.
+    const a = parseBbox("2.2812,48.8211,2.4112,48.9011");
+    const b = parseBbox("2.2848,48.8245,2.4148,48.9045");
+    if (a.kind !== "normal" || b.kind !== "normal") throw new Error("expected normal");
+    const ra = roundBbox(a);
+    const rb = roundBbox(b);
+    expect(ra).toEqual(rb);
+  });
+
+  it("conserve kind=global tel quel (rien à arrondir)", () => {
+    const parsed = parseBbox("-180,-90,180,90");
+    if (parsed.kind !== "global") throw new Error("expected global");
+    const r = roundBbox(parsed);
+    expect(r.kind).toBe("global");
+  });
+
+  it("arrondit une bbox antimeridian sur ses 4 lon + 2 lat", () => {
+    const parsed = parseBbox("170.123,-10.456,-170.789,10.321");
+    if (parsed.kind !== "antimeridian") throw new Error("expected antimeridian");
+    const r = roundBbox(parsed);
+    expect(r.kind).toBe("antimeridian");
+    if (r.kind === "antimeridian") {
+      expect(r.west1).toBe(170.12);
+      expect(r.east1).toBe(179.9); // déjà clampé, arrondi exact
+      expect(r.west2).toBe(-179.9);
+      expect(r.east2).toBe(-170.79);
+      expect(r.south).toBe(-10.46);
+      expect(r.north).toBe(10.32);
     }
   });
 });

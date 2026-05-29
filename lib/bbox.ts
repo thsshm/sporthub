@@ -63,6 +63,51 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
+ * Arrondit un nombre à 0.01° (~1 km au plus à l'équateur).
+ *
+ * Utilisé pour normaliser une bbox AVANT la query RPC + le cache key CDN :
+ * deux viewports clients très proches (≤1 km de différence) produisent ainsi
+ * la même clé de cache → ratio HIT du CDN Vercel dramatiquement amélioré sur
+ * les bbox populaires (Paris, Londres, Tokyo…).
+ *
+ * NB : le client garde la précision native pour son viewport — on n'arrondit
+ * que côté serveur, juste avant l'appel RPC.
+ */
+function roundTo01(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Applique `roundTo01` à chaque coordonnée d'une bbox normalisée non-globale.
+ *
+ * `global` est retourné tel quel (pas de coords à arrondir).
+ * `normal` et `antimeridian` voient toutes leurs lat/lon arrondies au 0.01°.
+ */
+export function roundBbox(
+  bbox: Exclude<NormalizedBbox, { kind: "error" }>,
+): Exclude<NormalizedBbox, { kind: "error" }> {
+  if (bbox.kind === "global") return bbox;
+  if (bbox.kind === "antimeridian") {
+    return {
+      kind: "antimeridian",
+      west1: roundTo01(bbox.west1),
+      east1: roundTo01(bbox.east1),
+      west2: roundTo01(bbox.west2),
+      east2: roundTo01(bbox.east2),
+      south: roundTo01(bbox.south),
+      north: roundTo01(bbox.north),
+    };
+  }
+  return {
+    kind: "normal",
+    west: roundTo01(bbox.west),
+    south: roundTo01(bbox.south),
+    east: roundTo01(bbox.east),
+    north: roundTo01(bbox.north),
+  };
+}
+
+/**
  * Parse "west,south,east,north" et retourne une bbox normalisée prête pour PostGIS,
  * ou un objet d'erreur si l'input est invalide.
  *

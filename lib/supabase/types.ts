@@ -138,3 +138,11 @@ export type VenueDetail = Venue & {
 
 // Type léger pour la carte et les listes
 export type VenuePin = Pick<Venue, "id" | "slug" | "name" | "lat" | "lon" | "family_slug" | "primary_sport_slug">;
+
+/**
+ * Type ultra-léger pour la carte : strict subset retourné par la RPC
+ * `venues_in_bbox_minimal` (migration 0008) et servi par /api/venues.
+ * Pas de `primary_sport_slug` — la carte ne l'utilise pas, et le retirer
+ * économise ~15 % du payload.
+ */
+export type VenueMapPin = Pick<Venue, "id" | "slug" | "name" | "lat" | "lon" | "family_slug">;
