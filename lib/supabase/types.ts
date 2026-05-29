@@ -150,6 +150,31 @@ export type UserFavorite = {
   created_at: string;
 };
 
+// Club = regroupement logique de venues du même établissement (cf. migration
+// 0012, issue #130). 1 pin "club" par établissement au zoom < 16, avec badge
+// du nombre de courts ; au zoom ≥ 16, les venues individuels apparaissent.
+export type Club = {
+  id: string;
+  name: string;
+  slug: string;
+  family_slug: string;
+  city_id: string | null;
+  country_code: string | null;
+  lat: number;
+  lon: number;
+  created_at: string;
+  updated_at: string;
+};
+
+// Type léger pour la carte : sortie de l'endpoint /api/venues/clubs.
+// `courts_count` est le COUNT(v.id) des venues rattachées au club.
+export type ClubPin = Pick<
+  Club,
+  "id" | "slug" | "name" | "lat" | "lon" | "family_slug"
+> & {
+  courts_count: number;
+};
+
 // Type étendu pour la page détail venue — résultat d'un join
 export type VenueDetail = Venue & {
   city_name?: string;
