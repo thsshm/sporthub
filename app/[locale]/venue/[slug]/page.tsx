@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { buildVenueMetadata, buildVenueJsonLd } from "@/lib/seo/metadata";
+import {
+  buildVenueMetadata,
+  buildVenueJsonLd,
+  buildBreadcrumbJsonLd,
+} from "@/lib/seo/metadata";
 import { SportChips } from "@/components/venue/SportChips";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
@@ -72,6 +76,22 @@ export default async function VenuePage({ params }: Props) {
   const family = FAMILIES_BY_SLUG[venue.family_slug];
   const sportSlugs = (venue.sports ?? []).map((s) => s.sport_slug).filter(Boolean);
   const jsonLd = buildVenueJsonLd(venue, venue.city_name);
+  // BreadcrumbList complémentaire — aide Google à comprendre Home → Famille → Venue.
+  const SITE_URL = "https://sporthubmap.com";
+  const breadcrumbItems: { name: string; url: string }[] = [
+    { name: "Sport Hub", url: SITE_URL },
+  ];
+  if (family) {
+    breadcrumbItems.push({
+      name: tFamilies(venue.family_slug),
+      url: `${SITE_URL}/${locale}/sports/${family.slug}`,
+    });
+  }
+  breadcrumbItems.push({
+    name: venue.name,
+    url: `${SITE_URL}/${locale}/venue/${venue.slug}`,
+  });
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd(breadcrumbItems);
   const websiteHost = venue.website_url
     ? (() => {
         try {
@@ -88,6 +108,11 @@ export default async function VenuePage({ params }: Props) {
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       <header className="border-b pb-6">

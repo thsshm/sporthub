@@ -8,6 +8,10 @@ import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "./SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
+import {
+  buildBreadcrumbJsonLd,
+  buildItemListJsonLd,
+} from "@/lib/seo/metadata";
 
 const PAGE_SIZE = 24;
 
@@ -105,8 +109,37 @@ export default async function SportPage({ params, searchParams }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const sportName = tSports.has(sport.slug) ? tSports(sport.slug) : sport.name_fr;
 
+  // ── Schema.org JSON-LD : BreadcrumbList + ItemList des venues affichés.
+  //    Permet à Google de comprendre la hiérarchie (Home → Sport → Venues)
+  //    et de générer des rich results de type carousel pour la liste.
+  const SITE_URL = "https://sporthubmap.com";
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: "Sport Hub", url: SITE_URL },
+    {
+      name: sportName,
+      url: `${SITE_URL}/${locale}/sports/${sport.slug}`,
+    },
+  ]);
+  const itemListJsonLd = buildItemListJsonLd(
+    sportName,
+    venues.map((v) => ({
+      name: v.name,
+      url: `${SITE_URL}/${locale}/venue/${v.slug}`,
+    })),
+  );
+
   return (
     <main className="container mx-auto max-w-6xl px-6 py-12">
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+      />
       <header className="border-b pb-6">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Link href="/" className="hover:text-foreground">
