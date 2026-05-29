@@ -280,5 +280,9 @@
       "statusApproved": "approuvé",
       "statusRejected": "rejeté"
     }
+  },
+  "schema": {
+    "home": "Accueil",
+    "sports": "Sports"
   }
 }

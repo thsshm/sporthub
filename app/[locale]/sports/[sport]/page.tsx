@@ -7,6 +7,11 @@ import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "./SportPageMap";
+import {
+  buildBreadcrumbJsonLd,
+  buildVenuesItemListJsonLd,
+  renderJsonLd,
+} from "@/lib/seo/jsonld";
 import type { VenuePin } from "@/lib/supabase/types";
 
 const PAGE_SIZE = 24;
@@ -98,6 +103,7 @@ export default async function SportPage({ params, searchParams }: Props) {
   const t = await getTranslations("sport");
   const tFamilies = await getTranslations("families");
   const tSports = await getTranslations("sports");
+  const tSchema = await getTranslations("schema");
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const { venues, total } = await fetchVenues(sportSlug, page);
@@ -105,8 +111,29 @@ export default async function SportPage({ params, searchParams }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const sportName = tSports.has(sport.slug) ? tSports(sport.slug) : sport.name_fr;
 
+  // JSON-LD : BreadcrumbList (Home → Sports → [Sport]) + ItemList des venues affichés.
+  // L'ItemList ne contient que les venues de la page courante (pas le total),
+  // pour éviter de promettre à Google une liste qu'il ne peut pas valider.
+  const breadcrumbLd = buildBreadcrumbJsonLd(
+    [
+      { name: tSchema("home"), path: "/" },
+      { name: tSchema("sports"), path: "/" },
+      { name: sportName, path: `/sports/${sport.slug}` },
+    ],
+    locale,
+  );
+  const itemListLd =
+    venues.length > 0
+      ? buildVenuesItemListJsonLd(
+          venues.map((v) => ({ slug: v.slug, name: v.name })),
+          locale,
+        )
+      : null;
+
   return (
     <main className="container mx-auto max-w-6xl px-6 py-12">
+      {renderJsonLd(breadcrumbLd)}
+      {itemListLd && renderJsonLd(itemListLd)}
       <header className="border-b pb-6">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Link href="/" className="hover:text-foreground">

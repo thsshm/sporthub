@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { buildVenueMetadata, buildVenueJsonLd } from "@/lib/seo/metadata";
+import { buildBreadcrumbJsonLd, renderJsonLd } from "@/lib/seo/jsonld";
 import { SportChips } from "@/components/venue/SportChips";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
+import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
 import type { VenueDetail } from "@/lib/supabase/types";
 
@@ -65,6 +67,8 @@ export default async function VenuePage({ params }: Props) {
   setRequestLocale(locale);
   const t = await getTranslations("venue");
   const tFamilies = await getTranslations("families");
+  const tSports = await getTranslations("sports");
+  const tSchema = await getTranslations("schema");
 
   const venue = await fetchVenue(slug);
   if (!venue) notFound();
@@ -72,6 +76,29 @@ export default async function VenuePage({ params }: Props) {
   const family = FAMILIES_BY_SLUG[venue.family_slug];
   const sportSlugs = (venue.sports ?? []).map((s) => s.sport_slug).filter(Boolean);
   const jsonLd = buildVenueJsonLd(venue, venue.city_name);
+
+  // BreadcrumbList : Home → [Family] → [Sport] → [Venue].
+  // Le segment Family pointe vers la home (pas de page famille dédiée pour l'instant).
+  // Le segment Sport est inséré uniquement si `primary_sport_slug` est défini.
+  const primarySport = venue.primary_sport_slug
+    ? SPORTS_BY_SLUG[venue.primary_sport_slug]
+    : undefined;
+  const sportDisplayName = primarySport
+    ? tSports.has(primarySport.slug)
+      ? tSports(primarySport.slug)
+      : primarySport.name_fr
+    : null;
+  const breadcrumbLd = buildBreadcrumbJsonLd(
+    [
+      { name: tSchema("home"), path: "/" },
+      { name: tFamilies(venue.family_slug), path: "/" },
+      ...(primarySport && sportDisplayName
+        ? [{ name: sportDisplayName, path: `/sports/${primarySport.slug}` }]
+        : []),
+      { name: venue.name, path: `/venue/${venue.slug}` },
+    ],
+    locale,
+  );
   const websiteHost = venue.website_url
     ? (() => {
         try {
@@ -89,6 +116,7 @@ export default async function VenuePage({ params }: Props) {
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      {renderJsonLd(breadcrumbLd)}
 
       <header className="border-b pb-6">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">

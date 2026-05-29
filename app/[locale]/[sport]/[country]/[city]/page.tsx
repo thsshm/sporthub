@@ -8,6 +8,12 @@ import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
+import {
+  buildBreadcrumbJsonLd,
+  buildCityPlaceJsonLd,
+  buildVenuesItemListJsonLd,
+  renderJsonLd,
+} from "@/lib/seo/jsonld";
 import type { VenuePin } from "@/lib/supabase/types";
 
 const PAGE_SIZE = 24;
@@ -24,7 +30,13 @@ export const revalidate = 86400; // 24h
 
 type Ctx = {
   sport: (typeof SPORTS_BY_SLUG)[string];
-  city: { id: string; name: string; country_code: string };
+  city: {
+    id: string;
+    name: string;
+    country_code: string;
+    lat: number | null;
+    lon: number | null;
+  };
   total: number;
 };
 
@@ -35,7 +47,7 @@ const resolveContext = cache(async (sport: string, country: string, city: string
   const sb = getSupabaseServerClient();
   const { data: cityRow } = await sb
     .from("city")
-    .select("id, name, country_code")
+    .select("id, name, country_code, lat, lon")
     .eq("country_code", country.toUpperCase())
     .eq("slug", city)
     .maybeSingle();
@@ -141,6 +153,7 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
   const tSport = await getTranslations("sport");
   const tFamilies = await getTranslations("families");
   const tSports = await getTranslations("sports");
+  const tSchema = await getTranslations("schema");
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const venues = await fetchVenues(ctx, page);
@@ -149,8 +162,38 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
   const basePath = `/${sport}/${country}/${city}`;
   const sportName = tSports.has(ctx.sport.slug) ? tSports(ctx.sport.slug) : ctx.sport.name_fr;
 
+  // JSON-LD : Place (ville) + ItemList (venues affichés) + BreadcrumbList.
+  // BreadcrumbList : Home → [Sport] → [Country] → [City].
+  // Le segment Country réutilise le code pays (FR, US…) ; pas d'i18n des noms
+  // de pays côté front pour l'instant, et c'est ce code qui apparaît dans l'URL.
+  const placeLd = buildCityPlaceJsonLd({
+    name: ctx.city.name,
+    countryCode: ctx.city.country_code,
+    lat: ctx.city.lat,
+    lon: ctx.city.lon,
+  });
+  const breadcrumbLd = buildBreadcrumbJsonLd(
+    [
+      { name: tSchema("home"), path: "/" },
+      { name: sportName, path: `/sports/${ctx.sport.slug}` },
+      { name: ctx.city.country_code, path: `/sports/${ctx.sport.slug}` },
+      { name: ctx.city.name, path: basePath },
+    ],
+    locale,
+  );
+  const itemListLd =
+    venues.length > 0
+      ? buildVenuesItemListJsonLd(
+          venues.map((v) => ({ slug: v.slug, name: v.name })),
+          locale,
+        )
+      : null;
+
   return (
     <main className="container mx-auto max-w-6xl px-6 py-12">
+      {renderJsonLd(placeLd)}
+      {renderJsonLd(breadcrumbLd)}
+      {itemListLd && renderJsonLd(itemListLd)}
       <header className="border-b pb-6">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <Link href="/" className="hover:text-foreground">

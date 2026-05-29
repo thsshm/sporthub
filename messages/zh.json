@@ -280,5 +280,9 @@
       "statusApproved": "已批准",
       "statusRejected": "已拒绝"
     }
+  },
+  "schema": {
+    "home": "首页",
+    "sports": "运动"
   }
 }
