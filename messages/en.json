@@ -160,5 +160,74 @@
     "legal": "Legal notice",
     "source": "Source code (GitHub)",
     "copyright": "© {year} Sport Hub — MIT license — Data under their respective source licenses"
+  },
+  "admin": {
+    "login": {
+      "loading": "Loading…",
+      "title": "Sign in",
+      "intro": "Get a magic link by email to access your favorites and submit claims.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@email.com",
+      "submit": "Send magic link",
+      "submitSent": "Link sent",
+      "sentTitle": "Email sent!",
+      "sentDescription": "Click the link in the email sent to <strong>{email}</strong> to sign in. Check your spam folder too.",
+      "errorTitle": "Error",
+      "noPasswordHint": "No password to remember.",
+      "backHome": "Back to home"
+    },
+    "layout": {
+      "accessDeniedTitle": "Access denied",
+      "accessDeniedConnected": "Signed in as:",
+      "accessDeniedExpected": "Expected admin account:",
+      "accessDeniedNotConfigured": "(not configured)",
+      "logout": "Sign out",
+      "navAdmin": "Admin",
+      "navVenues": "Venues",
+      "navClaims": "Claims",
+      "navLogoutShort": "sign out"
+    },
+    "dashboard": {
+      "title": "Admin dashboard",
+      "subtitle": "Internal SportHub V2 dashboard.",
+      "venuesTitle": "Venues",
+      "venuesHint": "published · manage list",
+      "claimsTitle": "Pending claims",
+      "claimsHint": "to moderate"
+    },
+    "venues": {
+      "title": "Venues",
+      "pageInfo": "page {page} / {totalPages}",
+      "deletedIncluded": "deleted included",
+      "searchPlaceholder": "Search…",
+      "includeDeleted": "Include deleted",
+      "filterSubmit": "Filter",
+      "colName": "Name",
+      "colFamily": "Family",
+      "colSource": "Source",
+      "colStatus": "Status",
+      "colUpdated": "Updated",
+      "colActions": "Actions",
+      "statusDeleted": "deleted",
+      "statusPublished": "published",
+      "statusDraft": "draft",
+      "actionRestore": "Restore",
+      "actionUnpublish": "Unpublish",
+      "actionPublish": "Publish",
+      "actionDelete": "Delete",
+      "previous": "← Previous",
+      "next": "Next →",
+      "editNote": "Full edit (name/description/contacts): coming in a dedicated PR."
+    },
+    "claimRequests": {
+      "title": "Claim requests",
+      "subtitle": "The 100 most recent — moderation coming soon (dedicated PR for approve/reject actions).",
+      "empty": "No requests yet.",
+      "venueDeleted": "venue deleted",
+      "noName": "(no name)",
+      "statusPending": "pending",
+      "statusApproved": "approved",
+      "statusRejected": "rejected"
+    }
   }
 }

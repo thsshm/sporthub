@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getLocale, getTranslations } from "next-intl/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { formatCount } from "@/lib/utils";
 import { togglePublish, softDelete, restore } from "./actions";
@@ -20,8 +21,18 @@ type AdminVenueRow = {
   updated_at: string;
 };
 
+const LOCALE_TO_BCP47: Record<string, string> = {
+  fr: "fr-FR",
+  en: "en-US",
+  zh: "zh-CN",
+};
+
 export default async function AdminVenuesPage({ searchParams }: Props) {
   const sb = getSupabaseAdminClient();
+  const t = await getTranslations("admin.venues");
+  const locale = await getLocale();
+  const dateLocale = LOCALE_TO_BCP47[locale] ?? "fr-FR";
+
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const q = (searchParams.q ?? "").trim();
   const showDeleted = searchParams.show_deleted === "1";
@@ -62,11 +73,12 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
     <main className="container mx-auto max-w-6xl px-6 py-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Venues</h1>
+          <h1 className="text-2xl font-bold">{t("title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {formatCount(count ?? 0)}
-            {totalPages > 1 && ` · page ${page} / ${totalPages}`}
-            {showDeleted && " · supprimés inclus"}
+            {totalPages > 1 &&
+              ` · ${t("pageInfo", { page, totalPages })}`}
+            {showDeleted && ` · ${t("deletedIncluded")}`}
           </p>
         </div>
         <form className="flex flex-wrap items-center gap-2 text-sm">
@@ -74,7 +86,7 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
             type="search"
             name="q"
             defaultValue={q}
-            placeholder="Rechercher…"
+            placeholder={t("searchPlaceholder")}
             className="rounded-md border px-3 py-1.5 outline-none focus:border-primary"
           />
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -84,13 +96,13 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
               value="1"
               defaultChecked={showDeleted}
             />
-            Inclure supprimés
+            {t("includeDeleted")}
           </label>
           <button
             type="submit"
             className="rounded-md border px-3 py-1.5 hover:bg-accent"
           >
-            Filtrer
+            {t("filterSubmit")}
           </button>
         </form>
       </header>
@@ -99,12 +111,12 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
         <table className="w-full min-w-[800px] text-sm">
           <thead className="border-b text-left text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="py-2 pr-3">Nom</th>
-              <th className="pr-3">Famille</th>
-              <th className="pr-3">Source</th>
-              <th className="pr-3">État</th>
-              <th className="pr-3">MAJ</th>
-              <th className="pr-3">Actions</th>
+              <th className="py-2 pr-3">{t("colName")}</th>
+              <th className="pr-3">{t("colFamily")}</th>
+              <th className="pr-3">{t("colSource")}</th>
+              <th className="pr-3">{t("colStatus")}</th>
+              <th className="pr-3">{t("colUpdated")}</th>
+              <th className="pr-3">{t("colActions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -132,20 +144,20 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
                   <td className="pr-3 text-xs">
                     {isDeleted ? (
                       <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-900">
-                        supprimé
+                        {t("statusDeleted")}
                       </span>
                     ) : v.is_published ? (
                       <span className="rounded-full bg-green-100 px-2 py-0.5 text-green-900">
-                        publié
+                        {t("statusPublished")}
                       </span>
                     ) : (
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-700">
-                        brouillon
+                        {t("statusDraft")}
                       </span>
                     )}
                   </td>
                   <td className="pr-3 text-xs text-muted-foreground">
-                    {new Date(v.updated_at).toLocaleDateString("fr-FR")}
+                    {new Date(v.updated_at).toLocaleDateString(dateLocale)}
                   </td>
                   <td className="pr-3">
                     <div className="flex flex-wrap items-center gap-1">
@@ -155,7 +167,7 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
                             type="submit"
                             className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs text-blue-900 hover:bg-blue-100"
                           >
-                            Restaurer
+                            {t("actionRestore")}
                           </button>
                         </form>
                       ) : (
@@ -167,7 +179,7 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
                               type="submit"
                               className="rounded border px-2 py-0.5 text-xs hover:bg-accent"
                             >
-                              {v.is_published ? "Dépublier" : "Publier"}
+                              {v.is_published ? t("actionUnpublish") : t("actionPublish")}
                             </button>
                           </form>
                           <form action={softDelete.bind(null, v.id)}>
@@ -175,7 +187,7 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
                               type="submit"
                               className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-900 hover:bg-red-100"
                             >
-                              Supprimer
+                              {t("actionDelete")}
                             </button>
                           </form>
                         </>
@@ -199,26 +211,25 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
               href={buildHref({ page: String(page - 1) })}
               className="rounded-md border px-3 py-1.5 hover:bg-accent"
             >
-              ← Précédent
+              {t("previous")}
             </Link>
           )}
           <span className="text-muted-foreground">
-            Page {page} / {totalPages}
+            {t("pageInfo", { page, totalPages })}
           </span>
           {page < totalPages && (
             <Link
               href={buildHref({ page: String(page + 1) })}
               className="rounded-md border px-3 py-1.5 hover:bg-accent"
             >
-              Suivant →
+              {t("next")}
             </Link>
           )}
         </nav>
       )}
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        Édition complète (name/description/contacts) : à venir dans une PR
-        dédiée.
+        {t("editNote")}
       </p>
     </main>
   );

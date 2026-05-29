@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getLocale, getTranslations } from "next-intl/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +23,17 @@ const STATUS_COLOR: Record<ClaimRow["status"], string> = {
   rejected: "bg-gray-100 text-gray-600",
 };
 
+const LOCALE_TO_BCP47: Record<string, string> = {
+  fr: "fr-FR",
+  en: "en-US",
+  zh: "zh-CN",
+};
+
 export default async function ClaimRequestsPage() {
   const sb = getSupabaseAdminClient();
+  const t = await getTranslations("admin.claimRequests");
+  const locale = await getLocale();
+  const dateLocale = LOCALE_TO_BCP47[locale] ?? "fr-FR";
 
   const { data } = await sb
     .from("claim_request")
@@ -39,17 +49,25 @@ export default async function ClaimRequestsPage() {
     venue: Array.isArray(c.venue) ? (c.venue[0] ?? null) : c.venue,
   })) as ClaimRow[];
 
+  const statusLabel = (status: ClaimRow["status"]) => {
+    switch (status) {
+      case "pending":
+        return t("statusPending");
+      case "approved":
+        return t("statusApproved");
+      case "rejected":
+        return t("statusRejected");
+    }
+  };
+
   return (
     <main className="container mx-auto max-w-4xl px-6 py-8">
-      <h1 className="text-2xl font-bold">Demandes de claim</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Les 100 plus récentes — modération à venir (PR dédiée pour les actions
-        approve/reject).
-      </p>
+      <h1 className="text-2xl font-bold">{t("title")}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
 
       {claims.length === 0 ? (
         <p className="mt-10 text-center text-sm text-muted-foreground">
-          Aucune demande pour l&apos;instant.
+          {t("empty")}
         </p>
       ) : (
         <ul className="mt-6 space-y-3">
@@ -61,7 +79,7 @@ export default async function ClaimRequestsPage() {
                     <span
                       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[c.status]}`}
                     >
-                      {c.status}
+                      {statusLabel(c.status)}
                     </span>
                     {c.venue ? (
                       <Link
@@ -74,12 +92,14 @@ export default async function ClaimRequestsPage() {
                       </Link>
                     ) : (
                       <span className="text-muted-foreground">
-                        venue supprimée
+                        {t("venueDeleted")}
                       </span>
                     )}
                   </div>
                   <p className="mt-1 text-sm">
-                    <span className="font-medium">{c.requester_name || "(sans nom)"}</span>{" "}
+                    <span className="font-medium">
+                      {c.requester_name || t("noName")}
+                    </span>{" "}
                     · <code className="text-xs">{c.requester_email}</code>
                     {c.requester_role && (
                       <span className="ml-1 text-xs text-muted-foreground">
@@ -94,7 +114,7 @@ export default async function ClaimRequestsPage() {
                   )}
                 </div>
                 <time className="text-xs text-muted-foreground">
-                  {new Date(c.created_at).toLocaleDateString("fr-FR", {
+                  {new Date(c.created_at).toLocaleDateString(dateLocale, {
                     day: "numeric",
                     month: "short",
                     year: "numeric",
