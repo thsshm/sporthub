@@ -280,5 +280,21 @@
       "statusApproved": "approved",
       "statusRejected": "rejected"
     }
+  },
+  "claim": {
+    "successTitle": "Request sent!",
+    "successHint": "Returning to the venue page in a moment…",
+    "emailLabel": "Contact email *",
+    "nameLabel": "Your name",
+    "roleLabel": "Role at the venue",
+    "roleChoose": "— choose —",
+    "roleOwner": "Owner",
+    "roleManager": "Manager / Director",
+    "roleMarketing": "Marketing / Communications",
+    "roleOther": "Other",
+    "proofLabel": "Proof (free text)",
+    "proofPlaceholder": "Official website, business registry, social media link that confirms your connection to this venue…",
+    "submitButton": "Submit request",
+    "errorUnknown": "Unknown error"
   }
 }
