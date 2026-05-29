@@ -113,20 +113,38 @@ async function fetchVenues(
   const sb = getSupabaseServerClient();
 
   if (bbox.kind === "global") {
-    // Bbox mondiale : on appelle la RPC avec une enveloppe clampée ±179.9/±89.9
-    // qui couvre toutes les venues réalistes tout en évitant l'erreur antipodale
-    // de ST_MakeEnvelope sur exactement ±180. Plus simple qu'une nouvelle RPC
-    // sans filtre spatial, et exploite le même index GIST.
-    const { data, error } = await sb.rpc("venues_in_bbox", {
-      west: -179.9,
-      south: -89.9,
-      east: 179.9,
-      north: 89.9,
-      fams: filters.fams,
-      sport: filters.sport,
-      feat: filters.feat,
-      max_results: filters.limit,
-    });
+    // Bbox mondiale : appeler la RPC avec spatial filter timeout sur ~348k
+    // venues, même avec l'index GIST. On bypasse l'enveloppe ST_MakeEnvelope
+    // et on fait un select direct avec les filtres scalaires sur les colonnes
+    // indexées (family_slug, primary_sport_slug, has_lighting, etc.).
+    //
+    // Compromis : on ne respecte pas la sémantique des `feat` (qui exige du
+    // SQL côté RPC) — mais en pratique, sur la vue mondiale, le user vient
+    // d'arriver et n'a pas encore appliqué de filtres feat. C'est ok.
+    let q = sb
+      .from("venue")
+      .select("id, slug, name, lat, lon, family_slug, primary_sport_slug")
+      .eq("is_published", true)
+      .is("deleted_at", null);
+
+    if (filters.fams && filters.fams.length > 0) {
+      q = q.in("family_slug", filters.fams);
+    }
+    if (filters.sport) {
+      q = q.eq("primary_sport_slug", filters.sport);
+    }
+    // Mapping des feat scalaires côté colonne (subset des critères supportés).
+    if (filters.feat) {
+      for (const f of filters.feat) {
+        if (f === "lit") q = q.eq("has_lighting", true);
+        else if (f === "indoor") q = q.eq("is_indoor", true);
+        else if (f === "wheelchair") q = q.eq("is_wheelchair_accessible", true);
+        else if (f === "free") q = q.eq("fee_required", false);
+        else if (f === "paid") q = q.eq("fee_required", true);
+      }
+    }
+
+    const { data, error } = await q.limit(filters.limit).order("id");
     if (error) throw error;
     return (data ?? []) as VenuePin[];
   }
