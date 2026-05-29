@@ -105,6 +105,9 @@ type Props = {
   onVenuesChange?: (count: number) => void;
   /** Callback pour reporter le zoom courant (overlay empty state intelligent, #125). */
   onZoomChange?: (zoom: number) => void;
+  /** Callback pour reporter la liste des venues + centre courant — utilisé par
+   * VenueListPanel (#123) pour partager la source data sans re-fetch. */
+  onVenuesData?: (venues: VenuePin[], center: { lat: number; lon: number }) => void;
   /** Quand set, MapClient appelle map.flyTo() à chaque changement de token. */
   flyTarget?: FlyTarget | null;
   /** Mode "venues fixes" : si fourni, MapClient utilise ces venues directement
@@ -134,6 +137,7 @@ export default function MapClient({
   totalFamilies,
   onVenuesChange,
   onZoomChange,
+  onVenuesData,
   flyTarget,
   presetVenues,
   selectedSport,
@@ -149,6 +153,12 @@ export default function MapClient({
   const venues = presetVenues ?? fetchedVenues;
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [zoom, setZoom] = useState<number>(initialZoom);
+  // Centre courant — exposé via onVenuesData pour permettre au VenueListPanel
+  // (#123) de trier les venues par distance (Haversine).
+  const [center, setCenter] = useState<{ lat: number; lon: number }>({
+    lat: initialLat,
+    lon: initialLon,
+  });
   const [selected, setSelected] = useState<VenuePin | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -329,8 +339,16 @@ export default function MapClient({
     setZoom(newZoom);
     onZoomChange?.(newZoom);
     const c = map.getCenter();
+    setCenter({ lat: c.lat, lon: c.lng });
     saveViewport({ lat: c.lat, lon: c.lng, zoom: newZoom });
   };
+
+  // Reporte au parent (#123 VenueListPanel) la liste de venues + le centre
+  // courant à chaque update — sans re-fetch propre côté liste.
+  useEffect(() => {
+    onVenuesData?.(venues, center);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [venues, center.lat, center.lon]);
 
   // Force le premier render MapLibre après le mount.
   //
