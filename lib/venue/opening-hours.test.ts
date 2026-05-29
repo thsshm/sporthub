@@ -3,7 +3,13 @@ import {
   parseOpeningHours,
   toSchemaOpeningHours,
   formatRange,
+  getOpenStatus,
 } from "@/lib/venue/opening-hours";
+
+// Dates en heure locale (constructeur local → indépendant du fuseau CI).
+// 2024-01-01 = lundi, 2024-01-07 = dimanche.
+const MON = (h: number, m = 0) => new Date(2024, 0, 1, h, m);
+const SUN = (h: number, m = 0) => new Date(2024, 0, 7, h, m);
 
 describe("parseOpeningHours", () => {
   it("retourne null pour null/undefined/vide", () => {
@@ -103,5 +109,66 @@ describe("formatRange", () => {
 
   it("anglais : 9:00-22:00", () => {
     expect(formatRange("09:00", "22:00", "en")).toBe("9:00-22:00");
+  });
+});
+
+describe("getOpenStatus", () => {
+  it("retourne null sans specs exploitables", () => {
+    expect(getOpenStatus(null)).toBeNull();
+    expect(getOpenStatus(undefined)).toBeNull();
+    expect(getOpenStatus([])).toBeNull();
+  });
+
+  it("ouvert : dans une plage du jour courant → closesAt", () => {
+    const specs = parseOpeningHours("Mo-Fr 09:00-22:00")!;
+    expect(getOpenStatus(specs, MON(10))).toEqual({
+      isOpen: true,
+      closesAt: "22:00",
+    });
+  });
+
+  it("24/7 → toujours ouvert jusqu'à minuit", () => {
+    const specs = parseOpeningHours("24/7")!;
+    expect(getOpenStatus(specs, SUN(3))).toEqual({
+      isOpen: true,
+      closesAt: "24:00",
+    });
+  });
+
+  it("fermé avant l'ouverture → opensAt du jour", () => {
+    const specs = parseOpeningHours("Mo-Fr 09:00-22:00")!;
+    expect(getOpenStatus(specs, MON(8))).toEqual({
+      isOpen: false,
+      opensAt: "09:00",
+    });
+  });
+
+  it("pause déjeuner : fermé à 13h, rouvre à 14h le même jour", () => {
+    const specs = parseOpeningHours("Mo 09:00-12:00,14:00-18:00")!;
+    expect(getOpenStatus(specs, MON(13))).toEqual({
+      isOpen: false,
+      opensAt: "14:00",
+    });
+    expect(getOpenStatus(specs, MON(10))).toEqual({
+      isOpen: true,
+      closesAt: "12:00",
+    });
+  });
+
+  it("après la fermeture → prochain créneau le jour suivant", () => {
+    const specs = parseOpeningHours("Mo-Fr 09:00-22:00")!;
+    expect(getOpenStatus(specs, MON(23))).toEqual({
+      isOpen: false,
+      opensAt: "09:00",
+    });
+  });
+
+  it("jour sans horaires → cherche le prochain jour ouvré", () => {
+    const specs = parseOpeningHours("Mo-Fr 09:00-22:00")!;
+    // Dimanche : aucune plage → prochain = lundi 09:00.
+    expect(getOpenStatus(specs, SUN(12))).toEqual({
+      isOpen: false,
+      opensAt: "09:00",
+    });
   });
 });
