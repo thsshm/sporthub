@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  loadActiveFamily,
   loadAutoUpdate,
   loadViewport,
+  saveActiveFamily,
   saveAutoUpdate,
   saveViewport,
 } from "@/lib/map-storage";
 
-// Fake localStorage pour env node.
-const fakeStorage = (() => {
+// Factory : crée une fake Storage isolée (pour distinguer local et session).
+function createFakeStorage() {
   const store = new Map<string, string>();
   return {
     getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
@@ -15,12 +17,19 @@ const fakeStorage = (() => {
     removeItem: (k: string) => store.delete(k),
     clear: () => store.clear(),
   };
-})();
+}
+
+const fakeStorage = createFakeStorage();
+const fakeSessionStorage = createFakeStorage();
 
 beforeEach(() => {
   fakeStorage.clear();
-  // Injection sur globalThis pour simuler window.localStorage
-  vi.stubGlobal("window", { localStorage: fakeStorage });
+  fakeSessionStorage.clear();
+  // Injection sur globalThis pour simuler window.localStorage / sessionStorage
+  vi.stubGlobal("window", {
+    localStorage: fakeStorage,
+    sessionStorage: fakeSessionStorage,
+  });
 });
 
 afterEach(() => {
@@ -108,6 +117,41 @@ describe("loadAutoUpdate / saveAutoUpdate", () => {
   });
 });
 
+describe("loadActiveFamily / saveActiveFamily", () => {
+  it("retourne null si rien en storage", () => {
+    expect(loadActiveFamily()).toBeNull();
+  });
+
+  it("sauve et restore un slug famille valide", () => {
+    saveActiveFamily("ballon");
+    expect(loadActiveFamily()).toBe("ballon");
+  });
+
+  it("removeItem quand on save null", () => {
+    saveActiveFamily("raquette");
+    saveActiveFamily(null);
+    expect(loadActiveFamily()).toBeNull();
+  });
+
+  it("rejette un slug avec des caractères suspects (XSS-safe)", () => {
+    fakeSessionStorage.setItem("sporthub-map-active-family", "<script>");
+    expect(loadActiveFamily()).toBeNull();
+  });
+
+  it("rejette un slug vide", () => {
+    fakeSessionStorage.setItem("sporthub-map-active-family", "");
+    expect(loadActiveFamily()).toBeNull();
+  });
+
+  it("utilise sessionStorage, PAS localStorage", () => {
+    saveActiveFamily("fitness");
+    expect(fakeSessionStorage.getItem("sporthub-map-active-family")).toBe(
+      "fitness",
+    );
+    expect(fakeStorage.getItem("sporthub-map-active-family")).toBeNull();
+  });
+});
+
 describe("SSR-safe (window indéfini)", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -123,11 +167,20 @@ describe("SSR-safe (window indéfini)", () => {
     expect(loadAutoUpdate(false)).toBe(false);
   });
 
+  it("loadActiveFamily retourne null", () => {
+    expect(loadActiveFamily()).toBeNull();
+  });
+
   it("saveViewport ne throw pas", () => {
     expect(() => saveViewport({ lat: 0, lon: 0, zoom: 5 })).not.toThrow();
   });
 
   it("saveAutoUpdate ne throw pas", () => {
     expect(() => saveAutoUpdate(true)).not.toThrow();
+  });
+
+  it("saveActiveFamily ne throw pas", () => {
+    expect(() => saveActiveFamily("ballon")).not.toThrow();
+    expect(() => saveActiveFamily(null)).not.toThrow();
   });
 });

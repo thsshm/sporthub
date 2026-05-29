@@ -150,7 +150,13 @@
     "myLocationUnavailable": "无法获取位置。请重试或手动搜索。",
     "autoUpdate": "自动更新",
     "autoUpdateHint": "拖动/缩放时自动重新加载场所",
-    "searchInThisArea": "搜索此区域"
+    "searchInThisArea": "搜索此区域",
+    "switcher": {
+      "ariaLabel": "切换运动家族",
+      "all": "全部",
+      "allAriaLabel": "显示所有家族",
+      "filterBy": "筛选"
+    }
   },
   "footer": {
     "about": "Sport Hub",

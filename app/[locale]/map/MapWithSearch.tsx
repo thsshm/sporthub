@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { Crosshair, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
+import { FamilySwitcher } from "@/components/map/FamilySwitcher";
 import { SportFilters, type CriteriaKey } from "@/app/[locale]/map/SportFilters";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
@@ -79,6 +80,12 @@ export function MapWithSearch({
   const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(
     () => new Set(FAMILIES.map((f) => f.slug)),
   );
+  // Famille active du switcher rapide (#121). `null` = "Toutes les familles".
+  // C'est une projection mono-famille au-dessus de `selectedFamilies` (qui reste
+  // multi-sélection via la sidebar / les checkboxes). Quand l'user clique un
+  // chip, on bascule `selectedFamilies` en mode "uniquement ce slug" et on
+  // reset les critères pour repartir d'une exploration propre.
+  const [activeFamily, setActiveFamily] = useState<string | null>(null);
   const [selectedCriteria, setSelectedCriteria] = useState<Set<CriteriaKey>>(
     () => new Set(),
   );
@@ -94,6 +101,22 @@ export function MapWithSearch({
     setAutoUpdateState(v);
     saveAutoUpdate(v);
   };
+
+  // Handler du FamilySwitcher (#121). Une seule famille à la fois OU null = toutes.
+  // - null  → reset à "toutes cochées" (équivalent du bouton "tout" de la sidebar).
+  // - slug  → uniquement ce slug coché dans la sidebar.
+  // Dans les deux cas, on vide les critères universels (lit/indoor/…) pour que
+  // l'user reparte d'une exploration propre — cf. issue #121 "vide les
+  // sélections sport précédentes".
+  const handleFamilyChange = useCallback((slug: string | null) => {
+    setActiveFamily(slug);
+    if (slug === null) {
+      setSelectedFamilies(new Set(FAMILIES.map((f) => f.slug)));
+    } else {
+      setSelectedFamilies(new Set([slug]));
+    }
+    setSelectedCriteria(new Set());
+  }, []);
 
   // Auto-clear geolocError après 4s.
   useEffect(() => {
@@ -139,7 +162,18 @@ export function MapWithSearch({
 
   return (
     <div className="relative h-full w-full">
-      {/* Sidebar desktop */}
+      {/* FamilySwitcher #121 — bandeau famille rapide en haut de la carte.
+          Desktop : top bar pleine largeur, sticky.
+          Mobile  : pareil, scroll horizontal interne au composant.
+          Tous les autres overlays démarrent ~3.5rem plus bas pour ne pas
+          le recouvrir. */}
+      <FamilySwitcher
+        activeFamily={activeFamily}
+        onFamilyChange={handleFamilyChange}
+        className="absolute left-2 right-2 top-2 z-30 md:left-4 md:right-4 md:top-4"
+      />
+
+      {/* Sidebar desktop — décalée sous le switcher */}
       <SportFilters
         selected={selectedFamilies}
         onChange={setSelectedFamilies}
@@ -147,15 +181,15 @@ export function MapWithSearch({
         onCriteriaChange={setSelectedCriteria}
         autoUpdate={autoUpdate}
         onAutoUpdateChange={setAutoUpdate}
-        className="absolute left-4 top-4 z-20 hidden max-h-[calc(100%-2rem)] w-56 overflow-auto md:flex"
+        className="absolute left-4 top-20 z-20 hidden max-h-[calc(100%-6rem)] w-56 overflow-auto md:flex"
       />
 
-      {/* Bouton filtres mobile */}
+      {/* Bouton filtres mobile — décalé sous le switcher */}
       <button
         type="button"
         onClick={() => setMobileFiltersOpen(true)}
         aria-label="Ouvrir les filtres"
-        className="absolute left-4 top-4 z-20 flex items-center gap-1.5 rounded-md border bg-background/95 px-3 py-2 text-sm shadow-md backdrop-blur md:hidden"
+        className="absolute left-2 top-16 z-20 flex items-center gap-1.5 rounded-md border bg-background/95 px-3 py-2 text-sm shadow-md backdrop-blur md:hidden"
       >
         <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
         Filtres
@@ -200,7 +234,7 @@ export function MapWithSearch({
         onSelect={(r) =>
           setFlyTarget({ lat: r.lat, lon: r.lon, zoom: 12, token: Date.now() })
         }
-        className="absolute right-4 top-4 z-20 w-[min(320px,calc(100vw-180px))] md:w-80"
+        className="absolute right-2 top-16 z-20 w-[min(320px,calc(100vw-100px))] md:right-4 md:top-20 md:w-80"
       />
 
       {/* Bouton "Ma position" (géolocalisation navigateur) */}

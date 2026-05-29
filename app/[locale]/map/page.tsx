@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { MapWithSearch } from "@/app/[locale]/map/MapWithSearch";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -56,12 +57,17 @@ export default async function MapPage() {
       <link rel="preconnect" href="https://d.basemaps.cartocdn.com" crossOrigin="" />
 
       <div className="relative h-[calc(100vh-4rem)] w-full">
-        <MapWithSearch
-          initialLat={46.5}
-          initialLon={2.5}
-          initialZoom={5}
-          initialVenues={initialVenues}
-        />
+        {/* Suspense requise par `useSearchParams()` du FamilySwitcher (#121) :
+            sans elle, Next 14 fait bail-out du prerender (cf. doc App Router).
+            Fallback = juste le conteneur vide pendant l'hydration. */}
+        <Suspense fallback={<div className="h-full w-full bg-muted/20" />}>
+          <MapWithSearch
+            initialLat={46.5}
+            initialLon={2.5}
+            initialZoom={5}
+            initialVenues={initialVenues}
+          />
+        </Suspense>
       </div>
     </>
   );

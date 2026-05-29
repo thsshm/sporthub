@@ -150,7 +150,13 @@
     "myLocationUnavailable": "Location unavailable. Try again or search manually.",
     "autoUpdate": "Auto-update",
     "autoUpdateHint": "Reload spots on every pan/zoom",
-    "searchInThisArea": "Search this area"
+    "searchInThisArea": "Search this area",
+    "switcher": {
+      "ariaLabel": "Switch sport family",
+      "all": "All",
+      "allAriaLabel": "Show all families",
+      "filterBy": "Filter by"
+    }
   },
   "footer": {
     "about": "Sport Hub",

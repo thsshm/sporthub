@@ -8,6 +8,7 @@
 
 const VIEWPORT_KEY = "sporthub-map-viewport";
 const AUTO_UPDATE_KEY = "sporthub-map-auto-update";
+const ACTIVE_FAMILY_KEY = "sporthub-map-active-family";
 
 export type Viewport = {
   lat: number;
@@ -67,6 +68,42 @@ export function saveAutoUpdate(value: boolean): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(AUTO_UPDATE_KEY, String(value));
+  } catch {
+    /* silent */
+  }
+}
+
+/**
+ * Famille active du switcher /map. `null` = "toutes les familles".
+ *
+ * sessionStorage (pas localStorage) : la sélection de famille active est un
+ * contexte d'exploration éphémère (cf. comportement V1 où repartir de
+ * /map repartait sur "toutes"). Persistant intra-onglet mais réinitialisé
+ * à la fermeture du navigateur. L'URL `?family=…` reste la source autoritaire :
+ * la sessionStorage ne fait qu'un "warm restart" entre deux entrées /map sans
+ * paramètre dans le même onglet.
+ */
+export function loadActiveFamily(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(ACTIVE_FAMILY_KEY);
+    if (!raw) return null;
+    // On valide juste qu'on a un slug snake_case raisonnable — pas un objet,
+    // pas une chaîne arbitraire (XSS-safe avant injection dans l'URL).
+    return /^[a-z_]+$/.test(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveActiveFamily(slug: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (slug === null) {
+      window.sessionStorage.removeItem(ACTIVE_FAMILY_KEY);
+    } else {
+      window.sessionStorage.setItem(ACTIVE_FAMILY_KEY, slug);
+    }
   } catch {
     /* silent */
   }
