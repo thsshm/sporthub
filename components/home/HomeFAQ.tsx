@@ -5,6 +5,7 @@
  * Server Component — i18n via next-intl namespace "faq".
  */
 import { getTranslations } from "next-intl/server";
+import { jsonLdHtml } from "@/lib/seo/metadata";
 
 const QA_KEYS = [
   ["q1", "a1"],
@@ -78,7 +79,7 @@ export async function HomeFAQ() {
         // next/script doit être client. Pour un Server Component on injecte
         // directement le JSON-LD (pas de hydratation requise, safe car
         // contenu issu de strings i18n contrôlées par notre repo).
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }}
       />
     </section>
   );

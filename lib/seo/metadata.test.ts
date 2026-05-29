@@ -8,6 +8,7 @@ import {
   buildVenueJsonLd,
   buildVenueMetadata,
   buildWebsiteJsonLd,
+  jsonLdHtml,
 } from "@/lib/seo/metadata";
 
 // Factory pour générer un venue de test minimal complet.
@@ -301,5 +302,25 @@ describe("buildPlaceJsonLd", () => {
     expect(addr["@type"]).toBe("PostalAddress");
     expect(addr["addressLocality"]).toBe("Paris");
     expect(addr["addressCountry"]).toBe("FR");
+  });
+});
+
+describe("jsonLdHtml", () => {
+  it("produit un JSON valide pour des données normales", () => {
+    const html = jsonLdHtml({ "@type": "Thing", name: "Tennis Club" });
+    expect(JSON.parse(html)).toEqual({ "@type": "Thing", name: "Tennis Club" });
+  });
+
+  it("échappe `<` pour empêcher une rupture de balise </script> (XSS)", () => {
+    const html = jsonLdHtml({
+      "@type": "Place",
+      name: "Evil</script><script>alert(1)</script>",
+    });
+    // Aucun `<` littéral ne doit subsister dans la sortie injectée.
+    expect(html).not.toContain("<");
+    expect(html).toContain("\\u003c");
+    // Reste un JSON-LD valide une fois parsé.
+    const parsed = JSON.parse(html) as { name: string };
+    expect(parsed.name).toBe("Evil</script><script>alert(1)</script>");
   });
 });
