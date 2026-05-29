@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
-Apply une migration SQL Supabase via psycopg2 (connexion directe Postgres).
+⚠️  DEPRECATED — utiliser `./scripts/db-push.sh` à la place (cf. CLAUDE.md).
 
-Usage :
+Ce script existait avant que le projet Supabase soit linké au repo (workflow
+hack via psycopg2). Le nouveau workflow `supabase db push --linked` track la
+migration history côté DB, ce qui évite les divergences code ↔ schéma.
+
+Gardé pour référence et fallback si le CLI Supabase n'est pas dispo.
+
+Usage (legacy) :
   python3 scripts/apply_migration.py supabase/migrations/0007_xxx.sql
 
 Requiert dans .env.local :
   NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
   SUPABASE_DB_PASSWORD=<password>
-
-Tente d'abord la connexion pooler IPv4 (port 6543) puis la connexion directe
-(port 5432) si la pooler échoue.
 """
 from __future__ import annotations
 
