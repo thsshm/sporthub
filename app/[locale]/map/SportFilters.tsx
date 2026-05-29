@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { FAMILIES } from "@/lib/families";
+import { FamilySwitcher } from "@/app/[locale]/map/FamilySwitcher";
 
 /** Critères universels — héritage filtres V1 (sporthub-map.js, UNIVERSAL_FILTERS).
  * Mappent côté DB :
@@ -76,11 +77,31 @@ export function SportFilters({
     onCriteriaChange(next);
   };
 
+  // Single-active : si exactement 1 famille cochée, on est en mode "switcher".
+  // Sinon (0, toutes, ou multi) = activeSlug=null (chip "Toutes" active).
+  const activeSlug = selected.size === 1 ? Array.from(selected)[0] : null;
+  const handleSwitchFamily = (slug: string | null) => {
+    if (slug === null) {
+      // Retour à "Toutes les familles"
+      onChange(new Set(FAMILIES.map((f) => f.slug)));
+    } else {
+      // Switch single-family : on remplace toute la sélection par ce slug
+      onChange(new Set([slug]));
+    }
+  };
+
   return (
     <aside
       aria-label={tMap("filtersTitle")}
       className={`flex flex-col gap-3 rounded-lg border bg-background/95 p-3 shadow-md backdrop-blur ${className ?? ""}`}
     >
+      {/* Switcher famille rapide — pattern V1 "1 famille active en 1 clic".
+          Complète les checkboxes multi-select ci-dessous. Cf. #121. */}
+      <FamilySwitcher
+        activeSlug={activeSlug}
+        onSelect={handleSwitchFamily}
+      />
+
       {/* Bouton Reset global — visible uniquement si filtres actifs */}
       {hasActiveFilters && (
         <button

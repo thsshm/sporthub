@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { captureException } from "@/lib/monitoring";
 import { parseBbox, type NormalizedBbox } from "@/lib/bbox";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -110,7 +110,13 @@ async function fetchVenues(
   bbox: Exclude<NormalizedBbox, { kind: "error" }>,
   filters: VenueQueryFilters,
 ): Promise<VenuePin[]> {
-  const sb = getSupabaseServerClient();
+  // Service role (RLS bypass). /api/venues est un endpoint public en lecture
+  // seule — les filtres `is_published=true AND deleted_at IS NULL` sont
+  // appliqués partout en SQL, donc aucun row "privé" ne fuit. Le bypass est
+  // nécessaire car la policy RLS anon cause un statement_timeout (~3s) sur
+  // les régions à faible densité de venues (Atlantique, Pacifique, etc.)
+  // alors que service_role n'a pas cette limite (cf. fix #101).
+  const sb = getSupabaseAdminClient();
 
   if (bbox.kind === "global") {
     // Bbox mondiale : appeler la RPC avec spatial filter timeout sur ~348k

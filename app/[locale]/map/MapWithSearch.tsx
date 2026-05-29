@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
+import { usePathname, useRouter } from "next/navigation";
 import { Crosshair, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import { SportFilters, type CriteriaKey } from "@/app/[locale]/map/SportFilters";
@@ -51,6 +52,9 @@ type Props = {
   /** Venues pré-fetched côté Server pour le LCP. Affichés immédiatement avant
    * que le bbox-aware fetch client retourne. */
   initialVenues?: VenuePin[];
+  /** Slug famille passé via ?family=X dans l'URL (lu côté Server par page.tsx
+   * pour éviter le bailout dynamic de useSearchParams). Cf. #121. */
+  initialFamily?: string | null;
 };
 
 export function MapWithSearch({
@@ -58,6 +62,7 @@ export function MapWithSearch({
   initialLon,
   initialZoom,
   initialVenues,
+  initialFamily,
 }: Props) {
   const tMap = useTranslations("map");
 
@@ -76,9 +81,45 @@ export function MapWithSearch({
   });
 
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
-  const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(
-    () => new Set(FAMILIES.map((f) => f.slug)),
+
+  // Init du switcher #121 depuis ?family=X (lu côté Server par page.tsx).
+  // Si valide → on init avec cette seule famille. Sinon = toutes.
+  const router = useRouter();
+  const pathname = usePathname();
+  const validInitialFamily =
+    initialFamily && FAMILIES.some((f) => f.slug === initialFamily)
+      ? initialFamily
+      : null;
+
+  const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(() =>
+    validInitialFamily
+      ? new Set([validInitialFamily])
+      : new Set(FAMILIES.map((f) => f.slug)),
   );
+
+  // Sync URL ↔ selectedFamilies. Si on est en mode "1 famille" → push
+  // ?family=X. Sinon (0 ou multi ou toutes) → retirer le param.
+  // router.replace évite de polluer l'historique (cf. pattern V1).
+  // NB: on lit window.location pour préserver les éventuels autres params
+  // (futurs ?sports=, ?view=…) sans wrapper la page dans <Suspense>.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (selectedFamilies.size === 1) {
+      const slug = Array.from(selectedFamilies)[0];
+      if (params.get("family") !== slug) {
+        params.set("family", slug);
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      }
+    } else if (params.has("family")) {
+      params.delete("family");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFamilies]);
+
+
   const [selectedCriteria, setSelectedCriteria] = useState<Set<CriteriaKey>>(
     () => new Set(),
   );
