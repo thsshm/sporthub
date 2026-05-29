@@ -46,6 +46,18 @@ export async function GET(request: Request) {
     );
   }
 
+  // Clamp aux limites "safe" pour éviter l'erreur PostGIS "Antipodal
+  // (180 degrees long) edge detected" qui survient quand ST_MakeEnvelope
+  // reçoit exactement [-180, 180] (cf. issue #101 : bbox mondiale plantait
+  // /api/venues en 500 sur le premier rendu dézoomé). 179.9 est suffisant
+  // pour préserver la précision visuelle (~11 km à l'équateur).
+  const clamp = (n: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, n));
+  const westC = clamp(west, -179.9, 179.9);
+  const eastC = clamp(east, -179.9, 179.9);
+  const southC = clamp(south, -89.9, 89.9);
+  const northC = clamp(north, -89.9, 89.9);
+
   const familiesParam = searchParams.get("families");
   const families = familiesParam
     ? familiesParam.split(",").map((s) => s.trim()).filter(Boolean)
@@ -69,10 +81,10 @@ export async function GET(request: Request) {
   try {
     const sb = getSupabaseServerClient();
     const { data, error } = await sb.rpc("venues_in_bbox", {
-      west,
-      south,
-      east,
-      north,
+      west: westC,
+      south: southC,
+      east: eastC,
+      north: northC,
       fams: families,
       sport,
       feat: feat.length > 0 ? feat : null,
