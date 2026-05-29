@@ -9,7 +9,21 @@ import { FAMILIES } from "@/lib/families";
 export function MobileNav() {
   const t = useTranslations("nav");
   const tFamilies = useTranslations("families");
+  const tSports = useTranslations("sports");
   const [open, setOpen] = useState(false);
+
+  /** Tagline = jusqu'à 3 sports principaux concaténés. Cohérent avec Nav desktop (#131). */
+  const taglineFor = (sports: string[]) =>
+    sports
+      .slice(0, 3)
+      .map((s) => {
+        try {
+          return tSports(s);
+        } catch {
+          return s.replaceAll("_", " ");
+        }
+      })
+      .join(" · ");
 
   useEffect(() => {
     if (!open) return;
@@ -62,12 +76,26 @@ export function MobileNav() {
                   key={family.slug}
                   href={`/sports/${family.sports[0]}`}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent"
+                  className="flex items-start gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent"
                 >
-                  <span aria-hidden="true" className="text-lg">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-lg"
+                    style={{
+                      backgroundColor: `${family.color}26`,
+                      color: family.color,
+                    }}
+                  >
                     {family.emoji}
                   </span>
-                  <span>{tFamilies(family.slug)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">
+                      {tFamilies(family.slug)}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {taglineFor(family.sports)}
+                    </span>
+                  </span>
                 </Link>
               ))}
             </nav>
