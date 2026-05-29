@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Status =
@@ -13,14 +14,22 @@ type Status =
   | { kind: "error"; message: string };
 
 export default function LoginPage() {
+  const t = useTranslations("admin.login");
   return (
-    <Suspense fallback={<main className="container mx-auto max-w-md px-6 py-16">Chargement…</main>}>
+    <Suspense
+      fallback={
+        <main className="container mx-auto max-w-md px-6 py-16">
+          {t("loading")}
+        </main>
+      }
+    >
       <LoginForm />
     </Suspense>
   );
 }
 
 function LoginForm() {
+  const t = useTranslations("admin.login");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const searchParams = useSearchParams();
@@ -47,15 +56,12 @@ function LoginForm() {
 
   return (
     <main className="container mx-auto max-w-md px-6 py-16">
-      <h1 className="text-2xl font-bold tracking-tight">Connexion</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Reçois un lien magique par email pour accéder à tes favoris et soumettre
-        des claims.
-      </p>
+      <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{t("intro")}</p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-4">
         <label className="block">
-          <span className="text-sm font-medium">Email</span>
+          <span className="text-sm font-medium">{t("emailLabel")}</span>
           <div className="mt-1 flex items-center gap-2 rounded-md border bg-background px-3 py-2 focus-within:border-primary">
             <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             <input
@@ -64,7 +70,7 @@ function LoginForm() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="ton@email.com"
+              placeholder={t("emailPlaceholder")}
               className="w-full bg-transparent text-sm outline-none"
               disabled={status.kind === "sending" || status.kind === "sent"}
             />
@@ -83,7 +89,7 @@ function LoginForm() {
           {status.kind === "sending" && (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           )}
-          {status.kind === "sent" ? "Lien envoyé" : "Envoyer le lien magique"}
+          {status.kind === "sent" ? t("submitSent") : t("submit")}
         </button>
       </form>
 
@@ -95,10 +101,12 @@ function LoginForm() {
           <div className="flex items-start gap-2">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <div>
-              <p className="font-semibold">Email envoyé !</p>
+              <p className="font-semibold">{t("sentTitle")}</p>
               <p className="mt-1">
-                Clique sur le lien dans le mail reçu à <strong>{email}</strong>{" "}
-                pour te connecter. Vérifie aussi tes spams.
+                {t.rich("sentDescription", {
+                  email,
+                  strong: (chunks) => <strong>{chunks}</strong>,
+                })}
               </p>
             </div>
           </div>
@@ -113,7 +121,7 @@ function LoginForm() {
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <div>
-              <p className="font-semibold">Erreur</p>
+              <p className="font-semibold">{t("errorTitle")}</p>
               <p className="mt-1">{status.message}</p>
             </div>
           </div>
@@ -121,9 +129,9 @@ function LoginForm() {
       )}
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        Pas de mot de passe à retenir.{" "}
+        {t("noPasswordHint")}{" "}
         <Link href="/" className="underline hover:text-foreground">
-          Retour à l&apos;accueil
+          {t("backHome")}
         </Link>
       </p>
     </main>

@@ -160,5 +160,74 @@
     "legal": "Mentions légales",
     "source": "Code source (GitHub)",
     "copyright": "© {year} Sport Hub — Licence MIT — Données sous licences respectives des sources"
+  },
+  "admin": {
+    "login": {
+      "loading": "Chargement…",
+      "title": "Connexion",
+      "intro": "Reçois un lien magique par email pour accéder à tes favoris et soumettre des claims.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "ton@email.com",
+      "submit": "Envoyer le lien magique",
+      "submitSent": "Lien envoyé",
+      "sentTitle": "Email envoyé !",
+      "sentDescription": "Clique sur le lien dans le mail reçu à <strong>{email}</strong> pour te connecter. Vérifie aussi tes spams.",
+      "errorTitle": "Erreur",
+      "noPasswordHint": "Pas de mot de passe à retenir.",
+      "backHome": "Retour à l'accueil"
+    },
+    "layout": {
+      "accessDeniedTitle": "Accès refusé",
+      "accessDeniedConnected": "Compte connecté :",
+      "accessDeniedExpected": "Compte admin attendu :",
+      "accessDeniedNotConfigured": "(non configuré)",
+      "logout": "Se déconnecter",
+      "navAdmin": "Admin",
+      "navVenues": "Venues",
+      "navClaims": "Claims",
+      "navLogoutShort": "déconnexion"
+    },
+    "dashboard": {
+      "title": "Dashboard admin",
+      "subtitle": "Tableau de bord interne SportHub V2.",
+      "venuesTitle": "Venues",
+      "venuesHint": "publiées · gérer la liste",
+      "claimsTitle": "Claims en attente",
+      "claimsHint": "à modérer"
+    },
+    "venues": {
+      "title": "Venues",
+      "pageInfo": "page {page} / {totalPages}",
+      "deletedIncluded": "supprimés inclus",
+      "searchPlaceholder": "Rechercher…",
+      "includeDeleted": "Inclure supprimés",
+      "filterSubmit": "Filtrer",
+      "colName": "Nom",
+      "colFamily": "Famille",
+      "colSource": "Source",
+      "colStatus": "État",
+      "colUpdated": "MAJ",
+      "colActions": "Actions",
+      "statusDeleted": "supprimé",
+      "statusPublished": "publié",
+      "statusDraft": "brouillon",
+      "actionRestore": "Restaurer",
+      "actionUnpublish": "Dépublier",
+      "actionPublish": "Publier",
+      "actionDelete": "Supprimer",
+      "previous": "← Précédent",
+      "next": "Suivant →",
+      "editNote": "Édition complète (name/description/contacts) : à venir dans une PR dédiée."
+    },
+    "claimRequests": {
+      "title": "Demandes de claim",
+      "subtitle": "Les 100 plus récentes — modération à venir (PR dédiée pour les actions approve/reject).",
+      "empty": "Aucune demande pour l'instant.",
+      "venueDeleted": "venue supprimée",
+      "noName": "(sans nom)",
+      "statusPending": "en attente",
+      "statusApproved": "approuvé",
+      "statusRejected": "rejeté"
+    }
   }
 }
