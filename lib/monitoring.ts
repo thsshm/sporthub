@@ -1,40 +1,41 @@
 /**
  * Façade monitoring pour SportHub V2.
  *
- * État actuel : no-op (console.* en dev, rien en prod).
+ * Sentry est wiré via @sentry/nextjs (cf. sentry.client.config.ts,
+ * sentry.server.config.ts, sentry.edge.config.ts, instrumentation.ts).
+ * Le SDK ne s'initialise que si un DSN est présent — donc en dev local
+ * sans DSN, captureException reste un no-op (console en dev).
  *
- * Pour activer Sentry + PostHog réels :
- *   1. Créer un compte sur sentry.io → New Project → Next.js → copy DSN
- *   2. Créer un compte sur eu.posthog.com → New Project → copy public API key
- *   3. Ajouter dans .env.local + Vercel project env vars :
- *      SENTRY_DSN=https://...
- *      NEXT_PUBLIC_SENTRY_DSN=https://...           (même valeur, pour le client)
- *      NEXT_PUBLIC_POSTHOG_KEY=phc_...
- *      NEXT_PUBLIC_POSTHOG_HOST=https://eu.posthog.com
- *   4. pnpm add @sentry/nextjs posthog-js
- *   5. Remplacer les no-op ci-dessous par les vrais wiring SDK :
- *      - Sentry : sentry.client.config.ts + sentry.server.config.ts +
- *        instrumentation.ts (cf. https://docs.sentry.io/platforms/javascript/guides/nextjs/)
- *      - PostHog : créer components/PostHogProvider.tsx (Client) qui init
- *        posthog-js avec NEXT_PUBLIC_POSTHOG_KEY, wrap app/layout.tsx
- *   6. Tester via /api/monitoring/sentry-test (route déjà créée par #7)
+ * PostHog reste à wirer (issue #96).
+ *
+ * Variables d'env attendues (.env.local + Vercel) :
+ *   SENTRY_DSN=https://...                       (server-only)
+ *   NEXT_PUBLIC_SENTRY_DSN=https://...           (même valeur, exposée au client)
+ *   NEXT_PUBLIC_POSTHOG_KEY=phc_...              (à wirer dans #96)
+ *   NEXT_PUBLIC_POSTHOG_HOST=https://eu.posthog.com
+ *
+ * Tester via /api/monitoring/sentry-test une fois le DSN configuré :
+ * l'erreur doit apparaître dans le dashboard Sentry < 60s.
  */
+import * as Sentry from "@sentry/nextjs";
 
 const isDev = process.env.NODE_ENV !== "production";
-const sentryEnabled = !!process.env.SENTRY_DSN;
+const sentryEnabled = !!(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN);
 const posthogEnabled = !!process.env.NEXT_PUBLIC_POSTHOG_KEY;
 
 /**
  * Capture une exception côté monitoring. À appeler dans les catch blocks
  * server-side ou via un error boundary client.
+ *
+ * En dev sans DSN : log console uniquement.
+ * Avec DSN configuré : envoi à Sentry avec `context` mis dans `extra`.
  */
 export function captureException(error: unknown, context?: Record<string, unknown>) {
   if (isDev) {
     console.error("[monitoring] exception:", error, context ?? "");
   }
   if (sentryEnabled) {
-    // Stub : à remplacer par `import * as Sentry from '@sentry/nextjs'`
-    // puis `Sentry.captureException(error, { extra: context })`
+    Sentry.captureException(error, context ? { extra: context } : undefined);
   }
 }
 
