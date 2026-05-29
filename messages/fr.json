@@ -165,7 +165,33 @@
     "phone": "Téléphone",
     "coordinates": "Coordonnées GPS",
     "notFoundTitle": "Venue introuvable",
-    "courtsCount": "{count, plural, =0 {aucun terrain} one {1 terrain} other {{count} terrains}}"
+    "courtsCount": "{count, plural, =0 {aucun terrain} one {1 terrain} other {{count} terrains}}",
+    "infoCardTitle": "Informations pratiques",
+    "openingHours": "Horaires d'ouverture",
+    "capacity": "Capacité",
+    "price": "Tarif",
+    "free": "Accès gratuit",
+    "paid": "Payant",
+    "amenitiesTitle": "Caractéristiques",
+    "amenity": {
+      "indoor": "Couvert",
+      "lighting": "Éclairage",
+      "wheelchair": "Accessible PMR",
+      "free": "Gratuit",
+      "paid": "Payant"
+    },
+    "day": {
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mer",
+      "thu": "Jeu",
+      "fri": "Ven",
+      "sat": "Sam",
+      "sun": "Dim"
+    },
+    "googleReviewsCount": "{count, plural, =0 {aucun avis} one {1 avis Google} other {{count} avis Google}}",
+    "googleReviewsAria": "Note Google : {rating} sur 5 — {count} avis",
+    "relatedTitle": "Spots similaires à proximité"
   },
   "map": {
     "title": "Carte des spots sportifs",

@@ -77,7 +77,7 @@ const nextConfig = {
     ];
   },
 
-  // Images autorisées depuis Supabase Storage + Wikimedia
+  // Images autorisées depuis Supabase Storage + Wikimedia + Google Places + Mapillary
   images: {
     remotePatterns: [
       {
@@ -89,6 +89,12 @@ const nextConfig = {
         protocol: "https",
         hostname: "upload.wikimedia.org",
       },
+      // Google Places photos (enrichment Google) — issue #127
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "lh4.googleusercontent.com" },
+      { protocol: "https", hostname: "lh5.googleusercontent.com" },
+      // Mapillary (photos OSM communautaires) — issue #127
+      { protocol: "https", hostname: "images.mapillary.com" },
     ],
   },
 
