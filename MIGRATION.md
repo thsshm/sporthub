@@ -120,3 +120,78 @@ async redirects() {
 - [ ] Sentry capture les erreurs (tester avec un throw artificiel)
 - [ ] PostHog enregistre les pageviews + 5 events clés
 - [ ] Plausible V1 archivé (data conservée, snapshot avant cutover)
+
+## Refresh data post-cutover (issue #109)
+
+Une fois la V2 en prod, les données ne doivent plus se figer. V1 avait un
+hook qui re-runnait 3 scrapers externes (Hyrox / Parapente / Plongée) après
+chaque export DB + une tâche Wikidata hebdo (ADR-009 V1). En V2, on porte
+la logique en **Vercel cron** : 4 routes API qui se déclenchent en HTTP
+(pas besoin d'un worker dédié) et qui upsertent dans Supabase.
+
+### Routes cron
+
+| Route | Schedule (UTC) | Source | Action |
+|---|---|---|---|
+| `/api/cron/refresh-hyrox` | `0 3 * * 1` (lundi 3h) | `gyms.elbnetz.cloud` | Re-import des Hyrox Training Clubs |
+| `/api/cron/refresh-paragliding` | `0 4 * * 1` (lundi 4h) | `paraglidingearth.com` | Re-import sites parapente / deltaplane par pays |
+| `/api/cron/refresh-diving` | `0 5 * * 1` (lundi 5h) | OSM Overpass `dive_centre` | Re-import centres de plongée |
+| `/api/cron/refresh-wikidata` | `0 6 * * 1` (lundi 6h) | Wikipedia REST API | Rafraîchit extract / photo / Q-ID pour venues avec `wikipedia_url` |
+
+### Configuration Vercel (à faire une fois après merge)
+
+1. **Set `CRON_SECRET`** dans Vercel → Settings → Environment Variables.
+   ```bash
+   openssl rand -base64 32
+   ```
+   Coller la valeur dans Production + Preview (sans `\n` final). Vercel
+   envoie automatiquement `Authorization: Bearer <CRON_SECRET>` sur les
+   crons définis dans `vercel.json` — sans cette variable, les crons sont
+   refusés en 500 (safe-by-default).
+
+2. **Vérifier que `SUPABASE_SERVICE_ROLE_KEY` est en Production** (utilisé
+   par les routes pour bypasser RLS — déjà requis par d'autres routes).
+
+3. **Plan Vercel** : sur Hobby, un seul cron est autorisé ; sur Pro,
+   illimité. Si Gautier reste en Hobby, garder uniquement `refresh-hyrox`
+   actif dans `vercel.json` et supprimer les 3 autres (les routes restent
+   utilisables manuellement via `/api/admin/cron/run-all`).
+
+4. **Premier run** : après merge + deploy, le prochain lundi 03:00 UTC
+   déclenchera Hyrox. Pour tester avant ça : se logguer en admin, POST
+   sur `/api/admin/cron/run-all`. Le résultat agrège les 4 statuts.
+
+### Logging
+
+Chaque route loggue une ligne JSON sur stdout à chaque run :
+
+```json
+{ "event": "cron.refresh-hyrox.completed", "upserted": 12734, "failed": 0, "duration_ms": 18432, "extra": { "fetched": 12745 } }
+```
+
+Visible dans **Vercel → Logs → Functions**. Pour suivre via Drain externe
+(Logflare / Axiom), filtrer sur `event` qui commence par `cron.`.
+
+Les erreurs vont à Sentry via `captureException()` (cf. `lib/monitoring.ts`)
+avec `extra.route = "/api/cron/refresh-*"`.
+
+### Idempotence
+
+- Toutes les routes upsertent par `venue.slug` (= `slugify(name)-{source-id}`),
+  jamais de DELETE. Un Hyrox / spot disparu de la source reste en DB tel
+  quel — c'est plus safe que de purger sans piste (on évite de casser des
+  permaliens publics).
+- La route Wikipedia ne touche que `enrichments` JSONB, merge côté code
+  (cf. PR #142). Aucune autre colonne n'est modifiée.
+- Le compteur `SELECT count(*) FROM venue WHERE external_id LIKE 'hyrox/%'`
+  est **strictement croissant ou stable** entre deux runs nominaux.
+
+### Timeout / pagination
+
+Les routes sont déclarées avec `maxDuration = 60` (limite Hobby).
+La route paragliding (~210 pays) et wikidata (~quelques k venues) ont une
+**rotation** par run : on prend les codes / venues les plus anciens et on
+coupe quand on touche le budget temps. Sur plusieurs runs, on couvre tout
+le set en quelques semaines.
+
+Pour passer en run complet synchrone, monter `maxDuration` à 300 (Pro plan).
