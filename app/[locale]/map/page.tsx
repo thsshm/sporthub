@@ -41,8 +41,18 @@ async function fetchInitialVenues(): Promise<VenuePin[]> {
   }
 }
 
-export default async function MapPage() {
+type MapPageProps = {
+  // Next.js 14 expose les query params en prop des Server Components.
+  // Ici on extrait `?family=X` pour le switcher #121 : le SSR évite
+  // l'erreur "useSearchParams should be wrapped in Suspense" et garde
+  // le prerender ISR actif.
+  searchParams: { family?: string };
+};
+
+export default async function MapPage({ searchParams }: MapPageProps) {
   const initialVenues = await fetchInitialVenues();
+  const initialFamily =
+    typeof searchParams.family === "string" ? searchParams.family : null;
 
   return (
     <>
@@ -61,6 +71,7 @@ export default async function MapPage() {
           initialLon={2.5}
           initialZoom={5}
           initialVenues={initialVenues}
+          initialFamily={initialFamily}
         />
       </div>
     </>
