@@ -172,6 +172,12 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
                         </form>
                       ) : (
                         <>
+                          <Link
+                            href={`/admin/venues/${v.id}/edit`}
+                            className="rounded border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs text-primary hover:bg-primary/10"
+                          >
+                            {t("actionEdit")}
+                          </Link>
                           <form
                             action={togglePublish.bind(null, v.id, v.is_published)}
                           >
@@ -228,9 +234,6 @@ export default async function AdminVenuesPage({ searchParams }: Props) {
         </nav>
       )}
 
-      <p className="mt-8 text-center text-xs text-muted-foreground">
-        {t("editNote")}
-      </p>
     </main>
   );
 }

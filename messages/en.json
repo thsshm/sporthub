@@ -305,9 +305,32 @@
       "actionUnpublish": "Unpublish",
       "actionPublish": "Publish",
       "actionDelete": "Delete",
+      "actionEdit": "Edit",
       "previous": "← Previous",
       "next": "Next →",
-      "editNote": "Full edit (name/description/contacts): coming in a dedicated PR."
+      "edit": {
+        "title": "Edit venue",
+        "subtitle": "Editing {name}",
+        "backToList": "← Back to list",
+        "deletedNotice": "This venue is deleted. Restore it from the list before editing.",
+        "fieldName": "Name",
+        "fieldDescription": "Description",
+        "fieldWebsite": "Website",
+        "fieldWebsiteHint": "Full URL with http:// or https://",
+        "fieldPhone": "Phone",
+        "fieldAddress": "Address",
+        "fieldPostalCode": "Postal code",
+        "submit": "Save",
+        "submitPending": "Saving…",
+        "cancel": "Cancel",
+        "saving": "Saving in progress…",
+        "formErrorPrefix": "Error",
+        "errors": {
+          "name_required": "Name is required.",
+          "name_too_long": "Name is too long.",
+          "website_invalid": "Invalid URL (must start with http:// or https://)."
+        }
+      }
     },
     "claimRequests": {
       "title": "Claim requests",
