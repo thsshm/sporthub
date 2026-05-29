@@ -77,6 +77,15 @@ renommer la clé tant que les anciennes URLs SEO ne sont pas redirigées).
 - **Soft delete** via `deleted_at TIMESTAMPTZ` (jamais de DELETE physique sur venue).
 - **Row Level Security activée** sur toutes les tables avec data sensible (venue, claim_request).
 - **Toutes les migrations DB** passent par `supabase/migrations/NNNN_*.sql` versionnées et committées. Pas d'édition ad-hoc dans le Studio.
+- **Workflow migration** (depuis B mergé) :
+  ```bash
+  supabase migration new <nom_descriptif>     # crée supabase/migrations/NNNN_<nom>.sql
+  # éditer le SQL
+  ./scripts/db-push.sh                        # dry-run + confirm + push (tracke côté DB)
+  git add supabase/migrations/NNNN_*.sql
+  git commit + push                           # versionne dans le repo
+  ```
+  Le projet est linké via `supabase link --project-ref qwfvcrisfmnrfzsrnjwn`. Le CLI track les migrations appliquées côté DB → pas de divergence code/schéma. **Ne plus utiliser** `scripts/apply_migration.py` (deprecated, gardé pour fallback).
 
 ## Conventions Next.js
 
