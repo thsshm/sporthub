@@ -180,9 +180,9 @@ async function fetchVenues(
         south: roundCoord(bbox.south),
         east: roundCoord(bbox.east1),
         north: roundCoord(bbox.north),
-        fams: filters.fams,
-        sport: filters.sport,
-        feat: filters.feat,
+        fams: filters.fams ?? undefined,
+        sport: filters.sport ?? undefined,
+        feat: filters.feat ?? undefined,
         max_results: filters.limit,
       }),
       sb.rpc("venues_in_bbox", {
@@ -190,9 +190,9 @@ async function fetchVenues(
         south: roundCoord(bbox.south),
         east: roundCoord(bbox.east2),
         north: roundCoord(bbox.north),
-        fams: filters.fams,
-        sport: filters.sport,
-        feat: filters.feat,
+        fams: filters.fams ?? undefined,
+        sport: filters.sport ?? undefined,
+        feat: filters.feat ?? undefined,
         max_results: filters.limit,
       }),
     ]);
@@ -216,9 +216,9 @@ async function fetchVenues(
     south: roundCoord(bbox.south),
     east: roundCoord(bbox.east),
     north: roundCoord(bbox.north),
-    fams: filters.fams,
-    sport: filters.sport,
-    feat: filters.feat,
+    fams: filters.fams ?? undefined,
+    sport: filters.sport ?? undefined,
+    feat: filters.feat ?? undefined,
     max_results: filters.limit,
   });
   if (error) throw error;

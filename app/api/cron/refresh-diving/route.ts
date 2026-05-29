@@ -28,6 +28,7 @@ import { captureException } from "@/lib/monitoring";
 import { verifyCronAuth } from "@/lib/cron/auth";
 import { logCronCompleted } from "@/lib/cron/log";
 import { venueSlugFromName } from "@/lib/cron/slug";
+import type { Json } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,7 +72,7 @@ type DivingVenueRow = {
   is_indoor: boolean | null;
   source: string;
   external_id: string;
-  enrichments: Record<string, unknown>;
+  enrichments: Json;
 };
 
 async function fetchOverpass(query: string): Promise<OverpassElement[]> {

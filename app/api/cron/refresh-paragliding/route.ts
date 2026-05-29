@@ -26,6 +26,7 @@ import { captureException } from "@/lib/monitoring";
 import { verifyCronAuth } from "@/lib/cron/auth";
 import { logCronCompleted } from "@/lib/cron/log";
 import { venueSlugFromName } from "@/lib/cron/slug";
+import type { Json } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -93,7 +94,7 @@ type ParaglidingVenueRow = {
   description: string | null;
   source: string;
   external_id: string;
-  enrichments: Record<string, unknown>;
+  enrichments: Json;
 };
 
 function asBool01(v: unknown): boolean {

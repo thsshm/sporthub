@@ -35,6 +35,7 @@ import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { captureException } from "@/lib/monitoring";
 import { verifyCronAuth } from "@/lib/cron/auth";
 import { logCronCompleted } from "@/lib/cron/log";
+import type { Json } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -145,13 +146,15 @@ function buildPatch(
 function mergeEnrichments(
   existing: Record<string, unknown> | null,
   patch: Record<string, unknown>,
-): Record<string, unknown> {
-  const out = { ...(existing ?? {}) };
+): Json {
+  const out: Record<string, unknown> = { ...(existing ?? {}) };
   for (const [k, v] of Object.entries(patch)) {
     if (v === null || v === undefined || v === "") continue;
     out[k] = v;
   }
-  return out;
+  // Les valeurs proviennent de buildPatch (strings) + enrichments existant
+  // (JSONB DB) → toujours JSON-safe au runtime.
+  return out as Json;
 }
 
 export async function GET(request: Request) {

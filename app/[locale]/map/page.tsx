@@ -31,8 +31,8 @@ async function fetchInitialVenues(): Promise<VenuePin[]> {
       south: INITIAL_BBOX.south,
       east: INITIAL_BBOX.east,
       north: INITIAL_BBOX.north,
-      fams: null,
-      sport: null,
+      fams: undefined,
+      sport: undefined,
       max_results: INITIAL_LIMIT,
     });
     if (error) return [];

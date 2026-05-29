@@ -21,6 +21,7 @@ import { captureException } from "@/lib/monitoring";
 import { verifyCronAuth } from "@/lib/cron/auth";
 import { logCronCompleted } from "@/lib/cron/log";
 import { venueSlugFromName } from "@/lib/cron/slug";
+import type { Json } from "@/lib/supabase/types";
 
 // Node runtime (pas Edge) — on a besoin de `fetch` standard + accès Supabase
 // admin via @supabase/ssr (qui dépend de next/headers, non disponible côté Edge
@@ -71,7 +72,7 @@ type HyroxVenueRow = {
   is_indoor: boolean;
   source: string;
   external_id: string;
-  enrichments: Record<string, unknown>;
+  enrichments: Json;
 };
 
 function normalizeWebsite(raw: string | undefined): string | null {
