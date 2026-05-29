@@ -16,7 +16,7 @@ import Supercluster from "supercluster";
 import type { ClusterFeature, PointFeature } from "supercluster";
 import { Search, Star } from "lucide-react";
 import type { VenuePin } from "@/lib/supabase/types";
-import { getFamilyColor, getFamilyEmoji } from "@/lib/families";
+import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
 import { saveViewport } from "@/lib/map-storage";
 import {
   appleMapsUrl,
@@ -451,97 +451,124 @@ export default function MapClient({
         </div>
       )}
 
-      {selected && (
-        <Popup
-          latitude={selected.lat}
-          longitude={selected.lon}
-          anchor="bottom"
-          onClose={() => setSelected(null)}
-          closeButton
-          closeOnClick={false}
-          offset={12}
-          maxWidth="280px"
-        >
-          <div className="min-w-[220px] space-y-2 p-1">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                <span aria-hidden="true">{getFamilyEmoji(selected.family_slug)}</span>
-                <span className="capitalize">{selected.family_slug}</span>
+      {selected && (() => {
+        // Famille pour le chip + CTA stylés (couleur de marque par famille).
+        // Cf. #126 — popup pin enrichie : chip family + CTA "Voir la fiche".
+        const family = FAMILIES.find((f) => f.slug === selected.family_slug);
+        const familyColor = family?.color ?? "#6b7280";
+        const familyLabel = family?.name_fr ?? selected.family_slug;
+        const isFav = favorites.has(selected.slug);
+        return (
+          <Popup
+            latitude={selected.lat}
+            longitude={selected.lon}
+            anchor="bottom"
+            onClose={() => setSelected(null)}
+            closeButton
+            closeOnClick={false}
+            offset={12}
+            maxWidth="320px"
+          >
+            <div className="min-w-[260px] max-w-[300px] space-y-2.5 p-1 text-sm">
+              {/* Header : chip famille (gauche) + étoile favori (droite) */}
+              <div className="flex items-start justify-between gap-2">
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-white"
+                  style={{ backgroundColor: familyColor }}
+                >
+                  <span aria-hidden="true">{getFamilyEmoji(selected.family_slug)}</span>
+                  {familyLabel}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFavorites((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(selected.slug)) next.delete(selected.slug);
+                      else next.add(selected.slug);
+                      persistFavorites(next);
+                      return next;
+                    })
+                  }
+                  aria-label={isFav ? "Retirer des favoris" : "Ajouter aux favoris"}
+                  aria-pressed={isFav}
+                  className="-mt-0.5 -mr-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-yellow-500"
+                >
+                  <Star
+                    className="h-5 w-5"
+                    fill={isFav ? "currentColor" : "none"}
+                    color={isFav ? "#eab308" : "currentColor"}
+                  />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setFavorites((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(selected.slug)) next.delete(selected.slug);
-                    else next.add(selected.slug);
-                    persistFavorites(next);
-                    return next;
-                  })
-                }
-                aria-label={
-                  favorites.has(selected.slug)
-                    ? "Retirer des favoris"
-                    : "Ajouter aux favoris"
-                }
-                aria-pressed={favorites.has(selected.slug)}
-                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-yellow-500"
-              >
-                <Star
-                  className="h-4 w-4"
-                  fill={favorites.has(selected.slug) ? "currentColor" : "none"}
-                  color={favorites.has(selected.slug) ? "#eab308" : "currentColor"}
-                />
-              </button>
-            </div>
 
-            <Link
-              href={`/venue/${selected.slug}`}
-              className="block text-sm font-semibold leading-tight text-gray-900 hover:underline"
-            >
-              {selected.name}
-            </Link>
-
-            <div className="flex flex-wrap gap-1 text-[11px]">
-              <a
-                href={googleMapsUrl(selected.lat, selected.lon, selected.name)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded border border-gray-200 px-2 py-1 text-gray-700 hover:bg-gray-50"
-              >
-                📍 Google
-              </a>
-              <a
-                href={appleMapsUrl(selected.lat, selected.lon, selected.name)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded border border-gray-200 px-2 py-1 text-gray-700 hover:bg-gray-50"
-              >
-                🗺️ Apple
-              </a>
-              <a
-                href={wazeUrl(selected.lat, selected.lon)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded border border-gray-200 px-2 py-1 text-gray-700 hover:bg-gray-50"
-              >
-                🚗 Waze
-              </a>
-              <a
-                href={whatsappShareUrl(
-                  selected.name,
-                  `https://sporthubmap.com/venue/${selected.slug}`,
+              {/* Titre venue + sport primaire si présent */}
+              <div className="space-y-0.5">
+                <h3 className="text-[15px] font-semibold leading-tight text-gray-900">
+                  {selected.name}
+                </h3>
+                {selected.primary_sport_slug && (
+                  <p className="text-xs capitalize text-gray-500">
+                    {selected.primary_sport_slug.replaceAll("_", " ")}
+                  </p>
                 )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded border border-gray-200 px-2 py-1 text-gray-700 hover:bg-gray-50"
+              </div>
+
+              {/* TODO #126 : afficher count courts ("🎾 12 courts") quand l'API
+                  /api/venues exposera `courts_count` dans le payload VenuePin.
+                  Dépendant de #113 (refacto payload) ou ajout direct au RPC. */}
+
+              {/* Actions Itinéraire / Partager — tap targets ≥ 36px hauteur */}
+              <div className="flex flex-wrap gap-1">
+                <a
+                  href={googleMapsUrl(selected.lat, selected.lon, selected.name)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                >
+                  <span aria-hidden="true">📍</span> Google
+                </a>
+                <a
+                  href={appleMapsUrl(selected.lat, selected.lon, selected.name)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                >
+                  <span aria-hidden="true">🗺️</span> Apple
+                </a>
+                <a
+                  href={wazeUrl(selected.lat, selected.lon)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                >
+                  <span aria-hidden="true">🚗</span> Waze
+                </a>
+                <a
+                  href={whatsappShareUrl(
+                    selected.name,
+                    `https://sporthubmap.com/venue/${selected.slug}`,
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                >
+                  <span aria-hidden="true">💬</span> WhatsApp
+                </a>
+              </div>
+
+              {/* CTA "Voir la fiche complète" — full width, couleur famille */}
+              <Link
+                href={`/venue/${selected.slug}`}
+                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
+                style={{ backgroundColor: familyColor }}
               >
-                💬 WhatsApp
-              </a>
+                Voir la fiche complète <span aria-hidden="true">→</span>
+              </Link>
             </div>
-          </div>
-        </Popup>
-      )}
+          </Popup>
+        );
+      })()}
     </Map>
     </div>
   );
