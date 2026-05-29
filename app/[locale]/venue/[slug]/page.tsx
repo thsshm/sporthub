@@ -8,8 +8,13 @@ import {
   buildBreadcrumbJsonLd,
 } from "@/lib/seo/metadata";
 import { SportChips } from "@/components/venue/SportChips";
-import { FAMILIES_BY_SLUG } from "@/lib/families";
+import { VenueHero } from "@/components/venue/VenueHero";
+import { VenueInfoCard } from "@/components/venue/VenueInfoCard";
+import { VenueReviewBadge } from "@/components/venue/VenueReviewBadge";
+import { VenueAmenitiesList } from "@/components/venue/VenueAmenitiesList";
+import { VenueRelated } from "@/components/venue/VenueRelated";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
+import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenueDetail } from "@/lib/supabase/types";
 
 type Props = { params: { locale: string; slug: string } };
@@ -68,16 +73,19 @@ export default async function VenuePage({ params }: Props) {
   };
   setRequestLocale(locale);
   const t = await getTranslations("venue");
-  const tFamilies = await getTranslations("families");
 
   const venue = await fetchVenue(slug);
   if (!venue) notFound();
 
-  const family = FAMILIES_BY_SLUG[venue.family_slug];
   const sportSlugs = (venue.sports ?? []).map((s) => s.sport_slug).filter(Boolean);
   const jsonLd = buildVenueJsonLd(venue, venue.city_name);
-  // BreadcrumbList complémentaire — aide Google à comprendre Home → Famille → Venue.
+  const safeLocale: "fr" | "en" | "zh" =
+    locale === "en" || locale === "zh" ? locale : "fr";
+
+  // BreadcrumbList — aide Google à comprendre Home → Famille → Venue (#94).
   const SITE_URL = "https://sporthubmap.com";
+  const tFamilies = await getTranslations("families");
+  const family = FAMILIES_BY_SLUG[venue.family_slug];
   const breadcrumbItems: { name: string; url: string }[] = [
     { name: "Sport Hub", url: SITE_URL },
   ];
@@ -92,18 +100,9 @@ export default async function VenuePage({ params }: Props) {
     url: `${SITE_URL}/${locale}/venue/${venue.slug}`,
   });
   const breadcrumbJsonLd = buildBreadcrumbJsonLd(breadcrumbItems);
-  const websiteHost = venue.website_url
-    ? (() => {
-        try {
-          return new URL(venue.website_url!).host;
-        } catch {
-          return venue.website_url;
-        }
-      })()
-    : null;
 
   return (
-    <article className="container mx-auto max-w-3xl px-6 py-12">
+    <article className="container mx-auto max-w-4xl px-6 py-8">
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
@@ -115,96 +114,68 @@ export default async function VenuePage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      <header className="border-b pb-6">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span className="text-xl" aria-hidden="true">
-            {family?.emoji ?? "🏟️"}
-          </span>
-          <span>{tFamilies(venue.family_slug)}</span>
-          {venue.city_name && <span aria-hidden="true">·</span>}
-          {venue.city_name && <span>{venue.city_name}</span>}
-          {venue.country_code && <span aria-hidden="true">·</span>}
-          {venue.country_code && <span>{venue.country_code}</span>}
+      <VenueHero venue={venue} cityName={venue.city_name} locale={locale} />
+
+      {/* Layout 2 colonnes sur desktop : contenu principal / sidebar */}
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+        {/* Colonne principale */}
+        <div className="space-y-6">
+          {sportSlugs.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("sportsPracticed")}
+              </h2>
+              <SportChips sportSlugs={sportSlugs} />
+            </section>
+          )}
+
+          <VenueAmenitiesList venue={venue} />
+
+          {/* CTAs maps */}
+          <section className="flex flex-wrap gap-2 border-t pt-4 text-sm">
+            <a
+              className="rounded-md border px-3 py-2 hover:bg-accent"
+              href={googleMapsUrl(venue.lat, venue.lon, venue.name)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              📍 Google Maps
+            </a>
+            <a
+              className="rounded-md border px-3 py-2 hover:bg-accent"
+              href={appleMapsUrl(venue.lat, venue.lon, venue.name)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              🗺️ Apple Maps
+            </a>
+            <a
+              className="rounded-md border px-3 py-2 hover:bg-accent"
+              href={wazeUrl(venue.lat, venue.lon)}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              🚗 Waze
+            </a>
+          </section>
         </div>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">{venue.name}</h1>
-        {venue.description && (
-          <p className="mt-3 text-muted-foreground">{venue.description}</p>
-        )}
-      </header>
 
-      {sportSlugs.length > 0 && (
-        <section className="mt-6">
-          <h2 className="mb-2 text-sm font-semibold">{t("sportsPracticed")}</h2>
-          <SportChips sportSlugs={sportSlugs} />
-        </section>
-      )}
+        {/* Sidebar : review + infos */}
+        <aside className="space-y-4">
+          <VenueReviewBadge venue={venue} />
+          <VenueInfoCard venue={venue} locale={safeLocale} />
+        </aside>
+      </div>
 
-      <section className="mt-8 grid grid-cols-1 gap-x-8 gap-y-4 text-sm sm:grid-cols-2">
-        {venue.address && (
-          <div>
-            <dt className="font-medium text-muted-foreground">{t("address")}</dt>
-            <dd>{venue.address}</dd>
-          </div>
-        )}
-        {websiteHost && (
-          <div>
-            <dt className="font-medium text-muted-foreground">{t("website")}</dt>
-            <dd>
-              <a
-                className="underline hover:text-foreground"
-                href={venue.website_url!}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {websiteHost}
-              </a>
-            </dd>
-          </div>
-        )}
-        {venue.phone && (
-          <div>
-            <dt className="font-medium text-muted-foreground">{t("phone")}</dt>
-            <dd>
-              <a className="hover:underline" href={`tel:${venue.phone}`}>
-                {venue.phone}
-              </a>
-            </dd>
-          </div>
-        )}
-        <div>
-          <dt className="font-medium text-muted-foreground">{t("coordinates")}</dt>
-          <dd className="font-mono text-xs">
-            {venue.lat.toFixed(4)}, {venue.lon.toFixed(4)}
-          </dd>
-        </div>
-      </section>
-
-      <section className="mt-10 flex flex-wrap gap-2 border-t pt-6 text-sm">
-        <a
-          className="rounded-md border px-3 py-2 hover:bg-accent"
-          href={googleMapsUrl(venue.lat, venue.lon, venue.name)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          📍 Google Maps
-        </a>
-        <a
-          className="rounded-md border px-3 py-2 hover:bg-accent"
-          href={appleMapsUrl(venue.lat, venue.lon, venue.name)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          🗺️ Apple Maps
-        </a>
-        <a
-          className="rounded-md border px-3 py-2 hover:bg-accent"
-          href={wazeUrl(venue.lat, venue.lon)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          🚗 Waze
-        </a>
-      </section>
+      {/* "Voir aussi" */}
+      <div className="mt-12 border-t pt-8">
+        <VenueRelated
+          currentVenueId={venue.id}
+          cityId={venue.city_id}
+          primarySportSlug={venue.primary_sport_slug}
+          familySlug={venue.family_slug}
+        />
+      </div>
     </article>
   );
 }

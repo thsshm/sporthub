@@ -2,6 +2,10 @@
 
 > Document vivant. À mettre à jour à chaque PR qui touche une URL publique ou un schéma de données.
 
+## Statut parité V1 → V2
+
+Snapshot détaillé par zone (carte, popup, SEO, i18n, etc.) : voir [`docs/PARITY-V1-V2.md`](docs/PARITY-V1-V2.md). Source de vérité live : [issue #129](https://github.com/thsshm/sporthub/issues/129).
+
 ## Mapping URLs V1 → V2 (pour redirects 301 lors du cutover Phase 4)
 
 | V1 URL | V2 URL | Notes |

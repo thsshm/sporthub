@@ -165,7 +165,33 @@
     "phone": "电话",
     "coordinates": "GPS 坐标",
     "notFoundTitle": "场所未找到",
-    "courtsCount": "{count, plural, =0 {无场地} other {{count} 个场地}}"
+    "courtsCount": "{count, plural, =0 {无场地} other {{count} 个场地}}",
+    "infoCardTitle": "实用信息",
+    "openingHours": "营业时间",
+    "capacity": "容量",
+    "price": "价格",
+    "free": "免费入场",
+    "paid": "收费",
+    "amenitiesTitle": "设施特点",
+    "amenity": {
+      "indoor": "室内",
+      "lighting": "照明",
+      "wheelchair": "无障碍",
+      "free": "免费",
+      "paid": "收费"
+    },
+    "day": {
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六",
+      "sun": "周日"
+    },
+    "googleReviewsCount": "{count, plural, =0 {暂无评价} other {{count} 条 Google 评价}}",
+    "googleReviewsAria": "Google 评分：5 分中 {rating} 分 — {count} 条评价",
+    "relatedTitle": "附近相似场所"
   },
   "map": {
     "title": "运动场所地图",
@@ -225,7 +251,9 @@
       "sentDescription": "请点击发送至 <strong>{email}</strong> 的邮件中的链接进行登录。也请检查垃圾邮件文件夹。",
       "errorTitle": "错误",
       "noPasswordHint": "无需记住密码。",
-      "backHome": "返回首页"
+      "backHome": "返回首页",
+      "signInWithGoogle": "使用 Google 继续",
+      "or": "或"
     },
     "layout": {
       "accessDeniedTitle": "拒绝访问",
@@ -280,5 +308,21 @@
       "statusApproved": "已批准",
       "statusRejected": "已拒绝"
     }
+  },
+  "claim": {
+    "successTitle": "申请已发送！",
+    "successHint": "即将返回场地页面…",
+    "emailLabel": "联系邮箱 *",
+    "nameLabel": "你的姓名",
+    "roleLabel": "在该场地的角色",
+    "roleChoose": "— 请选择 —",
+    "roleOwner": "所有者",
+    "roleManager": "经理 / 负责人",
+    "roleMarketing": "市场 / 推广",
+    "roleOther": "其他",
+    "proofLabel": "证明材料（自由文本）",
+    "proofPlaceholder": "官方网站、企业注册、社交媒体链接，任何能证明你与该场地关联的信息…",
+    "submitButton": "提交申请",
+    "errorUnknown": "未知错误"
   }
 }

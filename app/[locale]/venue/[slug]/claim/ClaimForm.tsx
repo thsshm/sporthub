@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 
 type Props = {
@@ -17,6 +18,7 @@ type Status =
   | { kind: "error"; message: string };
 
 export function ClaimForm({ venueId, venueSlug, userEmail }: Props) {
+  const t = useTranslations("claim");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const router = useRouter();
 
@@ -42,7 +44,7 @@ export function ClaimForm({ venueId, venueSlug, userEmail }: Props) {
       setTimeout(() => router.push(`/venue/${venueSlug}?claim=submitted`), 1500);
     } else {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      setStatus({ kind: "error", message: body.error || "Erreur inconnue" });
+      setStatus({ kind: "error", message: body.error || t("errorUnknown") });
     }
   }
 
@@ -52,10 +54,8 @@ export function ClaimForm({ venueId, venueSlug, userEmail }: Props) {
         <div className="flex items-start gap-2">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            <p className="font-semibold">Demande envoyée !</p>
-            <p className="mt-1">
-              Retour à la fiche venue dans un instant…
-            </p>
+            <p className="font-semibold">{t("successTitle")}</p>
+            <p className="mt-1">{t("successHint")}</p>
           </div>
         </div>
       </div>
@@ -65,7 +65,7 @@ export function ClaimForm({ venueId, venueSlug, userEmail }: Props) {
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
       <label className="block">
-        <span className="text-sm font-medium">Email de contact *</span>
+        <span className="text-sm font-medium">{t("emailLabel")}</span>
         <input
           type="email"
           name="email"
@@ -76,7 +76,7 @@ export function ClaimForm({ venueId, venueSlug, userEmail }: Props) {
       </label>
 
       <label className="block">
-        <span className="text-sm font-medium">Ton nom</span>
+        <span className="text-sm font-medium">{t("nameLabel")}</span>
         <input
           type="text"
           name="name"
@@ -85,26 +85,26 @@ export function ClaimForm({ venueId, venueSlug, userEmail }: Props) {
       </label>
 
       <label className="block">
-        <span className="text-sm font-medium">Rôle dans le club</span>
+        <span className="text-sm font-medium">{t("roleLabel")}</span>
         <select
           name="role"
           defaultValue=""
           className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
         >
-          <option value="">— choisir —</option>
-          <option value="owner">Propriétaire</option>
-          <option value="manager">Manager / Directeur</option>
-          <option value="marketing">Marketing / Communication</option>
-          <option value="other">Autre</option>
+          <option value="">{t("roleChoose")}</option>
+          <option value="owner">{t("roleOwner")}</option>
+          <option value="manager">{t("roleManager")}</option>
+          <option value="marketing">{t("roleMarketing")}</option>
+          <option value="other">{t("roleOther")}</option>
         </select>
       </label>
 
       <label className="block">
-        <span className="text-sm font-medium">Justificatif (texte libre)</span>
+        <span className="text-sm font-medium">{t("proofLabel")}</span>
         <textarea
           name="proof_text"
           rows={4}
-          placeholder="Site officiel, registre, lien réseau social qui confirme ton lien avec ce lieu…"
+          placeholder={t("proofPlaceholder")}
           className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
         />
       </label>
@@ -117,7 +117,7 @@ export function ClaimForm({ venueId, venueSlug, userEmail }: Props) {
         {status.kind === "sending" && (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         )}
-        Envoyer la demande
+        {t("submitButton")}
       </button>
 
       {status.kind === "error" && (
