@@ -328,7 +328,7 @@ export function MapWithSearch({
         onClick={handleMyLocation}
         aria-label={tMap("myLocation")}
         title={tMap("myLocation")}
-        className="absolute bottom-16 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-md border bg-background/95 text-foreground shadow-md backdrop-blur hover:bg-accent"
+        className="absolute bottom-safe-16 right-4 z-20 flex h-11 w-11 items-center justify-center rounded-md border bg-background/95 text-foreground shadow-md backdrop-blur hover:bg-accent"
       >
         <Crosshair className="h-5 w-5" aria-hidden="true" />
       </button>
@@ -343,7 +343,7 @@ export function MapWithSearch({
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-4 left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
+      <div className="pointer-events-none absolute bottom-safe-4 left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
         <span className="font-semibold">{formatCount(visibleCount)}</span> spots dans la vue
       </div>
 

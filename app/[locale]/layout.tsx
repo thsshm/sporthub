@@ -13,6 +13,10 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: "#2d7a3e",
+  // viewport-fit=cover : permet d'utiliser env(safe-area-inset-*) dans le CSS
+  // pour éviter que les overlays bottom soient masqués par la home indicator iOS.
+  // Cf. issue #185.
+  viewportFit: "cover",
 };
 
 export async function generateMetadata({

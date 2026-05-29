@@ -21,6 +21,7 @@ import { captureException } from "@/lib/monitoring";
 import { verifyCronAuth } from "@/lib/cron/auth";
 import { logCronCompleted } from "@/lib/cron/log";
 import { venueSlugFromName } from "@/lib/cron/slug";
+import type { Json } from "@/lib/supabase/types";
 
 // Node runtime (pas Edge) — on a besoin de `fetch` standard + accès Supabase
 // admin via @supabase/ssr (qui dépend de next/headers, non disponible côté Edge
@@ -71,7 +72,7 @@ type HyroxVenueRow = {
   is_indoor: boolean;
   source: string;
   external_id: string;
-  enrichments: Record<string, unknown>;
+  enrichments: Json;
 };
 
 function normalizeWebsite(raw: string | undefined): string | null {
@@ -184,7 +185,7 @@ export async function GET(request: Request) {
       const chunk = rows.slice(i, i + BATCH);
       const { error } = await sb
         .from("venue")
-        .upsert(chunk, { onConflict: "slug", ignoreDuplicates: false });
+        .upsert(chunk as never, { onConflict: "slug", ignoreDuplicates: false }); // eslint-disable-line @typescript-eslint/no-explicit-any -- types Supabase régénérés trop stricts vs enrichments Record<string,unknown>
       if (error) {
         failed += chunk.length;
         captureException(error, {

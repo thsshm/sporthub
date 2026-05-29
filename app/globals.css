@@ -71,5 +71,35 @@
   body {
     @apply bg-background text-foreground;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    /* Évite le scroll horizontal accidentel sur mobile (overflow d'un enfant
+       absolu ou long mot dans liste). Cf. #185. */
+    overflow-x: hidden;
+  }
+  /* Disable double-tap-zoom sur éléments interactifs (touch-action manipulation
+     accélère ~300ms le tap response sur iOS Safari, équivalent FastClick V1). */
+  button, a, [role="button"], [role="tab"], [role="menuitem"], input, label {
+    touch-action: manipulation;
+  }
+}
+
+@layer utilities {
+  /* Safe-area iOS — à appliquer sur overlays fixed bottom (bouton géoloc,
+     bandeau count, drawer mobile) pour ne pas être coupés par la home indicator.
+     Cf. issue #185 + viewport-fit=cover dans layout.tsx. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .bottom-safe {
+    bottom: env(safe-area-inset-bottom);
+  }
+  /* Combine bottom-N de Tailwind avec safe-area : utile pour boutons absolu */
+  .bottom-safe-4 {
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+  .bottom-safe-16 {
+    bottom: calc(4rem + env(safe-area-inset-bottom));
   }
 }
