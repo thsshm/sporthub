@@ -6,6 +6,7 @@ import {
   buildVenueMetadata,
   buildVenueJsonLd,
   buildBreadcrumbJsonLd,
+  jsonLdHtml,
 } from "@/lib/seo/metadata";
 import { SportChips } from "@/components/venue/SportChips";
 import { VenueHero } from "@/components/venue/VenueHero";
@@ -106,12 +107,12 @@ export default async function VenuePage({ params }: Props) {
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }}
       />
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd) }}
       />
 
       <VenueHero venue={venue} cityName={venue.city_name} locale={locale} />

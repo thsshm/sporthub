@@ -252,3 +252,16 @@ export function buildPlaceJsonLd(city: {
     url: city.url,
   };
 }
+
+/**
+ * Sérialise un objet JSON-LD pour injection dans un
+ * `<script type="application/ld+json" dangerouslySetInnerHTML>`.
+ *
+ * Échappe le caractère `<` en sa séquence unicode : sans ça, une donnée
+ * externe contenant une balise de fermeture script (un nom de venue/ville
+ * scrapé d'OSM, par ex.) romprait la balise et permettrait une XSS stockée.
+ * La sortie échappée reste un JSON-LD valide.
+ */
+export function jsonLdHtml(data: object): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
