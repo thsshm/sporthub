@@ -12,6 +12,8 @@ import { VenueHero } from "@/components/venue/VenueHero";
 import { VenueInfoCard } from "@/components/venue/VenueInfoCard";
 import { VenueReviewBadge } from "@/components/venue/VenueReviewBadge";
 import { VenueAmenitiesList } from "@/components/venue/VenueAmenitiesList";
+import { VenueSportsList } from "@/components/venue/VenueSportsList";
+import { VenueAccessibility } from "@/components/venue/VenueAccessibility";
 import { VenueRelated } from "@/components/venue/VenueRelated";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
@@ -23,13 +25,27 @@ export const revalidate = 3600;
 
 async function fetchVenue(slug: string): Promise<VenueDetail | null> {
   const sb = getSupabaseServerClient();
+  // Single round-trip avec tous les joins nécessaires à la fiche enrichie (#127).
+  // - venue.* (incluant enrichments JSONB)
+  // - city : nom + pays
+  // - venue_sport : surface, indoor, courts_count + joindre sport pour name_fr/en
+  // - venue_amenity : joindre amenity pour name/emoji/category (douche, parking, PMR…)
+  // - booking_link : partenaires de réservation actifs
   const { data, error } = await sb
     .from("venue")
     .select(
       `
       *,
       city:city_id ( name, country_code ),
-      sports:venue_sport ( sport_slug, is_primary, courts_count, surface )
+      sports:venue_sport (
+        sport_slug, is_primary, courts_count, surface,
+        sport ( slug, name_fr, name_en, emoji, family_slug )
+      ),
+      amenities:venue_amenity (
+        amenity_slug, detail,
+        amenity ( slug, name_fr, name_en, emoji, category )
+      ),
+      booking_links:booking_link ( id, partner, url, sport_slug, is_active )
     `,
     )
     .eq("slug", slug)
@@ -42,6 +58,8 @@ async function fetchVenue(slug: string): Promise<VenueDetail | null> {
   const v = data as Record<string, unknown> & {
     city?: { name?: string; country_code?: string } | null;
     sports?: unknown[];
+    amenities?: unknown[];
+    booking_links?: { is_active?: boolean }[];
     country_code?: string | null;
   };
   return {
@@ -49,6 +67,10 @@ async function fetchVenue(slug: string): Promise<VenueDetail | null> {
     city_name: v.city?.name,
     country_code: v.country_code ?? v.city?.country_code ?? null,
     sports: (v.sports ?? []) as VenueDetail["sports"],
+    amenities: (v.amenities ?? []) as VenueDetail["amenities"],
+    booking_links: (v.booking_links ?? []).filter(
+      (b) => b?.is_active !== false,
+    ) as VenueDetail["booking_links"],
   };
 }
 
@@ -129,7 +151,11 @@ export default async function VenuePage({ params }: Props) {
             </section>
           )}
 
+          <VenueSportsList venue={venue} locale={safeLocale} />
+
           <VenueAmenitiesList venue={venue} />
+
+          <VenueAccessibility venue={venue} />
 
           {/* CTAs maps */}
           <section className="flex flex-wrap gap-2 border-t pt-4 text-sm">

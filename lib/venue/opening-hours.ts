@@ -164,3 +164,57 @@ export function formatRange(open: string, close: string, locale: "fr" | "en" | "
   };
   return `${fmt(open)}-${fmt(close)}`;
 }
+
+/**
+ * Convertit `HH:MM` (ou `HH:MM:SS`) en minutes depuis minuit. `24:00` → 1440.
+ */
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":");
+  return parseInt(h, 10) * 60 + parseInt(m ?? "0", 10);
+}
+
+/**
+ * État d'ouverture courant pour une venue.
+ *
+ * On évalue par rapport à `now` (par défaut : la date courante) en heure
+ * **locale du navigateur/serveur** — pas en TZ de la venue, faute de l'avoir
+ * en DB. C'est volontairement approximatif : on signale juste "ouvert /
+ * fermé maintenant" pour aider l'utilisateur, pas un info légale.
+ *
+ * Retourne aussi le créneau du jour pour l'afficher tel quel (ex. "9h-22h").
+ */
+export type OpenStatus =
+  | { isOpen: true; closesAt: string; todayRanges: { open: string; close: string }[] }
+  | { isOpen: false; opensAt: string | null; todayRanges: { open: string; close: string }[] };
+
+const JS_DAY_TO_OSM: Record<number, keyof typeof DAY_INDEX> = {
+  0: "Su",
+  1: "Mo",
+  2: "Tu",
+  3: "We",
+  4: "Th",
+  5: "Fr",
+  6: "Sa",
+};
+
+export function getOpenStatus(
+  specs: OpeningHoursSpec[] | null,
+  now: Date = new Date(),
+): OpenStatus | null {
+  if (!specs || specs.length === 0) return null;
+  const todayKey = JS_DAY_TO_OSM[now.getDay()];
+  const today = specs.find((s) => s.day === todayKey);
+  const todayRanges = today?.ranges ?? [];
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  for (const r of todayRanges) {
+    const openMin = timeToMinutes(r.open);
+    const closeMin = timeToMinutes(r.close);
+    if (nowMin >= openMin && nowMin < closeMin) {
+      return { isOpen: true, closesAt: r.close, todayRanges };
+    }
+  }
+  // Fermé : trouver le prochain créneau aujourd'hui
+  const next = todayRanges.find((r) => timeToMinutes(r.open) > nowMin);
+  return { isOpen: false, opensAt: next?.open ?? null, todayRanges };
+}

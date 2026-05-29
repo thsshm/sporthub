@@ -53,7 +53,6 @@ export async function VenueInfoCard({ venue, locale }: Props) {
   const openingSpecs = parseOpeningHours(openingHoursRaw);
   // Statut courant — calculé côté serveur, peut donc "rafraîchir" au prochain
   // SSR (cf. revalidate=3600 sur la page). Suffisant pour un indicateur visuel.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- faux positif ESLint, openStatus est bien utilisé ligne ~129
   const openStatus = getOpenStatus(openingSpecs);
 
   const hasAnyField =
