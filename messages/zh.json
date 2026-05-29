@@ -280,5 +280,18 @@
       "statusApproved": "已批准",
       "statusRejected": "已拒绝"
     }
+  },
+  "favorites": {
+    "metaTitle": "我的收藏",
+    "metaDescription": "您在 Sport Hub 上收藏的运动场所。",
+    "title": "我的收藏",
+    "loginRequired": "登录以在所有设备上访问您收藏的场所。",
+    "loginCta": "登录",
+    "empty": "尚无收藏。点击星标将场所加入此处。",
+    "exploreMap": "浏览地图",
+    "count": "{count, plural, =0 {0 个场所} one {1 个场所} other {{count} 个场所}}",
+    "errorLoading": "暂时无法加载收藏，请稍后重试。",
+    "addLabel": "添加到收藏",
+    "removeLabel": "从收藏移除"
   }
 }

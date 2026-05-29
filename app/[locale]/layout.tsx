@@ -4,6 +4,7 @@ import { getMessages, getTranslations, setRequestLocale } from "next-intl/server
 import { notFound } from "next/navigation";
 import { Nav } from "@/components/layout/Nav";
 import { Footer } from "@/components/layout/Footer";
+import { FavoritesSyncOnLogin } from "@/components/FavoritesSyncOnLogin";
 import { routing, type Locale } from "@/i18n/routing";
 import "../globals.css";
 
@@ -62,6 +63,9 @@ export default async function LocaleLayout({
           <Nav />
           <main className="flex-1">{children}</main>
           <Footer />
+          {/* Watcher invisible : sync favoris localStorage → DB au login.
+              Issue #91. No UI, juste un useEffect onAuthStateChange. */}
+          <FavoritesSyncOnLogin />
         </NextIntlClientProvider>
       </body>
     </html>
