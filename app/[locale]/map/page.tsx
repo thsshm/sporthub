@@ -45,20 +45,39 @@ async function fetchInitialVenues(): Promise<VenuePin[]> {
 type MapPageProps = {
   // Next.js 14 expose les query params en prop des Server Components.
   // On extrait :
-  //   ?family=X → switcher #121
+  //   ?family=X → switcher #121 (1 famille)
+  //   ?sports=X,Y → mode multi-famille (#132, picker explore)
   //   ?view=X   → mode d'affichage #123 (map / list / split)
+  //   ?lat / ?lon / ?q → indices d'un visit déjà ciblé (skip picker #132)
   // Lecture côté Server pour éviter "useSearchParams should be wrapped in
   // Suspense" qui casserait le prerender ISR.
-  searchParams: { family?: string; view?: string };
+  searchParams: {
+    family?: string;
+    sports?: string;
+    view?: string;
+    lat?: string;
+    lon?: string;
+    q?: string;
+  };
 };
 
 export default async function MapPage({ searchParams }: MapPageProps) {
   const initialVenues = await fetchInitialVenues();
   const initialFamily =
     typeof searchParams.family === "string" ? searchParams.family : null;
+  const initialSports =
+    typeof searchParams.sports === "string" ? searchParams.sports : null;
   const initialViewMode: ViewMode | null = isViewMode(searchParams.view)
     ? searchParams.view
     : null;
+  // Le picker explore (#132) est skip si l'URL contient déjà une intention
+  // utilisateur — partage d'un lien /map?sports=glisse,nautique ou
+  // /map?lat=…&lon=… doit afficher la carte directement.
+  const hasUrlIntent =
+    typeof searchParams.family === "string" ||
+    typeof searchParams.sports === "string" ||
+    typeof searchParams.lat === "string" ||
+    typeof searchParams.q === "string";
 
   return (
     <>
@@ -78,7 +97,9 @@ export default async function MapPage({ searchParams }: MapPageProps) {
           initialZoom={5}
           initialVenues={initialVenues}
           initialFamily={initialFamily}
+          initialSports={initialSports}
           initialViewMode={initialViewMode}
+          hasUrlIntent={hasUrlIntent}
         />
       </div>
     </>

@@ -127,6 +127,10 @@ type Props = {
    * dans cette zone" apparaît à la place, et c'est le user qui décide quand
    * recharger. Cf. #124. */
   autoUpdate?: boolean;
+  /** Affiche la légende compacte des familles (#132). Quand true, un panneau
+   * en bas à droite liste les familles cochées avec leur couleur. À activer
+   * quand 2+ familles sont actives (mode multi explore). */
+  showFamilyLegend?: boolean;
 };
 
 export default function MapClient({
@@ -144,8 +148,11 @@ export default function MapClient({
   initialVenues,
   selectedCriteria,
   autoUpdate = true,
+  showFamilyLegend = false,
 }: Props) {
   const tMap = useTranslations("map");
+  const tPicker = useTranslations("map.explore");
+  const tFamilies = useTranslations("families");
   const mapRef = useRef<MapRef | null>(null);
   const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(
     () => initialVenues ?? [],
@@ -387,6 +394,37 @@ export default function MapClient({
           {tMap("searchInThisArea")}
         </button>
       )}
+
+      {/* Légende compacte familles (#132) — affichée quand 2+ familles sont
+          actives (mode multi explore). Position bottom-right pour ne pas
+          empiéter sur le compteur "X spots dans la vue" (bottom-left). */}
+      {showFamilyLegend &&
+        selectedFamilies &&
+        selectedFamilies.size >= 2 && (
+          <div
+            className="pointer-events-auto absolute bottom-4 right-4 z-10 max-w-[200px] rounded-md border bg-background/95 p-2 shadow-md backdrop-blur"
+            role="region"
+            aria-label={tPicker("legendTitle")}
+          >
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {tPicker("legendTitle")}
+            </p>
+            <ul className="space-y-0.5 text-xs">
+              {FAMILIES.filter((f) => selectedFamilies.has(f.slug)).map(
+                (f) => (
+                  <li key={f.slug} className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: f.color }}
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{tFamilies(f.slug)}</span>
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>
+        )}
 
     <Map
       ref={mapRef}

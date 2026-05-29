@@ -241,6 +241,25 @@
       "title": "场所列表",
       "empty": "视图中无场所。",
       "countNearest": "最近的 {count} 个场所"
+    },
+    "explore": {
+      "title": "您想找哪些运动?",
+      "subtitle": "选择一个或多个家族,然后浏览地图。",
+      "familiesLabel": "运动家族",
+      "selectAll": "全选",
+      "selectNone": "清除全部",
+      "allFamilies": "已选全部 13 个家族",
+      "noFamilies": "未选择任何家族",
+      "nFamilies": "已选 {count} / {total} 个家族",
+      "cityLabel": "城市",
+      "cityOptional": "(可选)",
+      "cityPlaceholder": "搜索城市…",
+      "citySelected": "已定位:{name}",
+      "cancel": "取消",
+      "submit": "开始探索",
+      "close": "关闭",
+      "changeSelection": "更改选择",
+      "legendTitle": "家族"
     }
   },
   "footer": {

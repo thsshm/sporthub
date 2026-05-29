@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   loadAutoUpdate,
+  loadPickerSeen,
   loadViewport,
   saveAutoUpdate,
+  savePickerSeen,
   saveViewport,
 } from "@/lib/map-storage";
 
@@ -108,6 +110,29 @@ describe("loadAutoUpdate / saveAutoUpdate", () => {
   });
 });
 
+describe("loadPickerSeen / savePickerSeen", () => {
+  it("retourne false si rien en storage", () => {
+    expect(loadPickerSeen()).toBe(false);
+  });
+
+  it("retourne true après savePickerSeen(true)", () => {
+    savePickerSeen(true);
+    expect(loadPickerSeen()).toBe(true);
+  });
+
+  it("retourne false après savePickerSeen(false) (retire la clé)", () => {
+    savePickerSeen(true);
+    savePickerSeen(false);
+    expect(loadPickerSeen()).toBe(false);
+    expect(fakeStorage.getItem("sporthub-picker-seen")).toBeNull();
+  });
+
+  it("ne traite pas une valeur autre que 'true' comme vue", () => {
+    fakeStorage.setItem("sporthub-picker-seen", "false");
+    expect(loadPickerSeen()).toBe(false);
+  });
+});
+
 describe("SSR-safe (window indéfini)", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -129,5 +154,14 @@ describe("SSR-safe (window indéfini)", () => {
 
   it("saveAutoUpdate ne throw pas", () => {
     expect(() => saveAutoUpdate(true)).not.toThrow();
+  });
+
+  it("loadPickerSeen retourne false sans window", () => {
+    expect(loadPickerSeen()).toBe(false);
+  });
+
+  it("savePickerSeen ne throw pas sans window", () => {
+    expect(() => savePickerSeen(true)).not.toThrow();
+    expect(() => savePickerSeen(false)).not.toThrow();
   });
 });

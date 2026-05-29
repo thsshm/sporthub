@@ -4,8 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
-import { Crosshair, SlidersHorizontal, X } from "lucide-react";
+import { Crosshair, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
+import {
+  ExplorePicker,
+  type PickerSelection,
+} from "@/components/map/ExplorePicker";
 import { SportFilters, type CriteriaKey } from "@/app/[locale]/map/SportFilters";
 import { EmptyStateOverlay } from "@/app/[locale]/map/EmptyStateOverlay";
 import { ViewModeToggle } from "@/app/[locale]/map/ViewModeToggle";
@@ -15,9 +19,11 @@ import { formatCount } from "@/lib/utils";
 import {
   isViewMode,
   loadAutoUpdate,
+  loadPickerSeen,
   loadViewMode,
   loadViewport,
   saveAutoUpdate,
+  savePickerSeen,
   saveViewMode,
   type ViewMode,
 } from "@/lib/map-storage";
@@ -66,9 +72,15 @@ type Props = {
   /** Slug famille passé via ?family=X dans l'URL (lu côté Server par page.tsx
    * pour éviter le bailout dynamic de useSearchParams). Cf. #121. */
   initialFamily?: string | null;
+  /** Liste CSV de slugs familles passée via ?sports=X,Y (#132 mode multi).
+   * Prioritaire sur initialFamily si présent. */
+  initialSports?: string | null;
   /** Mode d'affichage initial (?view=X dans l'URL, lu côté Server). Cf. #123.
    * URL prioritaire sur localStorage si valide. */
   initialViewMode?: ViewMode | null;
+  /** Quand true, l'URL contient déjà une intention (family/sports/lat/q)
+   * et le picker explore (#132) ne s'affiche pas, même au premier visit. */
+  hasUrlIntent?: boolean;
 };
 
 export function MapWithSearch({
@@ -77,9 +89,12 @@ export function MapWithSearch({
   initialZoom,
   initialVenues,
   initialFamily,
+  initialSports,
   initialViewMode,
+  hasUrlIntent,
 }: Props) {
   const tMap = useTranslations("map");
+  const tPicker = useTranslations("map.explore");
 
   // Persistance viewport : si l'utilisateur revient sur /map, on restaure sa
   // dernière position (lazy init useState pour ne lire localStorage qu'une fois).
@@ -98,36 +113,75 @@ export function MapWithSearch({
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
 
   // Init du switcher #121 depuis ?family=X (lu côté Server par page.tsx).
-  // Si valide → on init avec cette seule famille. Sinon = toutes.
+  // Si valide → on init avec cette seule famille.
+  // Pour #132 : ?sports=X,Y a priorité, init avec ces N familles.
+  // Sinon = toutes.
   const router = useRouter();
   const pathname = usePathname();
   const validInitialFamily =
     initialFamily && FAMILIES.some((f) => f.slug === initialFamily)
       ? initialFamily
       : null;
+  const validInitialSports = useMemo(() => {
+    if (!initialSports) return null;
+    const valid = initialSports
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => FAMILIES.some((f) => f.slug === s));
+    return valid.length > 0 ? valid : null;
+  }, [initialSports]);
 
-  const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(() =>
-    validInitialFamily
-      ? new Set([validInitialFamily])
-      : new Set(FAMILIES.map((f) => f.slug)),
-  );
+  const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(() => {
+    if (validInitialSports) return new Set(validInitialSports);
+    if (validInitialFamily) return new Set([validInitialFamily]);
+    return new Set(FAMILIES.map((f) => f.slug));
+  });
 
-  // Sync URL ↔ selectedFamilies. Si on est en mode "1 famille" → push
-  // ?family=X. Sinon (0 ou multi ou toutes) → retirer le param.
+  // Sync URL ↔ selectedFamilies. 3 cas :
+  //   - 1 famille → ?family=X (mode "switcher" #121)
+  //   - 2..N-1 familles → ?sports=X,Y,... (mode "multi" #132)
+  //   - 0 ou TOUTES familles → ni l'un ni l'autre (URL propre)
   // router.replace évite de polluer l'historique (cf. pattern V1).
   // NB: on lit window.location pour préserver les éventuels autres params
-  // (futurs ?sports=, ?view=…) sans wrapper la page dans <Suspense>.
+  // (?view=…, ?q=…) sans wrapper la page dans <Suspense>.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (selectedFamilies.size === 1) {
+    const size = selectedFamilies.size;
+    const total = FAMILIES.length;
+    let changed = false;
+    if (size === 1) {
       const slug = Array.from(selectedFamilies)[0];
       if (params.get("family") !== slug) {
         params.set("family", slug);
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        changed = true;
       }
-    } else if (params.has("family")) {
-      params.delete("family");
+      if (params.has("sports")) {
+        params.delete("sports");
+        changed = true;
+      }
+    } else if (size >= 2 && size < total) {
+      const csv = Array.from(selectedFamilies).sort().join(",");
+      if (params.get("sports") !== csv) {
+        params.set("sports", csv);
+        changed = true;
+      }
+      if (params.has("family")) {
+        params.delete("family");
+        changed = true;
+      }
+    } else {
+      // 0 ou toutes — on retire les deux params
+      if (params.has("family")) {
+        params.delete("family");
+        changed = true;
+      }
+      if (params.has("sports")) {
+        params.delete("sports");
+        changed = true;
+      }
+    }
+    if (changed) {
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     }
@@ -145,6 +199,72 @@ export function MapWithSearch({
   const [visibleCount, setVisibleCount] = useState(0);
   const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
   const [geolocError, setGeolocError] = useState<string | null>(null);
+
+  // Picker explore (#132). Le 1er visit sur /map "nu" (sans ?family, ?sports,
+  // ?lat ou ?q dans l'URL) affiche un overlay full-screen pour que l'user
+  // choisisse ses familles. Une fois validé, on stocke `sporthub-picker-seen`
+  // en localStorage pour ne plus reprompter.
+  //
+  // SSR : on initialise à false pour ne pas mismatch hydratation (le serveur
+  // ne sait pas si l'user a déjà vu le picker). On résout dans un useEffect.
+  const [pickerOpen, setPickerOpen] = useState<boolean>(false);
+  // Track séparé : a-t-on déjà validé une fois ? Détermine si le picker est
+  // fermable (✕/Annuler) — au tout premier visit on force le choix.
+  const [pickerSeen, setPickerSeen] = useState<boolean>(false);
+  useEffect(() => {
+    // Lecture localStorage cliente uniquement, après hydration.
+    const seen = loadPickerSeen();
+    setPickerSeen(seen);
+    // Si l'URL contient une intention (family/sports/lat/q) → skip picker,
+    // peu importe le storage (l'user a un lien direct).
+    if (hasUrlIntent) return;
+    // Sinon : afficher le picker UNIQUEMENT si jamais vu.
+    if (!seen) setPickerOpen(true);
+  }, [hasUrlIntent]);
+
+  // Validation du picker : applique sélection familles + ville, persiste le
+  // flag "vu", ferme l'overlay, et redirige vers une URL canonique pour
+  // partage (pattern V1).
+  const handlePickerSubmit = (selection: PickerSelection) => {
+    setSelectedFamilies(selection.families);
+    if (selection.city) {
+      setFlyTarget({
+        lat: selection.city.lat,
+        lon: selection.city.lon,
+        zoom: 12,
+        token: Date.now(),
+      });
+    }
+    savePickerSeen(true);
+    setPickerSeen(true);
+    setPickerOpen(false);
+
+    // Construire l'URL : ?family=X ou ?sports=X,Y + ?q=ville si présente.
+    // Le useEffect [selectedFamilies] gérera aussi ce push mais on le fait
+    // ici pour pouvoir ajouter ?q= en même temps (atomique pour partage).
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const size = selection.families.size;
+    const total = FAMILIES.length;
+    params.delete("family");
+    params.delete("sports");
+    if (size === 1) {
+      params.set("family", Array.from(selection.families)[0]);
+    } else if (size >= 2 && size < total) {
+      params.set("sports", Array.from(selection.families).sort().join(","));
+    }
+    if (selection.city) {
+      params.set("q", selection.city.name);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
+  // Bouton "Changer ma sélection 🔄" — rouvre le picker. On ne reset pas le
+  // flag picker-seen côté storage : c'est juste un re-prompt à la demande.
+  const handleReopenPicker = () => {
+    setPickerOpen(true);
+  };
 
   // Mode d'affichage carte / liste / split (#123).
   // Précédence : URL (?view=…) → localStorage → "map" par défaut.
@@ -258,16 +378,28 @@ export function MapWithSearch({
 
   return (
     <div className="relative h-full w-full">
-      {/* Sidebar desktop */}
-      <SportFilters
-        selected={selectedFamilies}
-        onChange={setSelectedFamilies}
-        selectedCriteria={selectedCriteria}
-        onCriteriaChange={setSelectedCriteria}
-        autoUpdate={autoUpdate}
-        onAutoUpdateChange={setAutoUpdate}
-        className="absolute left-4 top-4 z-20 hidden max-h-[calc(100%-2rem)] w-56 overflow-auto md:flex"
-      />
+      {/* Sidebar desktop — wrapper colonne pour caler "Changer ma sélection"
+          (#132) juste sous les SportFilters. */}
+      <div className="absolute left-4 top-4 z-20 hidden max-h-[calc(100%-2rem)] w-56 flex-col gap-2 overflow-auto md:flex">
+        <SportFilters
+          selected={selectedFamilies}
+          onChange={setSelectedFamilies}
+          selectedCriteria={selectedCriteria}
+          onCriteriaChange={setSelectedCriteria}
+          autoUpdate={autoUpdate}
+          onAutoUpdateChange={setAutoUpdate}
+        />
+        {/* Bouton "Changer ma sélection 🔄" (#132). Toujours visible sur
+            desktop sous la sidebar — permet de rouvrir le picker explore. */}
+        <button
+          type="button"
+          onClick={handleReopenPicker}
+          className="flex items-center justify-center gap-1.5 rounded-lg border bg-background/95 px-3 py-2 text-xs font-medium shadow-md backdrop-blur transition hover:bg-accent"
+        >
+          <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+          {tPicker("changeSelection")}
+        </button>
+      </div>
 
       {/* Bouton filtres mobile */}
       <button
@@ -310,6 +442,18 @@ export function MapWithSearch({
                 onAutoUpdateChange={setAutoUpdate}
                 className="border-0 p-0 shadow-none"
               />
+              {/* Bouton "Changer ma sélection 🔄" (#132) — version mobile. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileFiltersOpen(false);
+                  handleReopenPicker();
+                }}
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border bg-background px-3 py-2 text-xs font-medium transition hover:bg-accent"
+              >
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                {tPicker("changeSelection")}
+              </button>
             </div>
           </div>
         </div>
@@ -407,8 +551,21 @@ export function MapWithSearch({
           onVenuesData={handleVenuesData}
           flyTarget={flyTarget}
           initialVenues={effectiveInitialVenues}
+          showFamilyLegend={selectedFamilies.size >= 2}
         />
       </div>
+
+      {/* Overlay picker explore (#132). Rendu en dernier pour passer au-dessus
+          de tous les contrôles (sidebar, view toggle, etc.). */}
+      {pickerOpen && (
+        <ExplorePicker
+          initialFamilies={selectedFamilies}
+          onSubmit={handlePickerSubmit}
+          // onClose dispo uniquement après le 1er submit (pickerSeen=true),
+          // sinon on force le choix au 1er visit (sans bouton ✕/Annuler).
+          onClose={pickerSeen ? () => setPickerOpen(false) : undefined}
+        />
+      )}
     </div>
   );
 }

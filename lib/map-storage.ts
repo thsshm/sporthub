@@ -9,6 +9,7 @@
 const VIEWPORT_KEY = "sporthub-map-viewport";
 const AUTO_UPDATE_KEY = "sporthub-map-auto-update";
 const VIEW_MODE_KEY = "sporthub-map-view-mode";
+const PICKER_SEEN_KEY = "sporthub-picker-seen";
 
 /** Mode d'affichage /map (#123). "map" = carte seule, "list" = liste seule,
  * "split" = grille 3 colonnes filtres-carte-liste (desktop ≥ 1100px). */
@@ -95,6 +96,33 @@ export function saveAutoUpdate(value: boolean): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(AUTO_UPDATE_KEY, String(value));
+  } catch {
+    /* silent */
+  }
+}
+
+/**
+ * Picker "mode explore" (#132) : indique que l'utilisateur a déjà validé un
+ * choix dans le picker initial. Permet de ne pas reprompt au reload.
+ * Stocké en string "true" (présence = vu). Absence = jamais vu.
+ */
+export function loadPickerSeen(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(PICKER_SEEN_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function savePickerSeen(seen: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (seen) {
+      window.localStorage.setItem(PICKER_SEEN_KEY, "true");
+    } else {
+      window.localStorage.removeItem(PICKER_SEEN_KEY);
+    }
   } catch {
     /* silent */
   }

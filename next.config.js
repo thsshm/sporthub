@@ -127,6 +127,15 @@ const nextConfig = {
       { source: "/villes.html", destination: "/map", permanent: true },
       { source: "/explore.html", destination: "/map", permanent: true },
 
+      // ── Fusion /explore → /map (#132) ─────────────────────────────────
+      // V1 avait `/explore` (carte unifiée + picker). V2 fusionne ce mode
+      // dans `/map` (overlay picker au 1er visit + ?sports=… pour multi).
+      // 301 sur les 3 variantes locales et la racine.
+      { source: "/explore", destination: "/map", permanent: true },
+      { source: "/fr/explore", destination: "/fr/map", permanent: true },
+      { source: "/en/explore", destination: "/en/map", permanent: true },
+      { source: "/zh/explore", destination: "/zh/map", permanent: true },
+
       // Routes internes V1 jamais indexées (mais on garde le redirect au cas où)
       { source: "/dashboard.html", destination: "/", permanent: true },
       { source: "/seo-hotpicks.html", destination: "/", permanent: true },

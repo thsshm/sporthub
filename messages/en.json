@@ -241,6 +241,25 @@
       "title": "Spot list",
       "empty": "No spots in view.",
       "countNearest": "{count} nearest spots"
+    },
+    "explore": {
+      "title": "Which sports are you looking for?",
+      "subtitle": "Pick one or more families, then explore the map.",
+      "familiesLabel": "Sport families",
+      "selectAll": "Select all",
+      "selectNone": "Clear all",
+      "allFamilies": "All 13 families selected",
+      "noFamilies": "No family selected",
+      "nFamilies": "{count} / {total} families selected",
+      "cityLabel": "City",
+      "cityOptional": "(optional)",
+      "cityPlaceholder": "Search a city…",
+      "citySelected": "Centered on: {name}",
+      "cancel": "Cancel",
+      "submit": "Explore",
+      "close": "Close",
+      "changeSelection": "Change selection",
+      "legendTitle": "Families"
     }
   },
   "footer": {

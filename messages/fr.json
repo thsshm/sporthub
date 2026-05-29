@@ -241,6 +241,25 @@
       "title": "Liste des spots",
       "empty": "Aucun spot dans la vue.",
       "countNearest": "{count} spots les plus proches"
+    },
+    "explore": {
+      "title": "Quels sports cherchez-vous ?",
+      "subtitle": "Choisissez une ou plusieurs familles, puis explorez la carte.",
+      "familiesLabel": "Familles de sports",
+      "selectAll": "Tout sélectionner",
+      "selectNone": "Tout désélectionner",
+      "allFamilies": "Les 13 familles sélectionnées",
+      "noFamilies": "Aucune famille sélectionnée",
+      "nFamilies": "{count} / {total} familles sélectionnées",
+      "cityLabel": "Ville",
+      "cityOptional": "(facultatif)",
+      "cityPlaceholder": "Rechercher une ville…",
+      "citySelected": "Centrage : {name}",
+      "cancel": "Annuler",
+      "submit": "Explorer",
+      "close": "Fermer",
+      "changeSelection": "Changer ma sélection",
+      "legendTitle": "Familles"
     }
   },
   "footer": {
