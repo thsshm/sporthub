@@ -151,6 +151,70 @@ export function toSchemaOpeningHours(
 }
 
 /**
+ * Statut d'ouverture courant d'une venue.
+ * Union discriminée : quand `isOpen` est vrai, `closesAt` est garanti.
+ */
+export type OpenStatus =
+  | { isOpen: true; closesAt: string; opensAt?: string }
+  | { isOpen: false; opensAt?: string };
+
+/**
+ * Calcule si la venue est ouverte « maintenant » à partir de specs parsées.
+ *
+ * Indicateur visuel approximatif : on raisonne dans le fuseau du serveur
+ * (cf. revalidate côté page) faute de timezone par venue. Suffisant pour un
+ * badge ouvert/fermé, pas pour de la logique métier.
+ *
+ * @param now injectable pour les tests (défaut : horloge courante).
+ * @returns null si aucune plage exploitable, sinon le statut courant.
+ */
+export function getOpenStatus(
+  specs: OpeningHoursSpec[] | null | undefined,
+  now: Date = new Date(),
+): OpenStatus | null {
+  if (!specs || specs.length === 0) return null;
+
+  // JS getDay : Dim=0..Sam=6 → notre index Mo=0..Su=6.
+  const todayIdx = (now.getDay() + 6) % 7;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  const toMin = (t: string) => {
+    const [h, m] = t.split(":");
+    return parseInt(h, 10) * 60 + parseInt(m, 10);
+  };
+
+  const rangesByDayIdx = new Map<number, { open: string; close: string }[]>();
+  for (const spec of specs) rangesByDayIdx.set(DAY_INDEX[spec.day], spec.ranges);
+
+  // 1. Ouvert dans une plage d'aujourd'hui ? ("24:00" = 1440 → ouvert jusqu'à minuit)
+  const todayRanges = rangesByDayIdx.get(todayIdx) ?? [];
+  for (const r of todayRanges) {
+    if (nowMin >= toMin(r.open) && nowMin < toMin(r.close)) {
+      return { isOpen: true, closesAt: r.close };
+    }
+  }
+
+  // 2. Fermé : prochaine plage plus tard aujourd'hui…
+  const laterToday = todayRanges
+    .filter((r) => toMin(r.open) > nowMin)
+    .sort((a, b) => toMin(a.open) - toMin(b.open));
+  if (laterToday.length > 0) {
+    return { isOpen: false, opensAt: laterToday[0].open };
+  }
+
+  // 3. …sinon premier créneau des jours suivants.
+  for (let offset = 1; offset <= 7; offset++) {
+    const ranges = rangesByDayIdx.get((todayIdx + offset) % 7);
+    if (ranges && ranges.length > 0) {
+      const next = [...ranges].sort((a, b) => toMin(a.open) - toMin(b.open))[0];
+      return { isOpen: false, opensAt: next.open };
+    }
+  }
+
+  return { isOpen: false };
+}
+
+/**
  * Format lisible humain (ex: "9h-22h"). On garde court pour la grille mobile.
  */
 export function formatRange(open: string, close: string, locale: "fr" | "en" | "zh"): string {
