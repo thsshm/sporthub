@@ -151,6 +151,66 @@ export function toSchemaOpeningHours(
 }
 
 /**
+ * Statut d'ouverture courant — calculé à `now` (par défaut : Date courante).
+ *
+ * Retourne :
+ *   - `null` si `specs` null/vide
+ *   - `{ isOpen: true, closesAt: "HH:MM" }` si actuellement ouvert
+ *   - `{ isOpen: false, opensAt: "HH:MM" | null }` sinon (opensAt = prochaine
+ *     ouverture aujourd'hui, ou null si plus rien aujourd'hui)
+ *
+ * NB: ajouté pour débloquer le typecheck après l'import introduit en PR #177
+ * dans `components/venue/VenueInfoCard.tsx` (la fonction y est référencée
+ * mais n'avait pas été exportée). Implémentation minimale, suffisante pour
+ * couvrir le cas d'usage actuel — à enrichir si on veut gérer "ouvre demain"
+ * etc.
+ */
+export type OpenStatus =
+  | { isOpen: true; closesAt: string }
+  | { isOpen: false; opensAt: string | null };
+
+const DAY_INDEX_FROM_JS: Record<number, keyof typeof DAY_INDEX> = {
+  0: "Su",
+  1: "Mo",
+  2: "Tu",
+  3: "We",
+  4: "Th",
+  5: "Fr",
+  6: "Sa",
+};
+
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":");
+  return parseInt(h, 10) * 60 + parseInt(m, 10);
+}
+
+export function getOpenStatus(
+  specs: OpeningHoursSpec[] | null,
+  now: Date = new Date(),
+): OpenStatus | null {
+  if (!specs || specs.length === 0) return null;
+
+  const todayKey = DAY_INDEX_FROM_JS[now.getDay()];
+  const todaySpec = specs.find((s) => s.day === todayKey);
+  if (!todaySpec) return { isOpen: false, opensAt: null };
+
+  const cur = now.getHours() * 60 + now.getMinutes();
+  for (const range of todaySpec.ranges) {
+    const o = toMinutes(range.open);
+    const c = toMinutes(range.close);
+    if (cur >= o && cur < c) {
+      return { isOpen: true, closesAt: range.close };
+    }
+  }
+  // Pas ouvert maintenant — cherche la prochaine ouverture aujourd'hui
+  const nextOpen = todaySpec.ranges
+    .map((r) => ({ open: r.open, mins: toMinutes(r.open) }))
+    .filter((r) => r.mins > cur)
+    .sort((a, b) => a.mins - b.mins)[0];
+  return { isOpen: false, opensAt: nextOpen?.open ?? null };
+}
+
+/**
  * Format lisible humain (ex: "9h-22h"). On garde court pour la grille mobile.
  */
 export function formatRange(open: string, close: string, locale: "fr" | "en" | "zh"): string {
