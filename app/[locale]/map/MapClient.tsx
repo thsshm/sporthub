@@ -18,6 +18,7 @@ import { Search, Star } from "lucide-react";
 import type { VenuePin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
 import { saveViewport } from "@/lib/map-storage";
+import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
 import {
   appleMapsUrl,
   googleMapsUrl,
@@ -47,6 +48,29 @@ function persistFavorites(favs: Set<string>) {
 
 type Bounds = [number, number, number, number]; // [west, south, east, north]
 type PointProps = { venue: VenuePin };
+
+/** Cellule d'agrégat retournée par l'API (cf. #114). */
+type AggregateCell = {
+  lat: number;
+  lon: number;
+  count: number;
+  country_code: string | null;
+};
+
+/** Réponse discriminée /api/venues — `mode` choisit la branche de rendu.
+ *  Sans `zoom` query param, l'API retourne `mode: 'pois'` (rétro-compat). */
+type VenuesApiResponse =
+  | { mode: "pois"; venues: VenuePin[]; count: number }
+  | { mode: "aggregates"; cells: AggregateCell[]; count: number };
+
+/** Seuil de bascule POI ↔ agrégats (doit matcher app/api/venues/route.ts). */
+const ZOOM_POI_THRESHOLD = 10;
+/** Délai de débounce sur moveend/zoomend (cf. #114 — 200ms pattern Mapbox/Airbnb). */
+const MOVE_DEBOUNCE_MS = 200;
+/** Durée de la transition fade entre agrégats et POI au swap zoom 9↔10. */
+const FADE_TRANSITION_MS = 200;
+/** Boost de zoom au clic sur une bulle d'agrégat (passe sous le seuil POI). */
+const AGGREGATE_CLICK_ZOOM_BOOST = 3;
 
 // IMPORTANT : `mapStyle` doit être une référence STABLE entre les renders
 // React, sinon react-map-gl appelle `map.setStyle()` à chaque render → MapLibre
@@ -150,6 +174,9 @@ export default function MapClient({
   const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(
     () => initialVenues ?? [],
   );
+  // Cellules d'agrégat retournées quand zoom < 10 (#114). Vide en mode POI.
+  // En mode presetVenues, jamais utilisé (la page passe les venues directement).
+  const [aggregates, setAggregates] = useState<AggregateCell[]>([]);
   const venues = presetVenues ?? fetchedVenues;
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [zoom, setZoom] = useState<number>(initialZoom);
@@ -221,27 +248,42 @@ export default function MapClient({
 
   const boundsKey = useMemo(() => (bounds ? bounds.join(",") : ""), [bounds]);
 
-  // Fetch venues debounced quand bbox ou filtres changent.
+  // Tier de zoom (#114) : on n'envoie pas le zoom exact dans le param fetch —
+  // on envoie un "bucket" (floor) pour que des zooms voisins (12.1, 12.4)
+  // hittent la même clé de cache CDN. Au-dessus du seuil POI, peu importe la
+  // valeur exacte tant qu'elle est ≥ seuil — on envoie le floor pour garder
+  // un même cache hit. Le bucket sert aussi de clé dans le useEffect ci-dessous.
+  const zoomBucket = useMemo(() => Math.floor(zoom), [zoom]);
+  // Mode courant déduit du zoom — utilisé pour la transition fade UI et pour
+  // décider de quoi rendre (POI vs bulles).
+  const isAggregateMode = zoomBucket < ZOOM_POI_THRESHOLD;
+
+  // Fetch venues/aggregates quand bbox, zoom-bucket ou filtres changent.
   // Skip si on est en mode presetVenues (venues fixes passées en prop).
+  //
+  // À noter : le débounce 200ms côté event MapLibre (#114) coalesce déjà la
+  // rafale de moveend en un seul update du state `bounds`. On garde ici un
+  // micro-délai (50ms) seulement pour absorber les changements simultanés
+  // bounds+zoom dans le même cycle React → 1 seul fetch.
   useEffect(() => {
     if (presetVenues) {
       onVenuesChange?.(presetVenues.length);
       return;
     }
     if (!bounds) return;
-    const currentKey = `${boundsKey}|${filtersKey}`;
+    const currentKey = `${boundsKey}|${filtersKey}|z${zoomBucket}`;
     if (currentKey === lastFetchedKeyRef.current) return;
     // Détecte si l'effect tourne suite à un user-click "Rechercher dans cette
     // zone" (forceFetchToken a bougé). Si oui, on bypass le gate autoUpdate.
     const userForcedFetch =
       forceFetchToken !== prevForceFetchTokenRef.current;
     prevForceFetchTokenRef.current = forceFetchToken;
-    // Si autoUpdate=off ET pas un force user ET que SEUL le bbox a bougé
+    // Si autoUpdate=off ET pas un force user ET que SEUL le bbox/zoom a bougé
     // (filtres identiques au dernier fetch), on n'auto-fetch pas. L'user
     // déclenchera via "Rechercher dans cette zone".
     if (!autoUpdate && !userForcedFetch) {
       const last = lastFetchedKeyRef.current;
-      const lastFiltersKey = last ? last.split("|").slice(1).join("|") : null;
+      const lastFiltersKey = last ? last.split("|")[1] ?? null : null;
       if (lastFiltersKey !== null && lastFiltersKey === filtersKey) {
         return;
       }
@@ -249,6 +291,7 @@ export default function MapClient({
     setLoading(true);
     const handle = setTimeout(async () => {
       const params = new URLSearchParams({ bbox: bounds.join(",") });
+      params.set("zoom", String(zoomBucket));
       if (
         selectedFamilies &&
         totalFamilies &&
@@ -267,24 +310,38 @@ export default function MapClient({
         const res = await fetch(`/api/venues?${params}`);
         if (!res.ok) {
           setFetchedVenues([]);
+          setAggregates([]);
           onVenuesChange?.(0);
           return;
         }
-        const data = (await res.json()) as { venues: VenuePin[] };
-        setFetchedVenues(data.venues);
-        onVenuesChange?.(data.venues.length);
+        const data = (await res.json()) as VenuesApiResponse;
+        if (data.mode === "aggregates") {
+          setAggregates(data.cells);
+          // En mode agrégats on vide les POI pour ne pas garder du legacy à
+          // l'écran sous les bulles. Le count remonté est celui des bulles
+          // (le total venues n'est pas connu côté agrégats sans sommer).
+          setFetchedVenues([]);
+          const totalCount = data.cells.reduce((acc, c) => acc + c.count, 0);
+          onVenuesChange?.(totalCount);
+        } else {
+          setFetchedVenues(data.venues);
+          setAggregates([]);
+          onVenuesChange?.(data.venues.length);
+        }
         lastFetchedKeyRef.current = currentKey;
       } catch {
         setFetchedVenues([]);
+        setAggregates([]);
         onVenuesChange?.(0);
       } finally {
         setLoading(false);
       }
-    }, 350);
+    }, 50);
     return () => clearTimeout(handle);
   }, [
     boundsKey,
     filtersKey,
+    zoomBucket,
     bounds,
     selectedFamilies,
     totalFamilies,
@@ -297,14 +354,14 @@ export default function MapClient({
   ]);
 
   // Bouton "Rechercher dans cette zone" visible quand autoUpdate=false ET
-  // le bbox/filtres actuels diffèrent du dernier fetch.
+  // le bbox/zoom/filtres actuels diffèrent du dernier fetch.
   const isStale = useMemo(() => {
     if (presetVenues) return false;
     if (!bounds) return false;
     if (autoUpdate) return false;
-    const currentKey = `${boundsKey}|${filtersKey}`;
+    const currentKey = `${boundsKey}|${filtersKey}|z${zoomBucket}`;
     return currentKey !== lastFetchedKeyRef.current;
-  }, [presetVenues, bounds, autoUpdate, boundsKey, filtersKey]);
+  }, [presetVenues, bounds, autoUpdate, boundsKey, filtersKey, zoomBucket]);
 
   const handleSearchThisArea = () => {
     setForceFetchToken((t) => t + 1);
@@ -342,6 +399,16 @@ export default function MapClient({
     setCenter({ lat: c.lat, lon: c.lng });
     saveViewport({ lat: c.lat, lon: c.lng, zoom: newZoom });
   };
+
+  // Débounce 200ms (#114) sur moveend/zoomend : MapLibre émet l'event en
+  // rafale pendant un drag (multiple endings au fil des inertias), et chaque
+  // appel naïf déclencherait un fetch. On regroupe en un seul update final.
+  // NB : on ne s'abonne PAS à `move` (continu pendant drag) — seulement aux
+  // events "end" (cf. spec issue #114).
+  const debouncedUpdateViewport = useDebouncedCallback(
+    updateViewport,
+    MOVE_DEBOUNCE_MS,
+  );
 
   // Reporte au parent (#123 VenueListPanel) la liste de venues + le centre
   // courant à chaque update — sans re-fetch propre côté liste.
@@ -398,13 +465,77 @@ export default function MapClient({
       style={MAP_CONTAINER_STYLE}
       mapStyle={MAP_STYLE}
       onLoad={handleLoad}
-      onMoveEnd={updateViewport}
+      onMoveEnd={debouncedUpdateViewport}
+      onZoomEnd={debouncedUpdateViewport}
     >
       <NavigationControl position="top-right" />
 
+      {/* Mode agrégats (#114) — bulles de densité (zoom < 10). Fade-out
+          coordonné avec le mode POI au swap 9↔10 via opacity CSS. */}
+      {!emptyFilter && !presetVenues &&
+        aggregates.map((cell) => {
+          const size = Math.max(28, Math.min(72, 18 + Math.log2(cell.count + 1) * 7));
+          const handleClick = (e: { originalEvent: { stopPropagation: () => void } }) => {
+            e.originalEvent.stopPropagation();
+            const map = mapRef.current?.getMap();
+            if (!map) return;
+            // Zoome de +N levels sur la zone cliquée — pratique pour passer
+            // d'un agrégat continental à une vue régionale, ou région→POI.
+            const targetZoom = Math.min(
+              22,
+              Math.max(zoomBucket + AGGREGATE_CLICK_ZOOM_BOOST, ZOOM_POI_THRESHOLD),
+            );
+            map.flyTo({
+              center: [cell.lon, cell.lat],
+              zoom: targetZoom,
+              duration: 600,
+              essential: true,
+            });
+          };
+          // Clé : country_code si disponible (zoom<6, stable), sinon coords
+          // arrondies (zoom 6-9, cellule degré-alignée — coords toujours
+          // équivalentes pour une même cellule).
+          const key = cell.country_code
+            ? `agg-c-${cell.country_code}`
+            : `agg-g-${cell.lat.toFixed(2)}-${cell.lon.toFixed(2)}`;
+          return (
+            <Marker
+              key={key}
+              latitude={cell.lat}
+              longitude={cell.lon}
+              anchor="center"
+              onClick={handleClick}
+            >
+              <button
+                type="button"
+                aria-label={`${cell.count} spots — zoomer`}
+                className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary/85 font-semibold text-white shadow-md transition-all hover:scale-110"
+                style={{
+                  width: size,
+                  height: size,
+                  fontSize: size > 48 ? 14 : 12,
+                  // Fade-out lors du swap zoom 9→10 : si on est passé en POI
+                  // mode mais que setAggregates n'a pas encore vidé (race brève
+                  // entre les setState), on cache visuellement.
+                  opacity: isAggregateMode ? 1 : 0,
+                  transition: `opacity ${FADE_TRANSITION_MS}ms ease-out, transform 150ms`,
+                  pointerEvents: isAggregateMode ? "auto" : "none",
+                }}
+              >
+                {cell.count.toLocaleString("fr-FR")}
+              </button>
+            </Marker>
+          );
+        })}
+
+      {/* Mode POI individuels (zoom ≥ 10, ou presetVenues, ou rétro-compat).
+          Fade-in coordonné avec les agrégats au swap zoom 9↔10. */}
       {!emptyFilter &&
         clusters.map((feature) => {
           const [lon, lat] = feature.geometry.coordinates;
+          // Fade quand on quitte le mode POI (ex: dézoom 10→9). En presetVenues
+          // on reste toujours opaque (pas de tier zoom à respecter).
+          const poiOpacity = presetVenues || !isAggregateMode ? 1 : 0;
 
           // Cluster bubble (count)
           if ("cluster" in feature.properties && feature.properties.cluster) {
@@ -433,8 +564,14 @@ export default function MapClient({
                 <button
                   type="button"
                   aria-label={`${count} spots — zoomer`}
-                  className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary/90 font-semibold text-white shadow-md transition-transform hover:scale-110"
-                  style={{ width: size, height: size, fontSize: size > 36 ? 14 : 12 }}
+                  className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary/90 font-semibold text-white shadow-md transition-all hover:scale-110"
+                  style={{
+                    width: size,
+                    height: size,
+                    fontSize: size > 36 ? 14 : 12,
+                    opacity: poiOpacity,
+                    transition: `opacity ${FADE_TRANSITION_MS}ms ease-in, transform 150ms`,
+                  }}
                 >
                   {count}
                 </button>
@@ -460,8 +597,12 @@ export default function MapClient({
                 type="button"
                 aria-label={v.name}
                 title={v.name}
-                className="block h-3 w-3 cursor-pointer rounded-full border-2 border-white shadow-md transition-transform hover:scale-150"
-                style={{ backgroundColor: getFamilyColor(v.family_slug) }}
+                className="block h-3 w-3 cursor-pointer rounded-full border-2 border-white shadow-md transition-all hover:scale-150"
+                style={{
+                  backgroundColor: getFamilyColor(v.family_slug),
+                  opacity: poiOpacity,
+                  transition: `opacity ${FADE_TRANSITION_MS}ms ease-in, transform 150ms`,
+                }}
               />
             </Marker>
           );
