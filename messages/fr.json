@@ -334,13 +334,31 @@
     },
     "claimRequests": {
       "title": "Demandes de claim",
-      "subtitle": "Les 100 plus récentes — modération à venir (PR dédiée pour les actions approve/reject).",
+      "subtitle": "Les 100 plus récentes — approuvez ou rejetez chaque demande, le requester reçoit un email.",
       "empty": "Aucune demande pour l'instant.",
       "venueDeleted": "venue supprimée",
       "noName": "(sans nom)",
       "statusPending": "en attente",
       "statusApproved": "approuvé",
-      "statusRejected": "rejeté"
+      "statusRejected": "rejeté",
+      "notesLabel": "Note admin :",
+      "actionApprove": "Approuver",
+      "actionReject": "Rejeter",
+      "confirmApproveTitle": "Approuver cette demande ?",
+      "confirmApproveBody": "Le venue sera attribué au requester et un email d'approbation lui sera envoyé.",
+      "confirmRejectTitle": "Rejeter cette demande ?",
+      "confirmRejectBody": "Le requester recevra un email de refus. Vous pourrez toujours retraiter sa demande plus tard si besoin.",
+      "confirmApprove": "Confirmer l'approbation",
+      "confirmReject": "Confirmer le rejet",
+      "cancel": "Annuler",
+      "submitting": "Envoi…",
+      "noteLabel": "Note pour le requester (optionnelle)",
+      "notePlaceholder": "Ex. Merci, vos documents sont validés. Vous pouvez désormais éditer la fiche.",
+      "resolvedOn": "Traité le {date}",
+      "errorGeneric": "Une erreur est survenue. Réessayez dans un instant.",
+      "errorNotFound": "Demande introuvable (peut-être supprimée).",
+      "errorAlreadyResolved": "Cette demande a déjà été traitée. Rafraîchissez la page.",
+      "errorNoteTooLong": "La note est trop longue (max 2000 caractères)."
     }
   },
   "favorites": {

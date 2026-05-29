@@ -334,13 +334,31 @@
     },
     "claimRequests": {
       "title": "Claim requests",
-      "subtitle": "The 100 most recent — moderation coming soon (dedicated PR for approve/reject actions).",
+      "subtitle": "The 100 most recent — approve or reject each request, the requester gets an email.",
       "empty": "No requests yet.",
       "venueDeleted": "venue deleted",
       "noName": "(no name)",
       "statusPending": "pending",
       "statusApproved": "approved",
-      "statusRejected": "rejected"
+      "statusRejected": "rejected",
+      "notesLabel": "Admin note:",
+      "actionApprove": "Approve",
+      "actionReject": "Reject",
+      "confirmApproveTitle": "Approve this request?",
+      "confirmApproveBody": "The venue will be assigned to the requester and an approval email will be sent.",
+      "confirmRejectTitle": "Reject this request?",
+      "confirmRejectBody": "The requester will receive a rejection email. You can still re-process the request later if needed.",
+      "confirmApprove": "Confirm approval",
+      "confirmReject": "Confirm rejection",
+      "cancel": "Cancel",
+      "submitting": "Sending…",
+      "noteLabel": "Note to the requester (optional)",
+      "notePlaceholder": "E.g. Thanks, your documents are validated. You can now edit the listing.",
+      "resolvedOn": "Resolved on {date}",
+      "errorGeneric": "Something went wrong. Try again in a moment.",
+      "errorNotFound": "Request not found (maybe deleted).",
+      "errorAlreadyResolved": "This request has already been processed. Refresh the page.",
+      "errorNoteTooLong": "Note is too long (max 2000 characters)."
     }
   },
   "favorites": {

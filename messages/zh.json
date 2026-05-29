@@ -334,13 +334,31 @@
     },
     "claimRequests": {
       "title": "认领申请",
-      "subtitle": "最近 100 条 — 审核功能即将推出 (将通过专门的 PR 实现 approve/reject 操作)。",
+      "subtitle": "最近 100 条 — 批准或拒绝每个申请，申请人将收到邮件通知。",
       "empty": "暂无申请。",
       "venueDeleted": "场所已删除",
       "noName": "(无姓名)",
       "statusPending": "待处理",
       "statusApproved": "已批准",
-      "statusRejected": "已拒绝"
+      "statusRejected": "已拒绝",
+      "notesLabel": "管理员备注：",
+      "actionApprove": "批准",
+      "actionReject": "拒绝",
+      "confirmApproveTitle": "批准此申请？",
+      "confirmApproveBody": "场所将分配给申请人，并发送批准邮件。",
+      "confirmRejectTitle": "拒绝此申请？",
+      "confirmRejectBody": "申请人将收到拒绝邮件。如有需要，您稍后仍可重新处理该申请。",
+      "confirmApprove": "确认批准",
+      "confirmReject": "确认拒绝",
+      "cancel": "取消",
+      "submitting": "正在发送…",
+      "noteLabel": "给申请人的备注 (可选)",
+      "notePlaceholder": "例如：感谢您，您的文件已通过审核。您现在可以编辑列表了。",
+      "resolvedOn": "于 {date} 处理",
+      "errorGeneric": "出现错误。请稍后再试。",
+      "errorNotFound": "未找到申请 (可能已删除)。",
+      "errorAlreadyResolved": "此申请已被处理。请刷新页面。",
+      "errorNoteTooLong": "备注过长 (最多 2000 个字符)。"
     }
   },
   "favorites": {
