@@ -308,5 +308,21 @@
       "statusApproved": "已批准",
       "statusRejected": "已拒绝"
     }
+  },
+  "claim": {
+    "successTitle": "申请已发送！",
+    "successHint": "即将返回场地页面…",
+    "emailLabel": "联系邮箱 *",
+    "nameLabel": "你的姓名",
+    "roleLabel": "在该场地的角色",
+    "roleChoose": "— 请选择 —",
+    "roleOwner": "所有者",
+    "roleManager": "经理 / 负责人",
+    "roleMarketing": "市场 / 推广",
+    "roleOther": "其他",
+    "proofLabel": "证明材料（自由文本）",
+    "proofPlaceholder": "官方网站、企业注册、社交媒体链接，任何能证明你与该场地关联的信息…",
+    "submitButton": "提交申请",
+    "errorUnknown": "未知错误"
   }
 }
