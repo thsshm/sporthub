@@ -49,6 +49,35 @@ export function getSupabaseServerClient(): SupabaseClient<Database> {
 }
 
 /**
+ * Client stateless pour les pages ISR/statiques (home, sports, programmatiques).
+ *
+ * N'appelle PAS `cookies()` — évite d'opter la route dans le mode dynamic de
+ * Next.js, ce qui forçait Vercel à servir `cache-control: private, no-store`
+ * même avec `export const revalidate = 300` (cf. issue #191).
+ *
+ * Utilise la service_role key (bypass RLS). À utiliser UNIQUEMENT pour des
+ * reads publics (is_published=true, deleted_at IS NULL), jamais pour des
+ * données utilisateur. Les handlers cookies sont des no-ops intentionnels.
+ */
+export function getSupabaseStaticClient(): SupabaseClient<Database> {
+  // Fallback placeholder au build sans .env.local (worktrees locaux, CI sans
+  // secrets). createServerClient rejette les chaînes vides → placeholder non-
+  // vide. Les appels réseau échoueront mais les try/catch dans chaque fetch
+  // retournent des données vides, donc le build passe avec du contenu vide.
+  // Sur Vercel, les vraies env vars sont toujours présentes — ce cas n'arrive pas.
+  return asTypedClient(createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54321",
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? "build-placeholder",
+    {
+      cookies: {
+        getAll() { return []; },  // stateless — pas de session utilisateur
+        setAll() {},              // no-op
+      },
+    }
+  ));
+}
+
+/**
  * Client admin (service_role key, bypass RLS).
  * Réservé aux Route Handlers admin + scripts serveur.
  * Ne jamais exposer côté client.
