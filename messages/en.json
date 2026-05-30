@@ -377,5 +377,11 @@
     "proofPlaceholder": "Official website, business registry, social media link that confirms your connection to this venue…",
     "submitButton": "Submit request",
     "errorUnknown": "Unknown error"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The page you’re looking for doesn’t exist or has been moved.",
+    "backToHome": "Back to home",
+    "goToMap": "Open the map"
   }
 }

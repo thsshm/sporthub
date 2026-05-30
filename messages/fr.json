@@ -377,5 +377,11 @@
     "proofPlaceholder": "Site officiel, registre, lien réseau social qui confirme ton lien avec ce lieu…",
     "submitButton": "Envoyer la demande",
     "errorUnknown": "Erreur inconnue"
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "description": "La page que tu cherches n’existe pas ou a été déplacée.",
+    "backToHome": "Retour à l’accueil",
+    "goToMap": "Voir la carte"
   }
 }

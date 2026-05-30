@@ -377,5 +377,11 @@
     "proofPlaceholder": "官方网站、企业注册、社交媒体链接，任何能证明你与该场地关联的信息…",
     "submitButton": "提交申请",
     "errorUnknown": "未知错误"
+  },
+  "notFound": {
+    "title": "页面未找到",
+    "description": "您查找的页面不存在或已被移动。",
+    "backToHome": "返回首页",
+    "goToMap": "打开地图"
   }
 }

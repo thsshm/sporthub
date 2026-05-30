@@ -3,6 +3,7 @@ import type { VenueDetail } from "@/lib/supabase/types";
 import {
   buildBreadcrumbJsonLd,
   buildHomeMetadata,
+  buildHreflangAlternates,
   buildItemListJsonLd,
   buildPlaceJsonLd,
   buildVenueJsonLd,
@@ -49,6 +50,33 @@ function makeVenue(overrides: Partial<VenueDetail> = {}): VenueDetail {
   };
 }
 
+describe("buildHreflangAlternates (#108)", () => {
+  it("racine '/' → /, /en, /zh + x-default", () => {
+    const out = buildHreflangAlternates("/");
+    expect(out.canonical).toBe("https://sporthubmap.com/");
+    expect(out.languages.fr).toBe("https://sporthubmap.com/");
+    expect(out.languages.en).toBe("https://sporthubmap.com/en");
+    expect(out.languages.zh).toBe("https://sporthubmap.com/zh");
+    expect(out.languages["x-default"]).toBe("https://sporthubmap.com/");
+  });
+
+  it("/map → /map, /en/map, /zh/map", () => {
+    const out = buildHreflangAlternates("/map");
+    expect(out.canonical).toBe("https://sporthubmap.com/map");
+    expect(out.languages.fr).toBe("https://sporthubmap.com/map");
+    expect(out.languages.en).toBe("https://sporthubmap.com/en/map");
+    expect(out.languages.zh).toBe("https://sporthubmap.com/zh/map");
+    expect(out.languages["x-default"]).toBe("https://sporthubmap.com/map");
+  });
+
+  it("path imbriqué /padel/fr/paris décliné × 3", () => {
+    const out = buildHreflangAlternates("/padel/fr/paris");
+    expect(out.languages.fr).toBe("https://sporthubmap.com/padel/fr/paris");
+    expect(out.languages.en).toBe("https://sporthubmap.com/en/padel/fr/paris");
+    expect(out.languages.zh).toBe("https://sporthubmap.com/zh/padel/fr/paris");
+  });
+});
+
 describe("buildHomeMetadata", () => {
   const meta = buildHomeMetadata();
 
@@ -59,8 +87,17 @@ describe("buildHomeMetadata", () => {
     }
   });
 
-  it("a un canonical /", () => {
-    expect(meta.alternates?.canonical).toBe("/");
+  it("canonical pointe vers la home FR absolue", () => {
+    expect(meta.alternates?.canonical).toBe("https://sporthubmap.com/");
+  });
+
+  it("expose les hreflang languages fr/en/zh + x-default (#108)", () => {
+    const langs = meta.alternates?.languages;
+    expect(langs).toBeDefined();
+    expect(langs?.fr).toBe("https://sporthubmap.com/");
+    expect(langs?.en).toBe("https://sporthubmap.com/en");
+    expect(langs?.zh).toBe("https://sporthubmap.com/zh");
+    expect(langs?.["x-default"]).toBe("https://sporthubmap.com/");
   });
 
   it("inclut une image OG par défaut", () => {
@@ -97,9 +134,23 @@ describe("buildVenueMetadata", () => {
     expect(meta.description).toBe("Club historique du 15e.");
   });
 
-  it("canonical pointe vers /venue/[slug]", () => {
+  it("canonical pointe vers la version FR absolue de /venue/[slug]", () => {
     const meta = buildVenueMetadata(makeVenue({ slug: "padel-marseille-7" }));
-    expect(meta.alternates?.canonical).toBe("/venue/padel-marseille-7");
+    expect(meta.alternates?.canonical).toBe(
+      "https://sporthubmap.com/venue/padel-marseille-7",
+    );
+  });
+
+  it("expose les hreflang languages fr/en/zh + x-default (#108)", () => {
+    const meta = buildVenueMetadata(makeVenue({ slug: "padel-marseille-7" }));
+    const langs = meta.alternates?.languages;
+    expect(langs).toBeDefined();
+    expect(langs?.fr).toBe("https://sporthubmap.com/venue/padel-marseille-7");
+    expect(langs?.en).toBe("https://sporthubmap.com/en/venue/padel-marseille-7");
+    expect(langs?.zh).toBe("https://sporthubmap.com/zh/venue/padel-marseille-7");
+    expect(langs?.["x-default"]).toBe(
+      "https://sporthubmap.com/venue/padel-marseille-7",
+    );
   });
 
   it("utilise photo_url de enrichments comme image OG si disponible", () => {
