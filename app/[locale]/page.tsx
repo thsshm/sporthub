@@ -12,7 +12,7 @@
  *   - Bandeau "données ouvertes"
  *
  * Toutes les sections sont des Server Components dans `components/home/*`.
- * Aucun "use client" — fetch direct Supabase via getSupabaseServerClient.
+ * Aucun "use client" — fetch direct Supabase via getSupabaseStaticClient.
  */
 import { unstable_cache } from "next/cache";
 import { MapPin } from "lucide-react";
@@ -35,7 +35,7 @@ export const revalidate = 300; // 5 min : ISR — Vercel CDN cache + revalidatio
  * (unstable_cache) ET dans le CDN Vercel (revalidate=300 sur la page).
  *
  * N'utilise PAS cookies() → la home reste statique/ISR côté Vercel.
- * Cf. issue #191 : getSupabaseServerClient() appelait cookies(), ce qui
+ * Cf. issue #191 : getSupabaseStaticClient() appelait cookies(), ce qui
  * forçait cache-control: private, no-store sur toute la home.
  */
 const fetchFamilyCounts = unstable_cache(
