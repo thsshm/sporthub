@@ -126,6 +126,47 @@ export type Database = {
           },
         ]
       }
+      // Table `club` — migration 0012, issue #130.
+      // Regroupement logique de venues du même établissement.
+      club: {
+        Row: {
+          city_id: string | null
+          country_code: string | null
+          created_at: string
+          family_slug: string
+          id: string
+          lat: number
+          lon: number
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          city_id?: string | null
+          country_code?: string | null
+          created_at?: string
+          family_slug: string
+          id?: string
+          lat: number
+          lon: number
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          city_id?: string | null
+          country_code?: string | null
+          created_at?: string
+          family_slug?: string
+          id?: string
+          lat?: number
+          lon?: number
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       city: {
         Row: {
           country_code: string
@@ -318,6 +359,8 @@ export type Database = {
           capacity: number | null
           city_id: string | null
           claim_status: string
+          // FK vers club (migration 0012) — nullable
+          club_id: string | null
           claimed_by: string | null
           country_code: string | null
           courts_count: number | null
@@ -353,6 +396,7 @@ export type Database = {
           city_id?: string | null
           claim_status?: string
           claimed_by?: string | null
+          club_id?: string | null
           country_code?: string | null
           courts_count?: number | null
           created_at?: string
@@ -387,6 +431,7 @@ export type Database = {
           city_id?: string | null
           claim_status?: string
           claimed_by?: string | null
+          club_id?: string | null
           country_code?: string | null
           courts_count?: number | null
           created_at?: string
@@ -421,6 +466,13 @@ export type Database = {
             columns: ["city_id"]
             isOneToOne: false
             referencedRelation: "city"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "club"
             referencedColumns: ["id"]
           },
           {
@@ -811,3 +863,28 @@ export type VenueDetail = Venue & {
 
 // Type léger pour la carte et les listes
 export type VenuePin = Pick<Venue, "id" | "slug" | "name" | "lat" | "lon" | "family_slug" | "primary_sport_slug">;
+
+// Club = regroupement logique de venues du même établissement (cf. migration
+// 0012, issue #130). 1 pin "club" par établissement au zoom 10-15, avec badge
+// du nombre de courts ; au zoom ≥ 16, les venues individuels apparaissent.
+export type Club = {
+  id: string;
+  name: string;
+  slug: string;
+  family_slug: string;
+  city_id: string | null;
+  country_code: string | null;
+  lat: number;
+  lon: number;
+  created_at: string;
+  updated_at: string;
+};
+
+// Type léger pour la carte : sortie de l'endpoint /api/venues/clubs.
+// `courts_count` est le COUNT(v.id) des venues rattachées au club.
+export type ClubPin = Pick<
+  Club,
+  "id" | "slug" | "name" | "lat" | "lon" | "family_slug"
+> & {
+  courts_count: number;
+};

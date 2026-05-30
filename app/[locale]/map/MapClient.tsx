@@ -15,8 +15,9 @@ import {
 import Supercluster from "supercluster";
 import type { ClusterFeature, PointFeature } from "supercluster";
 import { Search, Star } from "lucide-react";
-import type { VenuePin } from "@/lib/supabase/types";
+import type { VenuePin, ClubPin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
+import ClubMarker from "@/components/map/ClubMarker";
 import { saveViewport } from "@/lib/map-storage";
 import {
   appleMapsUrl,
@@ -26,6 +27,27 @@ import {
 } from "@/lib/utils";
 
 const FAVORITES_KEY = "sporthub-favorites";
+
+/**
+ * Familles pour lesquelles le mode clubs (zoom 10-15) n'a pas de sens :
+ * pas de structure "club" avec plusieurs courts regroupés.
+ * Ces familles restent en vue pois individuels même à zoom 10-15.
+ */
+const CLUB_INCOMPATIBLE_FAMILIES = new Set([
+  "ballon",
+  "boules",
+  "nautique",
+  "plus",
+  "snow",
+  "retraites",
+]);
+
+/**
+ * Plage de zoom pour la vue clubs (1 pin/établissement).
+ * En-dessous → agrégats pays/grid (PR #178). Au-dessus → pois individuels.
+ */
+const CLUB_ZOOM_MIN = 10;
+const CLUB_ZOOM_MAX = 15;
 
 function loadFavorites(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -162,6 +184,8 @@ export default function MapClient({
   const [selected, setSelected] = useState<VenuePin | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  // Clubs fetchés depuis /api/venues/clubs (zoom 10-15, familles compatibles).
+  const [clubs, setClubs] = useState<ClubPin[]>([]);
   // Clé "filtres + bounds" du dernier fetch réussi. Permet de détecter si
   // l'utilisateur a pané/zoomé depuis (afficher "Rechercher dans cette zone").
   const lastFetchedKeyRef = useRef<string | null>(null);
@@ -170,6 +194,21 @@ export default function MapClient({
   // pour savoir si "ce tour-ci" est dû à un user-force.
   const [forceFetchToken, setForceFetchToken] = useState(0);
   const prevForceFetchTokenRef = useRef(0);
+  // Clé du dernier fetch clubs réussi (évite les re-fetches identiques).
+  const lastFetchedClubsKeyRef = useRef<string | null>(null);
+
+  // Mode clubs actif : zoom 10-15 ET toutes les familles sélectionnées sont
+  // compatibles avec le mode clubs (ou aucun filtre actif).
+  // Si au moins une famille incompatible est sélectionnée → fallback pois.
+  const isClubMode = useMemo(() => {
+    if (zoom < CLUB_ZOOM_MIN || zoom > CLUB_ZOOM_MAX) return false;
+    if (!selectedFamilies || selectedFamilies.size === 0) return true;
+    // Si toutes les familles cochées sont incompatibles → fallback pois
+    for (const fam of selectedFamilies) {
+      if (!CLUB_INCOMPATIBLE_FAMILIES.has(fam)) return true;
+    }
+    return false;
+  }, [zoom, selectedFamilies]);
 
   useEffect(() => {
     setFavorites(loadFavorites());
@@ -199,6 +238,50 @@ export default function MapClient({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flyTarget?.token, flyTarget?.lat, flyTarget?.lon, flyTarget?.zoom]);
+
+  // Fetch clubs debounced quand isClubMode est actif et bbox/filtres changent.
+  // Quand isClubMode passe à false, on vide les clubs (pas de pins orphelins).
+  useEffect(() => {
+    if (!isClubMode || !bounds || presetVenues) {
+      setClubs([]);
+      return;
+    }
+    const famKey =
+      selectedFamilies && totalFamilies &&
+      selectedFamilies.size > 0 && selectedFamilies.size < totalFamilies
+        ? Array.from(selectedFamilies).sort().join(",")
+        : "";
+    const currentKey = `clubs|${bounds.join(",")}|${famKey}`;
+    if (currentKey === lastFetchedClubsKeyRef.current) return;
+
+    const handle = setTimeout(async () => {
+      const params = new URLSearchParams({ bbox: bounds.join(",") });
+      if (famKey) {
+        // Filtrer uniquement les familles compatibles (exclure les incompatibles)
+        const compatFamilies = selectedFamilies
+          ? Array.from(selectedFamilies).filter(
+              (f) => !CLUB_INCOMPATIBLE_FAMILIES.has(f),
+            )
+          : [];
+        if (compatFamilies.length > 0) {
+          params.set("families", compatFamilies.join(","));
+        }
+      }
+      try {
+        const res = await fetch(`/api/venues/clubs?${params}`);
+        if (!res.ok) {
+          setClubs([]);
+          return;
+        }
+        const data = (await res.json()) as { clubs: ClubPin[] };
+        setClubs(data.clubs);
+        lastFetchedClubsKeyRef.current = currentKey;
+      } catch {
+        setClubs([]);
+      }
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [isClubMode, bounds, selectedFamilies, totalFamilies, presetVenues]);
 
   // Clés normalisées pour comparer "ce qui changerait le résultat".
   // On les sépare pour distinguer "filtres ont changé" vs "uniquement bbox".
@@ -402,7 +485,9 @@ export default function MapClient({
     >
       <NavigationControl position="top-right" />
 
-      {!emptyFilter &&
+      {/* Pois individuels / supercluster — masqués en mode clubs (zoom 10-15
+          avec familles compatibles) pour éviter le double affichage. */}
+      {!emptyFilter && !isClubMode &&
         clusters.map((feature) => {
           const [lon, lat] = feature.geometry.coordinates;
 
@@ -466,6 +551,31 @@ export default function MapClient({
             </Marker>
           );
         })}
+
+      {/* Mode clubs : zoom 10-15, familles compatibles. 1 pin/établissement.
+          Click → zoom +3 pour révéler les pois individuels.
+          Note : ClubMarker appelle e.stopPropagation() → le onClick du Marker
+          react-map-gl ne se déclenche pas. On passe uniquement onClick à ClubMarker. */}
+      {isClubMode && !emptyFilter &&
+        clubs.map((club) => (
+          <Marker
+            key={`club-${club.id}`}
+            latitude={club.lat}
+            longitude={club.lon}
+            anchor="center"
+          >
+            <ClubMarker
+              club={club}
+              onClick={() => {
+                mapRef.current?.getMap().flyTo({
+                  center: [club.lon, club.lat],
+                  zoom: Math.min(zoom + 3, 18),
+                  duration: 600,
+                });
+              }}
+            />
+          </Marker>
+        ))}
 
       {loading && (
         <div className="pointer-events-none absolute right-4 top-20 z-10 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
