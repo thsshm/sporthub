@@ -96,9 +96,12 @@ Permet de tracer l'origine d'un venue et de le refresher :
 | `res` | `res/<inst_numero>` | `res/12345` |
 | `wikidata` | `wikidata/Q<id>` | `wikidata/Q47457` |
 | `editorial` | `editorial/<slug>` | `editorial/roland-garros-paris` |
+| `overture` | `overture/<overture_id>` | `overture/08f283470d92a03f0397dd9...` |
 | `v1-import` | `<v1_club_id>` | `club-fr-75016-raquette-roland-garros` |
 
 `(source, external_id)` n'est pas UNIQUE car le même venue peut apparaître via plusieurs sources (deduplication par lat/lon + nom dans la pipeline).
+
+**Source `overture`** : import Overture Maps « places » (Fitness + Bien-être) via `scripts/import_overture.py` (issue #110). Dataset Apache 2.0 / ODbL maintenu par Meta + AWS + Microsoft + TomTom. Attribution « Données Overture Maps » à afficher dans le footer. La dédup proximité (±50 m + nom fuzzy) protège les venues existants (un `claim_status='verified'` n'est jamais écrasé).
 
 ## Liaison M:N : `venue_sport`
 
