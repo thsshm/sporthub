@@ -4,7 +4,7 @@ import type { ClubPin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji } from "@/lib/families";
 
 /**
- * Pin "club" affiché au zoom 10-15 (cf. #130 vue club V1).
+ * Pin "club" affiché au zoom < 16 (cf. #130 vue club V1).
  *
  * Différences avec le pin venue individuel :
  *   - 42px de diamètre (vs 12px du pin venue) — un club représente N courts,
@@ -15,9 +15,13 @@ import { getFamilyColor, getFamilyEmoji } from "@/lib/families";
  *
  * Ce composant ne dépend PAS de react-map-gl directement — il rend uniquement
  * son contenu visuel. Le wrapping dans <Marker latitude lon> et le branchement
- * fetch reste dans MapClient.tsx (cf. #130 follow-up).
+ * fetch reste dans MapClient.tsx (à brancher dans une issue follow-up, cf.
+ * #130 acceptance : "Si tu peux pas faire ça sans toucher significativement
+ * MapClient.tsx → laisse le branchement en TODO doc"). Un agent #132 est
+ * actuellement sur MapClient.tsx — on évite le conflit en livrant la base
+ * isolée (DB + API + ClubMarker) et le branchement viendra ensuite.
  *
- * Usage typique côté MapClient :
+ * Usage typique côté MapClient une fois branché :
  * ```tsx
  * <Marker latitude={club.lat} longitude={club.lon} anchor="center"
  *         onClick={(e) => { e.originalEvent.stopPropagation(); onZoomIn(); }}>

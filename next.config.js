@@ -126,6 +126,13 @@ const nextConfig = {
       // Routes V1 sans équivalent V2 → renvoi vers /map (point d'entrée logique)
       { source: "/villes.html", destination: "/map", permanent: true },
       { source: "/explore.html", destination: "/map", permanent: true },
+      // Fusion /explore → /map (#132). Variantes V2 bare + préfixes locale.
+      // La V1 servait /explore.html ; on couvre aussi /explore sans extension
+      // au cas où un backlink pointe vers la forme "propre".
+      { source: "/explore", destination: "/map", permanent: true },
+      { source: "/fr/explore", destination: "/map", permanent: true },
+      { source: "/en/explore", destination: "/en/map", permanent: true },
+      { source: "/zh/explore", destination: "/zh/map", permanent: true },
 
       // Routes internes V1 jamais indexées (mais on garde le redirect au cas où)
       { source: "/dashboard.html", destination: "/", permanent: true },

@@ -14,10 +14,11 @@
  * Toutes les sections sont des Server Components dans `components/home/*`.
  * Aucun "use client" — fetch direct Supabase via getSupabaseServerClient.
  */
+import { unstable_cache } from "next/cache";
 import { MapPin } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/routing";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseStaticClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { formatCount } from "@/lib/utils";
@@ -27,10 +28,19 @@ import { HomeHowItWorks } from "@/components/home/HomeHowItWorks";
 import { HomePopularSearches } from "@/components/home/HomePopularSearches";
 import { HomeTopSpots } from "@/components/home/HomeTopSpots";
 
-export const revalidate = 300; // 5 min : compromis fraîcheur (counts) vs perf
+export const revalidate = 300; // 5 min : ISR — Vercel CDN cache + revalidation background
 
-async function fetchFamilyCounts(): Promise<Record<string, number>> {
-  const sb = getSupabaseServerClient();
+/**
+ * Counts de venues par famille — mis en cache dans le data cache Next.js
+ * (unstable_cache) ET dans le CDN Vercel (revalidate=300 sur la page).
+ *
+ * N'utilise PAS cookies() → la home reste statique/ISR côté Vercel.
+ * Cf. issue #191 : getSupabaseServerClient() appelait cookies(), ce qui
+ * forçait cache-control: private, no-store sur toute la home.
+ */
+const fetchFamilyCounts = unstable_cache(
+  async (): Promise<Record<string, number>> => {
+    const sb = getSupabaseStaticClient();
   // count=planned (estimation via Postgres stats) au lieu de count=exact :
   // sur 200k+ venues (fitness), exact timeout (statement timeout >3s) →
   // la home affichait 0 pour fitness. planned est instantané, précision
@@ -52,7 +62,10 @@ async function fetchFamilyCounts(): Promise<Record<string, number>> {
     }),
   );
   return Object.fromEntries(entries);
-}
+  },
+  ["home-family-counts"],
+  { revalidate: 300, tags: ["home"] },
+);
 
 export default async function HomePage({
   params,

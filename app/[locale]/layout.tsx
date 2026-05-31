@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { FavoritesSyncOnLogin } from "@/components/FavoritesSyncOnLogin";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { routing, type Locale } from "@/i18n/routing";
+import { buildHreflangAlternates } from "@/lib/seo/metadata";
 import "../globals.css";
 
 export const viewport: Viewport = {
@@ -26,6 +27,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "home" });
+  // hreflang root : same path "/" pour les 3 locales. Les pages enfants
+  // surchargent pour leur chemin propre (#108).
+  const hreflang = buildHreflangAlternates("/");
   return {
     title: {
       default: `${t("heroTitle")} — ${t("heroSubtitle")}`,
@@ -36,10 +40,8 @@ export async function generateMetadata({
       : undefined,
     metadataBase: new URL("https://sporthubmap.com"),
     alternates: {
-      canonical: `/${locale === routing.defaultLocale ? "" : locale}`,
-      languages: Object.fromEntries(
-        routing.locales.map((l) => [l, `/${l === routing.defaultLocale ? "" : l}`]),
-      ),
+      canonical: hreflang.canonical,
+      languages: hreflang.languages,
     },
   };
 }

@@ -197,17 +197,21 @@ export default function MapClient({
   // Clé du dernier fetch clubs réussi (évite les re-fetches identiques).
   const lastFetchedClubsKeyRef = useRef<string | null>(null);
 
-  // Mode clubs actif : zoom 10-15 ET toutes les familles sélectionnées sont
-  // compatibles avec le mode clubs (ou aucun filtre actif).
-  // Si au moins une famille incompatible est sélectionnée → fallback pois.
+  // Mode clubs actif : zoom 10-15 ET la sélection se limite à des familles
+  // qui supportent les clubs. Le mode club masque les pois individuels — on
+  // ne l'active donc que si TOUTES les familles cochées sont compatibles.
+  // Sinon (aucun filtre = toutes familles, ou sélection mixte incluant
+  // ballon/boules/nautique/snow/retraites/plus), on garde les pois : sans ça
+  // les venues des familles sans clustering disparaîtraient (pas de club
+  // parent + pois masqués). L'affichage simultané clubs + pois isolés est
+  // prévu palier 4 (#130).
   const isClubMode = useMemo(() => {
     if (zoom < CLUB_ZOOM_MIN || zoom > CLUB_ZOOM_MAX) return false;
-    if (!selectedFamilies || selectedFamilies.size === 0) return true;
-    // Si toutes les familles cochées sont incompatibles → fallback pois
+    if (!selectedFamilies || selectedFamilies.size === 0) return false;
     for (const fam of selectedFamilies) {
-      if (!CLUB_INCOMPATIBLE_FAMILIES.has(fam)) return true;
+      if (CLUB_INCOMPATIBLE_FAMILIES.has(fam)) return false;
     }
-    return false;
+    return true;
   }, [zoom, selectedFamilies]);
 
   useEffect(() => {

@@ -13,10 +13,11 @@
  * Note count=planned : sur la table venue (centaines de milliers de lignes)
  * count=exact timeout. planned est instantané, précision ±1% suffisante.
  */
+import { unstable_cache } from "next/cache";
 import { MapPin } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/routing";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseStaticClient } from "@/lib/supabase/server";
 
 type FeaturedCity = {
   id: string;
@@ -44,8 +45,9 @@ type CityRow = {
   country_code: string;
 };
 
-async function fetchFeaturedCities(): Promise<FeaturedCity[]> {
-  const sb = getSupabaseServerClient();
+const fetchFeaturedCities = unstable_cache(
+  async (): Promise<FeaturedCity[]> => {
+  const sb = getSupabaseStaticClient();
 
   // 1) On tente de récupérer les featured cities en DB
   let cities: CityRow[] = [];
@@ -103,7 +105,10 @@ async function fetchFeaturedCities(): Promise<FeaturedCity[]> {
 
   // 4) On trie par count décroissant pour montrer les plus actives en premier
   return enriched.sort((a, b) => b.count - a.count);
-}
+  },
+  ["home-featured-cities"],
+  { revalidate: 300, tags: ["home"] },
+);
 
 export async function HomeFeaturedCities() {
   const t = await getTranslations("featuredCities");

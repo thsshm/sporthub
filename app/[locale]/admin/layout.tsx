@@ -64,6 +64,9 @@ export default async function AdminLayout({
             <Link href="/admin/claim-requests" className="hover:underline">
               {t("navClaims")}
             </Link>
+            <Link href="/admin/affiliate" className="hover:underline">
+              {t("navAffiliate")}
+            </Link>
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <span className="font-mono">{user.email}</span>

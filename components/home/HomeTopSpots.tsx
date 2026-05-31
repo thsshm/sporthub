@@ -9,10 +9,11 @@
  *
  * Server Component pur. Pas de map ici : on linke vers /venue/[slug].
  */
+import { unstable_cache } from "next/cache";
 import { Star } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/routing";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseStaticClient } from "@/lib/supabase/server";
 import { getFamilyColor, getFamilyEmoji } from "@/lib/families";
 
 type TopSpotRow = {
@@ -27,8 +28,9 @@ type TopSpotRow = {
   } | null;
 };
 
-async function fetchTopSpots(): Promise<TopSpotRow[]> {
-  const sb = getSupabaseServerClient();
+const fetchTopSpots = unstable_cache(
+  async (): Promise<TopSpotRow[]> => {
+  const sb = getSupabaseStaticClient();
   try {
     // PostgREST n'expose pas trivialement un ORDER BY sur un cast jsonb→numeric.
     // En attendant une vue dédiée, on ramène les 200 venues les mieux notées
@@ -62,7 +64,10 @@ async function fetchTopSpots(): Promise<TopSpotRow[]> {
   } catch {
     return [];
   }
-}
+  },
+  ["home-top-spots"],
+  { revalidate: 300, tags: ["home"] },
+);
 
 export async function HomeTopSpots() {
   const t = await getTranslations("topSpots");

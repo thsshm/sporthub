@@ -244,7 +244,18 @@
       "title": "场所列表",
       "empty": "视图中无场所。",
       "countNearest": "最近的 {count} 个场所"
-    }
+    },
+    "picker": {
+      "title": "您在寻找哪些运动？",
+      "subtitle": "选择一个或多个运动类别进行探索。",
+      "selectAll": "全选",
+      "selectNone": "全部取消",
+      "cityLabel": "城市（可选）",
+      "cityPlaceholder": "例如：北京、上海、广州…",
+      "submit": "开始探索",
+      "changeSelection": "更改我的选择"
+    },
+    "legend": "图例"
   },
   "footer": {
     "about": "Sport Hub",
@@ -281,6 +292,7 @@
       "navAdmin": "管理",
       "navVenues": "场所",
       "navClaims": "认领",
+      "navAffiliate": "推广",
       "navLogoutShort": "退出"
     },
     "dashboard": {
@@ -289,7 +301,9 @@
       "venuesTitle": "场所",
       "venuesHint": "已发布 · 管理列表",
       "claimsTitle": "待处理认领",
-      "claimsHint": "待审核"
+      "claimsHint": "待审核",
+      "affiliateTitle": "推广点击",
+      "affiliateHint": "预订合作伙伴的点击跟踪"
     },
     "venues": {
       "title": "场所",
@@ -347,6 +361,17 @@
       "statusPending": "待处理",
       "statusApproved": "已批准",
       "statusRejected": "已拒绝"
+    },
+    "affiliate": {
+      "title": "推广 — 合作伙伴点击",
+      "subtitle": "预订链接点击跟踪(issue #111)。",
+      "totalLabel": "总点击数",
+      "empty": "暂无推广点击。",
+      "byPartnerTitle": "按合作伙伴(共 {count} 次近期点击)",
+      "recentTitle": "最近 {count} 次点击",
+      "colDate": "日期",
+      "colPartner": "合作伙伴",
+      "colSource": "来源"
     }
   },
   "favorites": {
@@ -377,5 +402,11 @@
     "proofPlaceholder": "官方网站、企业注册、社交媒体链接，任何能证明你与该场地关联的信息…",
     "submitButton": "提交申请",
     "errorUnknown": "未知错误"
+  },
+  "notFound": {
+    "title": "页面未找到",
+    "description": "您查找的页面不存在或已被移动。",
+    "backToHome": "返回首页",
+    "goToMap": "打开地图"
   }
 }

@@ -28,7 +28,7 @@ const HARD_LIMIT = 5000;
  *   [&limit=2000]
  *
  * Retourne les clubs dans la bounding box, avec `courts_count` (nombre de
- * venues rattachés à chaque club). Utilisé par la carte au zoom 10-15 pour
+ * venues rattachés à chaque club). Utilisé par la carte au zoom < 16 pour
  * afficher 1 pin "club" plus gros + badge `[N] courts` par établissement
  * (cf. #130 vue club V1).
  *
@@ -213,18 +213,29 @@ async function fetchClubs(
   // 2. Compte des venues rattachés (1 requête groupée, pas N+1)
   // ────────────────────────────────────────────────────────────────────
   const clubIds = clubRows.map((c) => c.id);
-  const { data: venueRows, error: venueErr } = await sb
-    .from("venue")
-    .select("club_id")
-    .in("club_id", clubIds)
-    .eq("is_published", true)
-    .is("deleted_at", null);
-  if (venueErr) throw venueErr;
 
+  // Pagination explicite : PostgREST plafonne une réponse à `max-rows`
+  // (1000 par défaut côté Supabase). Sans ce paging, le COUNT des courts
+  // serait silencieusement tronqué sur les zones denses (ex. Paris au zoom
+  // 10-15 où les clubs visibles cumulent > 1000 venues) → badge sous-compté.
+  // On boucle par pages de 1000 jusqu'à épuisement.
+  const PAGE = 1000;
   const counts = new Map<string, number>();
-  for (const row of (venueRows ?? []) as { club_id: string | null }[]) {
-    if (!row.club_id) continue;
-    counts.set(row.club_id, (counts.get(row.club_id) ?? 0) + 1);
+  for (let from = 0; ; from += PAGE) {
+    const { data: venueRows, error: venueErr } = await sb
+      .from("venue")
+      .select("club_id")
+      .in("club_id", clubIds)
+      .eq("is_published", true)
+      .is("deleted_at", null)
+      .range(from, from + PAGE - 1);
+    if (venueErr) throw venueErr;
+    const rows = (venueRows ?? []) as { club_id: string | null }[];
+    for (const row of rows) {
+      if (!row.club_id) continue;
+      counts.set(row.club_id, (counts.get(row.club_id) ?? 0) + 1);
+    }
+    if (rows.length < PAGE) break;
   }
 
   return clubRows.map((c) => ({

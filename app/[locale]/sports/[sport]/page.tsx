@@ -10,6 +10,7 @@ import { SportVenuesSection } from "./SportVenuesSection";
 import type { VenuePin } from "@/lib/supabase/types";
 import {
   buildBreadcrumbJsonLd,
+  buildHreflangAlternates,
   buildItemListJsonLd,
   jsonLdHtml,
 } from "@/lib/seo/metadata";
@@ -37,9 +38,15 @@ export async function generateMetadata({
   const tSports = await getTranslations({ locale, namespace: "sports" });
   const tSport = await getTranslations({ locale, namespace: "sport" });
   const name = tSports.has(sportSlug) ? tSports(sportSlug) : sport.name_fr;
+  // hreflang : /sports/[sport] décliné en FR/EN/ZH (#108).
+  const hreflang = buildHreflangAlternates(`/sports/${sportSlug}`);
   return {
     title: name,
     description: tSport("metaDescription", { sport: name }),
+    alternates: {
+      canonical: hreflang.canonical,
+      languages: hreflang.languages,
+    },
   };
 }
 
