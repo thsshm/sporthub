@@ -292,6 +292,7 @@
       "navAdmin": "管理",
       "navVenues": "场所",
       "navClaims": "认领",
+      "navAffiliate": "推广",
       "navLogoutShort": "退出"
     },
     "dashboard": {
@@ -300,7 +301,9 @@
       "venuesTitle": "场所",
       "venuesHint": "已发布 · 管理列表",
       "claimsTitle": "待处理认领",
-      "claimsHint": "待审核"
+      "claimsHint": "待审核",
+      "affiliateTitle": "推广点击",
+      "affiliateHint": "预订合作伙伴的点击跟踪"
     },
     "venues": {
       "title": "场所",
@@ -358,6 +361,17 @@
       "statusPending": "待处理",
       "statusApproved": "已批准",
       "statusRejected": "已拒绝"
+    },
+    "affiliate": {
+      "title": "推广 — 合作伙伴点击",
+      "subtitle": "预订链接点击跟踪(issue #111)。",
+      "totalLabel": "总点击数",
+      "empty": "暂无推广点击。",
+      "byPartnerTitle": "按合作伙伴(共 {count} 次近期点击)",
+      "recentTitle": "最近 {count} 次点击",
+      "colDate": "日期",
+      "colPartner": "合作伙伴",
+      "colSource": "来源"
     }
   },
   "favorites": {
