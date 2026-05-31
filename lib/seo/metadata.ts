@@ -182,8 +182,30 @@ export function buildVenueJsonLd(venue: VenueDetail, cityName?: string): object 
       value: true,
     });
   }
+  // amenities depuis le M:N venue_amenity → amenity (#127)
+  // On utilise le nom anglais pour stabilité Schema.org indépendamment de la
+  // langue de la page.
+  for (const a of venue.amenities ?? []) {
+    if (!a.amenity) continue;
+    amenityFeature.push({
+      "@type": "LocationFeatureSpecification",
+      name: a.amenity.name_en,
+      value: true,
+    });
+  }
 
   const photoUrl = (enrichments.photo_url as string | undefined) ?? undefined;
+  // Photos additionnelles si présentes dans enrichments.photos
+  const extraPhotos = Array.isArray(enrichments.photos)
+    ? (enrichments.photos as string[]).filter((p) => typeof p === "string")
+    : [];
+  const allPhotos = photoUrl ? [photoUrl, ...extraPhotos] : extraPhotos;
+  const imageField =
+    allPhotos.length > 1
+      ? allPhotos
+      : allPhotos.length === 1
+        ? allPhotos[0]
+        : undefined;
 
   return {
     "@context": "https://schema.org",
@@ -191,7 +213,7 @@ export function buildVenueJsonLd(venue: VenueDetail, cityName?: string): object 
     name: venue.name,
     url: `${SITE_URL}/venue/${venue.slug}`,
     description: venue.description,
-    image: photoUrl,
+    image: imageField,
     address: {
       "@type": "PostalAddress",
       streetAddress: venue.address,
