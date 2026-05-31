@@ -218,7 +218,13 @@
     "googleReviewsAria": "Google rating: {rating} out of 5 — {count} reviews",
     "relatedTitle": "Similar spots nearby",
     "bookingTitle": "Book",
-    "bookOn": "Book on {partner}"
+    "bookOn": "Book on {partner}",
+    "about": {
+      "title": "About",
+      "learnMore": "Learn more",
+      "wikipedia": "Wikipedia",
+      "officialWebsite": "Official website ({host})"
+    }
   },
   "map": {
     "title": "Map of sport spots",

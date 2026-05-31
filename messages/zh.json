@@ -218,7 +218,13 @@
     "googleReviewsAria": "Google 评分：5 分中 {rating} 分 — {count} 条评价",
     "relatedTitle": "附近相似场所",
     "bookingTitle": "预订",
-    "bookOn": "在 {partner} 预订"
+    "bookOn": "在 {partner} 预订",
+    "about": {
+      "title": "关于",
+      "learnMore": "了解更多",
+      "wikipedia": "维基百科",
+      "officialWebsite": "官方网站 ({host})"
+    }
   },
   "map": {
     "title": "运动场所地图",

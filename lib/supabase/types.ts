@@ -860,6 +860,11 @@ export type Venue = {
 export type VenueEnrichments = {
   wikipedia_url?: string;
   wikipedia_label?: string;
+  /**
+   * Extrait Wikipedia tronqué (≤ 400 chars) — issue #106, importé via
+   * `scripts/import_enrichments_v1.py`. Affiché dans popup map + page venue.
+   */
+  description?: string;
   photo_url?: string;
   google_place_id?: string;
   google_rating?: number;

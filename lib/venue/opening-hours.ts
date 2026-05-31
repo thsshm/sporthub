@@ -228,3 +228,4 @@ export function formatRange(open: string, close: string, locale: "fr" | "en" | "
   };
   return `${fmt(open)}-${fmt(close)}`;
 }
+
