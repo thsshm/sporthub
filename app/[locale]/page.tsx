@@ -154,7 +154,7 @@ export default async function HomePage({
                       {family.emoji}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-semibold leading-tight group-hover:underline">
+                      <h3 className="truncate font-semibold leading-tight group-hover:underline" title={tFamilies(family.slug)}>
                         {tFamilies(family.slug)}
                       </h3>
                       <p
