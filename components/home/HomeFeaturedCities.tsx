@@ -3,15 +3,18 @@
  * de venues publiées. Query directe Supabase (Server Component).
  *
  * Strategy :
- *   1. SELECT id, slug, name, country_code FROM city WHERE is_featured = true ORDER BY name ;
- *   2. Pour chaque ville, count(planned) des venues publiées non supprimées.
+ *   1. SELECT … FROM city WHERE is_featured = true ORDER BY population DESC LIMIT 12
+ *      (pool de candidats — tri par population, PAS alphabétique).
+ *   2. Pour chaque ville, count(exact) des venues publiées non supprimées.
+ *   3. On garde les 6 villes avec le plus de venues → "villes avec le plus de spots".
  *
  * Si aucune ville featured en base, on retombe sur une liste hardcodée
- * (Paris, Lyon, Marseille) — utile pendant le boot avant que l'admin n'ait
+ * (Paris, Lyon, Marseille…) — utile pendant le boot avant que l'admin n'ait
  * marqué les featured cities en DB.
  *
- * Note count=planned : sur la table venue (centaines de milliers de lignes)
- * count=exact timeout. planned est instantané, précision ±1% suffisante.
+ * count=exact (et pas "planned") : le filtre city_id est sélectif (index dédié)
+ * donc COUNT(*) reste rapide par ville ; "planned" renvoyait une estimée
+ * pg_stat ~constante (toutes les villes affichaient le même "19 spots").
  */
 import { unstable_cache } from "next/cache";
 import { MapPin } from "lucide-react";
@@ -56,8 +59,12 @@ const fetchFeaturedCities = unstable_cache(
       .from("city")
       .select("id, slug, name, country_code")
       .eq("is_featured", true)
-      .order("name", { ascending: true })
-      .limit(6);
+      // Tri par population décroissante — PAS alphabétique : `ORDER BY name`
+      // ne remontait que des villes en "A" quand beaucoup sont is_featured.
+      // On prend un pool de 12 candidats (les plus peuplés), puis on garde les
+      // 6 avec le plus de venues (étape 4) → "villes avec le plus de spots".
+      .order("population", { ascending: false, nullsFirst: false })
+      .limit(12);
     cities = (data as CityRow[] | null) ?? [];
   } catch {
     cities = [];
@@ -78,14 +85,17 @@ const fetchFeaturedCities = unstable_cache(
     }
   }
 
-  // 3) Pour chaque ville on récupère le count (planned) de venues publiées
+  // 3) Pour chaque ville on récupère le count EXACT de venues publiées.
+  // count="exact" (et pas "planned") : on filtre par city_id (index dédié),
+  // donc COUNT(*) reste rapide par ville — alors que "planned" renvoyait une
+  // estimée pg_stat ~constante (toutes les villes affichaient "19 spots").
   const enriched = await Promise.all(
     cities.map(async (c) => {
       let count = 0;
       try {
         const res = await sb
           .from("venue")
-          .select("id", { count: "planned", head: true })
+          .select("id", { count: "exact", head: true })
           .eq("city_id", c.id)
           .eq("is_published", true)
           .is("deleted_at", null);
@@ -103,8 +113,11 @@ const fetchFeaturedCities = unstable_cache(
     }),
   );
 
-  // 4) On trie par count décroissant pour montrer les plus actives en premier
-  return enriched.sort((a, b) => b.count - a.count);
+  // 4) On trie par count décroissant et on garde les 6 villes les plus actives
+  // (parmi le pool de 12 candidats). Tiebreak alphabétique pour la stabilité.
+  return enriched
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, 6);
   },
   ["home-featured-cities"],
   { revalidate: 300, tags: ["home"] },
