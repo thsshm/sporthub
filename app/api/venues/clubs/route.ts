@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { getSupabaseAnonEdgeClient } from "@/lib/supabase/server";
 import { captureException } from "@/lib/monitoring";
 import { parseBbox, type NormalizedBbox } from "@/lib/bbox";
 import type { ClubPin } from "@/lib/supabase/types";
@@ -9,12 +9,6 @@ import type { ClubPin } from "@/lib/supabase/types";
  * du cold start serverless pour servir l'agrégat clubs au plus près du user.
  */
 export const runtime = "edge";
-
-/**
- * Arrondi des coords bbox à 3 décimales (~111m). Bénéfice cache HTTP edge
- * identique à /api/venues : pans micro tombent dans le même bucket.
- */
-const roundCoord = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
  * Cap dur côté serveur : on n'envoie jamais plus de 5000 clubs au client,
@@ -121,130 +115,91 @@ async function fetchClubs(
   bbox: Exclude<NormalizedBbox, { kind: "error" }>,
   filters: ClubQueryFilters,
 ): Promise<ClubPin[]> {
-  // Service role : endpoint public en lecture seule, RLS bypass justifié
-  // (même rationale que /api/venues — cf. #101). Pas de data sensible ici,
-  // la table `club` a une policy SELECT publique de toute façon.
-  const sb = getSupabaseAdminClient();
+  // Client anon (clé publique) + RPC `clubs_in_bbox` SECURITY DEFINER
+  // (migration 0015). Plus de service_role sur ce chemin public (#225).
+  // La RPC lit `club` + compte les venues rattachés (is_published=true,
+  // deleted_at IS NULL) en une passe SQL — aucune fuite, pas de pagination
+  // PostgREST à gérer côté client, pas de N+1.
+  const sb = getSupabaseAnonEdgeClient();
 
-  // ────────────────────────────────────────────────────────────────────
-  // 1. Fetch des clubs dans la bbox
-  // ────────────────────────────────────────────────────────────────────
-  type ClubRow = {
-    id: string;
-    slug: string;
-    name: string;
-    lat: number;
-    lon: number;
-    family_slug: string;
+  // `clubs_in_bbox` n'est pas dans les types générés tant que la migration 0015
+  // n'est pas appliquée + types régénérés. Wrapper typé explicite en attendant.
+  type ClubsParams = {
+    bbox_kind: "global" | "normal";
+    west: number | null;
+    south: number | null;
+    east: number | null;
+    north: number | null;
+    fams: string[] | null;
+    max_results: number;
   };
-
-  let clubRows: ClubRow[];
+  const callClubs = (params: ClubsParams) =>
+    (
+      sb.rpc as unknown as (
+        fn: "clubs_in_bbox",
+        params: ClubsParams,
+      ) => Promise<{ data: ClubPin[] | null; error: { message: string } | null }>
+    )("clubs_in_bbox", params);
 
   if (bbox.kind === "global") {
-    // Bbox mondiale : on skip le filtre spatial (cf. rationale dans
-    // /api/venues — sur une vue mondiale, l'index GIST n'aide pas et un
-    // statement_timeout peut tomber).
-    let q = sb
-      .from("club")
-      .select("id, slug, name, lat, lon, family_slug");
-    if (filters.fams && filters.fams.length > 0) {
-      q = q.in("family_slug", filters.fams);
-    }
-    const { data, error } = await q.limit(filters.limit).order("id");
+    const { data, error } = await callClubs({
+      bbox_kind: "global",
+      west: null,
+      south: null,
+      east: null,
+      north: null,
+      fams: filters.fams,
+      max_results: filters.limit,
+    });
     if (error) throw error;
-    clubRows = (data ?? []) as ClubRow[];
-  } else if (bbox.kind === "antimeridian") {
-    // Bbox traversant l'antiméridien : 2 requêtes [west, 180] ∪ [-180, east].
-    // Solution V1 : filtre lat/lon scalaire (le client Supabase n'expose pas
-    // ST_MakeEnvelope directement). Sur ~milliers de clubs c'est largement OK.
-    const halves = [
-      { west: bbox.west1, east: bbox.east1 },
-      { west: bbox.west2, east: bbox.east2 },
-    ];
-    const responses = await Promise.all(
-      halves.map((half) => {
-        let q = sb
-          .from("club")
-          .select("id, slug, name, lat, lon, family_slug")
-          .gte("lat", bbox.south)
-          .lte("lat", bbox.north)
-          .gte("lon", half.west)
-          .lte("lon", half.east);
-        if (filters.fams && filters.fams.length > 0) {
-          q = q.in("family_slug", filters.fams);
-        }
-        return q.limit(filters.limit);
+    return data ?? [];
+  }
+
+  if (bbox.kind === "antimeridian") {
+    // 2 moitiés [west1, east1] ∪ [west2, east2], dédup par id côté Node.
+    const [r1, r2] = await Promise.all([
+      callClubs({
+        bbox_kind: "normal",
+        west: bbox.west1,
+        south: bbox.south,
+        east: bbox.east1,
+        north: bbox.north,
+        fams: filters.fams,
+        max_results: filters.limit,
       }),
-    );
+      callClubs({
+        bbox_kind: "normal",
+        west: bbox.west2,
+        south: bbox.south,
+        east: bbox.east2,
+        north: bbox.north,
+        fams: filters.fams,
+        max_results: filters.limit,
+      }),
+    ]);
+    if (r1.error) throw r1.error;
+    if (r2.error) throw r2.error;
     const seen = new Set<string>();
-    const merged: ClubRow[] = [];
-    for (const r of responses) {
-      if (r.error) throw r.error;
-      for (const row of (r.data ?? []) as ClubRow[]) {
-        if (seen.has(row.id)) continue;
-        seen.add(row.id);
-        merged.push(row);
-        if (merged.length >= filters.limit) break;
-      }
+    const merged: ClubPin[] = [];
+    for (const row of [...(r1.data ?? []), ...(r2.data ?? [])]) {
+      if (seen.has(row.id)) continue;
+      seen.add(row.id);
+      merged.push(row);
       if (merged.length >= filters.limit) break;
     }
-    clubRows = merged;
-  } else {
-    // Bbox normale — filtre lat/lon (Postgres exploite idx_club_geom via le
-    // planner si la sélectivité est bonne, sinon fallback sur idx_club_family).
-    let q = sb
-      .from("club")
-      .select("id, slug, name, lat, lon, family_slug")
-      .gte("lat", bbox.south)
-      .lte("lat", bbox.north)
-      .gte("lon", roundCoord(bbox.west))
-      .lte("lon", roundCoord(bbox.east));
-    if (filters.fams && filters.fams.length > 0) {
-      q = q.in("family_slug", filters.fams);
-    }
-    const { data, error } = await q.limit(filters.limit);
-    if (error) throw error;
-    clubRows = (data ?? []) as ClubRow[];
+    return merged;
   }
 
-  if (clubRows.length === 0) return [];
-
-  // ────────────────────────────────────────────────────────────────────
-  // 2. Compte des venues rattachés (1 requête groupée, pas N+1)
-  // ────────────────────────────────────────────────────────────────────
-  const clubIds = clubRows.map((c) => c.id);
-
-  // Pagination explicite : PostgREST plafonne une réponse à `max-rows`
-  // (1000 par défaut côté Supabase). Sans ce paging, le COUNT des courts
-  // serait silencieusement tronqué sur les zones denses (ex. Paris au zoom
-  // 10-15 où les clubs visibles cumulent > 1000 venues) → badge sous-compté.
-  // On boucle par pages de 1000 jusqu'à épuisement.
-  const PAGE = 1000;
-  const counts = new Map<string, number>();
-  for (let from = 0; ; from += PAGE) {
-    const { data: venueRows, error: venueErr } = await sb
-      .from("venue")
-      .select("club_id")
-      .in("club_id", clubIds)
-      .eq("is_published", true)
-      .is("deleted_at", null)
-      .range(from, from + PAGE - 1);
-    if (venueErr) throw venueErr;
-    const rows = (venueRows ?? []) as { club_id: string | null }[];
-    for (const row of rows) {
-      if (!row.club_id) continue;
-      counts.set(row.club_id, (counts.get(row.club_id) ?? 0) + 1);
-    }
-    if (rows.length < PAGE) break;
-  }
-
-  return clubRows.map((c) => ({
-    id: c.id,
-    slug: c.slug,
-    name: c.name,
-    lat: c.lat,
-    lon: c.lon,
-    family_slug: c.family_slug,
-    courts_count: counts.get(c.id) ?? 0,
-  }));
+  // Bbox normale
+  const { data, error } = await callClubs({
+    bbox_kind: "normal",
+    west: bbox.west,
+    south: bbox.south,
+    east: bbox.east,
+    north: bbox.north,
+    fams: filters.fams,
+    max_results: filters.limit,
+  });
+  if (error) throw error;
+  return data ?? [];
 }

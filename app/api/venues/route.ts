@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseEdgeClient } from "@/lib/supabase/server";
+import { getSupabaseAnonEdgeClient } from "@/lib/supabase/server";
 import { captureException } from "@/lib/monitoring";
 import { parseBbox, type NormalizedBbox } from "@/lib/bbox";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -8,12 +8,18 @@ import type { VenuePin } from "@/lib/supabase/types";
  * Runtime Edge — supprime le cold start serverless (200-800ms aléatoires)
  * en exécutant la route au plus près du user.
  *
- * Choix client Supabase : on utilise `getSupabaseEdgeClient()` qui wrape
+ * Choix client Supabase : on utilise `getSupabaseAnonEdgeClient()` qui wrape
  * `createClient` de @supabase/supabase-js plutôt que `getSupabaseAdminClient()`
  * (qui wrape @supabase/ssr). Raison : @supabase/ssr importe `next/headers` au
  * niveau module — Next.js interdit ce module en Edge runtime même si cookies()
  * n'est pas appelé. createClient est basé sur fetch natif, 100% compatible Edge.
  * Cf. #113.
+ *
+ * Sécurité : ce chemin public n'utilise PLUS la `service_role` key (#225). Les
+ * lectures passent par des RPC `SECURITY DEFINER` (migration 0015) qui filtrent
+ * `is_published = true AND deleted_at IS NULL` en interne, appelées avec la clé
+ * publique `anon`. Plus de god-mode dans l'Edge, et le coût RLS par ligne (cause
+ * du statement_timeout sur régions peu denses) disparaît côté définisseur.
  */
 export const runtime = "edge";
 
@@ -220,10 +226,11 @@ async function fetchAggregates(
   zoomLevel: number,
   filters: VenueQueryFilters,
 ): Promise<AggregateCell[]> {
-  // On utilise getSupabaseEdgeClient() (createClient de @supabase/supabase-js)
-  // et non getSupabaseAdminClient() (@supabase/ssr) car ssr importe next/headers
-  // au niveau module — incompatible Edge runtime. Cf. #113.
-  const sb = getSupabaseEdgeClient();
+  // Client anon (clé publique) — la RPC venues_aggregates est SECURITY DEFINER
+  // (migration 0015) et filtre is_published/deleted_at en interne. Plus de
+  // service_role dans ce chemin public (#225). On utilise createClient de
+  // @supabase/supabase-js (pas @supabase/ssr → next/headers incompatible Edge).
+  const sb = getSupabaseAnonEdgeClient();
 
   // `venues_aggregates` (migration 0011) n'est pas encore dans les types Supabase
   // générés — ceux-ci sont régénérés depuis la prod, où 0011 n'est pas encore
@@ -303,14 +310,14 @@ async function fetchVenues(
   bbox: Exclude<NormalizedBbox, { kind: "error" }>,
   filters: VenueQueryFilters,
 ): Promise<VenuePin[]> {
-  // service_role (bypass RLS). Endpoint public lecture seule — filtres
-  // is_published=true + deleted_at IS NULL appliqués en SQL côté RPC/select.
-  // Aucun row "privé" ne fuit. Bypass RLS nécessaire car la policy anon cause
-  // un statement_timeout (~3s) sur les régions peu denses (cf. fix #101).
-  // On utilise getSupabaseEdgeClient() (createClient de @supabase/supabase-js)
-  // et non getSupabaseAdminClient() (@supabase/ssr) car ssr importe next/headers
-  // au niveau module — incompatible Edge runtime. Cf. #113.
-  const sb = getSupabaseEdgeClient();
+  // Client anon (clé publique). Endpoint public lecture seule : toutes les
+  // lectures passent par des RPC SECURITY DEFINER (migration 0015) qui filtrent
+  // is_published=true + deleted_at IS NULL en interne → aucun row "privé" ne
+  // fuit, et le coût RLS par ligne (cause du statement_timeout ~3s sur régions
+  // peu denses, cf. fix #101) disparaît côté définisseur. Plus de service_role
+  // dans ce chemin public (#225). createClient de @supabase/supabase-js (pas
+  // @supabase/ssr → next/headers incompatible Edge runtime, cf. #113).
+  const sb = getSupabaseAnonEdgeClient();
 
   if (bbox.kind === "global") {
     // Bbox mondiale : appeler la RPC avec spatial filter timeout sur ~348k
