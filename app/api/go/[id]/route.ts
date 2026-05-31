@@ -16,11 +16,17 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { buildAffiliateUrl } from "@/lib/affiliate";
+import { buildAffiliateUrl, hashIp, clientIpFromHeader } from "@/lib/affiliate";
 import { trackEvent, captureException } from "@/lib/monitoring";
 
+// node:crypto (hashIp) → runtime nodejs, pas edge.
+export const runtime = "nodejs";
 // Lookup DB par requête → rendu dynamique (pas de cache statique).
 export const dynamic = "force-dynamic";
+
+// Sel pour le hash d'IP (RGPD). Fallback dev pour que build/previews sans
+// secret fonctionnent ; en prod, définir IP_HASH_SALT.
+const IP_HASH_SALT = process.env.IP_HASH_SALT ?? "sporthub-dev-ip-salt";
 
 export async function GET(
   request: NextRequest,
@@ -55,6 +61,12 @@ export async function GET(
       source,
     });
 
+    // Métadonnées RGPD-safe du clic : IP hashée (jamais en clair), UA, referer.
+    const ipHash = hashIp(
+      clientIpFromHeader(request.headers.get("x-forwarded-for")),
+      IP_HASH_SALT,
+    );
+
     // Best-effort : un échec de tracking ne doit pas empêcher la redirection.
     trackEvent("affiliate_click", {
       bookingLinkId: id,
@@ -63,9 +75,9 @@ export async function GET(
       source,
     });
 
-    // Persistance du clic (table affiliate_click, migration 0011) — alimente
-    // le dashboard /admin/affiliate. Best-effort : on n'attend pas l'insert et
-    // on avale toute erreur, la redirection prime sur la télémétrie.
+    // Persistance du clic (table affiliate_click, migrations 0011 + 0012) —
+    // alimente le dashboard /admin/affiliate. Best-effort : on n'attend pas
+    // l'insert et on avale toute erreur, la redirection prime sur la télémétrie.
     void sb
       .from("affiliate_click")
       .insert({
@@ -73,6 +85,9 @@ export async function GET(
         partner: data.partner ?? "",
         venue_id: data.venue_id ?? null,
         source: source ?? null,
+        ip_hash: ipHash,
+        user_agent: request.headers.get("user-agent"),
+        referer: request.headers.get("referer"),
       })
       .then(({ error: insertError }) => {
         if (insertError) {

@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- SportHub V2 — Migration 0012 : table `club` (vue club V1)
+-- SportHub V2 — Migration 0013 : table `club` (vue club V1)
 -- ════════════════════════════════════════════════════════════════════════
 -- Contexte (issue #130, phase 2) :
 --   Au zoom < 16, plutôt que d'afficher N pins individuels pour un même

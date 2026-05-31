@@ -371,7 +371,12 @@
       "recentTitle": "最近 {count} 次点击",
       "colDate": "日期",
       "colPartner": "合作伙伴",
-      "colSource": "来源"
+      "colSource": "来源",
+      "partnersTitle": "合作伙伴({count})",
+      "colDeal": "合作",
+      "colCommission": "佣金",
+      "dealSigned": "已签约",
+      "dealPending": "待洽谈"
     }
   },
   "favorites": {
