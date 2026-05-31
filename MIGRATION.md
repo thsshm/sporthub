@@ -56,6 +56,32 @@ async redirects() {
 }
 ```
 
+## i18n routes /en /zh (issue #108)
+
+Stratégie d'internationalisation des URLs publiques, livrée en 2 PRs
+(#195 hreflang + 404 localisée ; #108 part 2 audit sitemap + cette doc).
+
+- **URLs préfixées (`localePrefix: "as-needed"`)** : le FR (locale par défaut)
+  garde les URLs V1 **sans préfixe** (`/venue/x`), ce qui préserve les
+  permaliens et n'impose aucun 301 supplémentaire. EN et ZH sont préfixés :
+  `/en/venue/x`, `/zh/venue/x`. Locales : `fr` (défaut), `en`, `zh`.
+- **hreflang** : chaque `<url>` du sitemap porte 3 `<xhtml:link rel="alternate">`
+  (fr/en/zh) pointant vers les 3 variantes. Idem côté `<head>` via
+  `lib/seo/metadata.ts` (`alternates.languages`). Google relie ainsi les
+  3 versions et évite le duplicate-content cross-locale.
+- **Sitemap × 3** : pas de sitemap séparé par locale. On garde **un seul jeu
+  de shards** (1 metadata + 8 venues = 9 sous-sitemaps) où chaque `<url>`
+  embarque ses 3 alternates. C'est l'option recommandée par Google et la
+  plus légère (1 `<loc>` + 3 `<xhtml:link>` au lieu de 3 `<url>` complètes).
+- **Audit poids (cap shard)** : Google limite chaque sitemap à **50 000 URLs
+  ET 50 MB**. Poids mesuré par `<url>` (loc + lastmod + changefreq + priority
+  + 3 hreflang) : ~523 B (slug court ~20 car.), ~619 B (moyen ~44), ~743 B
+  (long ~75). À **45 000 URLs/shard** → 22,4 / 26,6 / **31,9 MB** au pire cas,
+  soit **< 50 MB** avec marge confortable. La limite « 50 000 URLs » est
+  atteinte avant la limite poids (~70k URLs au pire cas), donc le cap
+  `URLS_PER_SHARD = 45_000` reste le facteur contraignant : **inchangé**,
+  aucun ajustement requis. Constante + test dans `lib/seo/sitemap-shards.ts`.
+
 ## Mapping schéma DB V1 → V2
 
 ### Tables V1 (SQLite) → Tables V2 (Postgres)

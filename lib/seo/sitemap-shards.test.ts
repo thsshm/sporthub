@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
+import type { SitemapEntry } from "@/lib/seo/sitemap-render";
 import {
   renderSitemapIndexXml,
   renderUrlsetXml,
 } from "@/lib/seo/sitemap-render";
 
 const SITE_URL = "https://sporthubmap.com";
+
+// Doit rester aligné sur URLS_PER_SHARD dans lib/seo/sitemap-shards.ts.
+// (On ne peut pas l'importer ici : ce module charge i18n/routing →
+//  next-intl/navigation, incompatible avec l'environnement node de vitest.)
+const URLS_PER_SHARD = 45_000;
 
 describe("renderSitemapIndexXml", () => {
   const now = "2026-05-28T12:00:00.000Z";
@@ -89,5 +95,52 @@ describe("renderUrlsetXml", () => {
     const xml = renderUrlsetXml([]);
     expect(xml).toContain("<urlset");
     expect(xml).toContain("</urlset>");
+  });
+});
+
+describe("audit poids shard (#108 part 2/2)", () => {
+  // Limites Google par sitemap : 50 000 URLs ET 50 MB non-compressés.
+  const GOOGLE_MAX_URLS = 50_000;
+  const GOOGLE_MAX_BYTES = 50 * 1024 * 1024;
+
+  /** Reproduit `localized()` de sitemap-shards pour une <url> venue. */
+  function localizedVenue(slug: string): SitemapEntry {
+    const path = `/venue/${slug}`;
+    return {
+      loc: `${SITE_URL}${path}`,
+      lastmod: "2026-05-31T12:00:00.000Z",
+      changefreq: "weekly",
+      priority: 0.8,
+      alternates: {
+        fr: `${SITE_URL}${path}`,
+        en: `${SITE_URL}/en${path}`,
+        zh: `${SITE_URL}/zh${path}`,
+      },
+    };
+  }
+
+  /** Poids d'un shard plein de venues au slug donné (3 hreflang inclus). */
+  function shardBytes(slug: string): number {
+    const entry = localizedVenue(slug);
+    const single = renderUrlsetXml([entry]);
+    const empty = renderUrlsetXml([]);
+    // Poids marginal d'une <url> = (xml 1 entry) − (xml vide) + le séparateur.
+    const perUrl = Buffer.byteLength(single, "utf8") - Buffer.byteLength(empty, "utf8") + 1;
+    return perUrl * URLS_PER_SHARD + Buffer.byteLength(empty, "utf8");
+  }
+
+  it("le cap respecte la limite des 50 000 URLs/sitemap", () => {
+    expect(URLS_PER_SHARD).toBeLessThanOrEqual(GOOGLE_MAX_URLS);
+  });
+
+  it("un shard plein reste < 50 MB même avec un slug long (pire cas)", () => {
+    // 75 caractères ≈ pire cas observé sur les slugs venue de la DB.
+    const longSlug = "c".repeat(75);
+    expect(shardBytes(longSlug)).toBeLessThan(GOOGLE_MAX_BYTES);
+  });
+
+  it("un shard plein avec slug moyen pèse < 30 MB (sanity)", () => {
+    const medSlug = "complexe-sportif-municipal-saint-jean-de-luz";
+    expect(shardBytes(medSlug)).toBeLessThan(30 * 1024 * 1024);
   });
 });
