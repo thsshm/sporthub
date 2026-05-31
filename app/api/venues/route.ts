@@ -32,22 +32,30 @@ const roundCoord = (n: number) => Math.round(n * 100) / 100;
  *   [&sport=padel]
  *   [&feat=lit,indoor,wheelchair,free,paid]
  *   [&limit=2000]
+ *   [&zoom=8]
  *
- * Retourne les venues publiés dans la bounding box, optionnellement filtrés
- * par familles, sport, et critères universels. Utilise la RPC venues_in_bbox
- * (migration 0007) qui exploite l'index GIST PostGIS sur venue.geom.
+ * Deux modes de retour selon le zoom (cf. issue #114) :
+ *   - zoom < 10        → `{ mode: 'aggregates', cells: [...] }`
+ *                        bulles de densité par pays (zoom<6) ou cellules
+ *                        degré-alignées (zoom 6-9). RPC `venues_aggregates`.
+ *   - zoom ≥ 10        → `{ mode: 'pois', venues: VenuePin[] }`
+ *                        POI individuels via RPC `venues_in_bbox`.
+ *   - zoom absent      → mode 'pois' (rétro-compat avec les callers existants
+ *                        antérieurs au tier de zoom).
  *
- * Gestion des bbox "exotiques" (cf. issue #101) — déléguée à `parseBbox` :
- *   - bbox mondiale (vue dézoomée par défaut MapLibre) → enveloppe clampée à
- *     ±179.9/±89.9 (évite l'erreur antipodale de ST_MakeEnvelope sur ±180).
- *   - bbox antiméridien (Pacifique, west > east) → split en 2 requêtes RPC
- *     puis dédup en mémoire.
- *   - bbox normale → clamping à ±179.9/±89.9 pour éviter l'edge antipodale.
+ * Le mode est discriminé dans la réponse : le client lit `mode` pour choisir
+ * la source MapLibre à hydrater (`venues-pois` vs `venues-aggregates`).
  *
- * `feat` (critères) : valeurs reconnues = lit, indoor, wheelchair, free, paid.
- * Sémantique AND entre critères. Valeurs inconnues ignorées (no-op côté SQL).
+ * Cache :
+ *   - mode 'aggregates' : `s-maxage=3600` (les counts par pays/cellule changent
+ *     lentement, ~import nocturne au plus). Bénéfice cache énorme à zoom mondial.
+ *   - mode 'pois' : `s-maxage=300` (déjà en place, granularité venue individuelle).
  *
- * Limite : 5 000 venues max (cap côté DB pour éviter d'envoyer un MB+ au client).
+ * Gestion bbox antiméridien / global déléguée à `parseBbox` (cf. lib/bbox.ts).
+ *
+ * `feat` (critères) ignoré en mode aggregates — le filtrage scalaire fait
+ * perdre le bénéfice du cache long. À zoom dézoomé, le user vient d'arriver
+ * et n'a généralement pas appliqué de filtres feat.
  */
 const KNOWN_FEAT = new Set(["lit", "indoor", "wheelchair", "free", "paid"]);
 
@@ -62,6 +70,9 @@ const KNOWN_SURFACES = new Set([
   "sand",
 ]);
 
+/** Seuil de bascule POI ↔ agrégats. zoom ≥ ZOOM_POI_THRESHOLD = POI individuels. */
+const ZOOM_POI_THRESHOLD = 10;
+
 type VenueQueryFilters = {
   fams: string[] | null;
   sport: string | null;
@@ -69,6 +80,27 @@ type VenueQueryFilters = {
   surfaces: string[] | null;
   limit: number;
 };
+
+type AggregateCell = {
+  lat: number;
+  lon: number;
+  count: number;
+  country_code: string | null;
+};
+
+type AggregatesParams = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+  zoom_level: number;
+  fams: string[] | null;
+  sport: string | null;
+};
+
+type ApiResponse =
+  | { mode: "pois"; venues: VenuePin[]; count: number }
+  | { mode: "aggregates"; cells: AggregateCell[]; count: number };
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -98,10 +130,6 @@ export async function GET(request: Request) {
     ? featParam.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
     : [];
   const feat = featRaw.filter((s) => KNOWN_FEAT.has(s));
-  // "free" et "paid" sont mutuellement exclusifs : si les deux sont demandés,
-  // aucun venue ne match (fee_required ne peut être à la fois TRUE et FALSE).
-  // On laisse passer pour cohérence (count = 0), c'est le comportement attendu
-  // si l'utilisateur coche les deux.
 
   const surfaceParam = searchParams.get("surface");
   const surfaceRaw = surfaceParam
@@ -112,6 +140,13 @@ export async function GET(request: Request) {
   const limitRaw = parseInt(searchParams.get("limit") ?? "2000", 10);
   const limit = Math.max(1, Math.min(Number.isNaN(limitRaw) ? 2000 : limitRaw, 5000));
 
+  // `zoom` est optionnel pour rétro-compat (callers antérieurs au tier).
+  // Sans zoom, on bascule en mode 'pois' (comportement historique).
+  const zoomParam = searchParams.get("zoom");
+  const zoomRaw = zoomParam !== null ? parseFloat(zoomParam) : null;
+  const zoom =
+    zoomRaw !== null && Number.isFinite(zoomRaw) ? zoomRaw : null;
+
   const filters: VenueQueryFilters = {
     fams: families,
     sport,
@@ -120,32 +155,149 @@ export async function GET(request: Request) {
     limit,
   };
 
+  // Décision tier : zoom absent ou ≥ 10 = POI individuels. Sinon = agrégats.
+  const wantsAggregates = zoom !== null && zoom < ZOOM_POI_THRESHOLD;
+
   try {
-    const venues = await fetchVenues(parsed, filters);
-    return NextResponse.json(
-      { venues, count: venues.length },
-      {
+    if (wantsAggregates) {
+      const cells = await fetchAggregates(parsed, Math.floor(zoom!), filters);
+      const body: ApiResponse = {
+        mode: "aggregates",
+        cells,
+        count: cells.length,
+      };
+      return NextResponse.json(body, {
         headers: {
-          // Cache edge CDN Vercel (#113).
-          //   - s-maxage=60                 : edge CDN sert pendant 60s (fraîcheur
-          //     compatible avec les mises à jour admin)
-          //   - stale-while-revalidate=300  : sert l'ancien jusqu'à 5 min pendant
-          //     la revalidation en arrière-plan → 0 wait pour le user
-          // Le max-age navigateur est volontairement absent : le browser ne
-          // re-frappera pas la même URL (les pans changent bbox → nouvelle URL).
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+          // Agrégats : cache long. Les counts par pays/cellule ne bougent qu'à
+          // l'import nocturne (cron #109). 1h de cache edge libère 99% des
+          // requêtes mondiales/européennes (cas dominant à zoom faible).
+          //   - max-age=600       : navigateur 10 min
+          //   - s-maxage=3600     : edge Vercel 1h
+          //   - stale-while-revalidate=86400 : sert l'ancien pendant 24h
+          "Cache-Control":
+            "public, max-age=600, s-maxage=3600, stale-while-revalidate=86400",
         },
+      });
+    }
+
+    const venues = await fetchVenues(parsed, filters);
+    const body: ApiResponse = {
+      mode: "pois",
+      venues,
+      count: venues.length,
+    };
+    return NextResponse.json(body, {
+      headers: {
+        // POI individuels : cache court (les venues changent à granularité
+        // unitaire via /admin/venues, on veut une fenêtre de fraîcheur courte).
+        "Cache-Control":
+          "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
       },
-    );
+    });
   } catch (e) {
-    captureException(e, { route: "/api/venues", bbox: bboxRaw, families });
+    captureException(e, {
+      route: "/api/venues",
+      bbox: bboxRaw,
+      families,
+      zoom,
+    });
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
 
 /**
- * Dispatche la requête venues selon le kind de bbox normalisée.
- * Throw en cas d'erreur Supabase pour que le caller capture l'exception.
+ * Mode agrégats : appelle la RPC `venues_aggregates` (migration 0011) qui
+ * retourne des bulles de densité (par pays à zoom<6, par cellule degré-alignée
+ * à zoom 6-9).
+ *
+ * Pour les bbox antiméridien / global, on dégrade gracieusement :
+ *   - global       : on appelle la RPC avec une bbox mondiale clampée.
+ *   - antimeridian : on fait 2 appels et on merge — les country_code étant
+ *     distincts entre Pacifique-ouest et Pacifique-est, pas de dédup nécessaire.
+ */
+async function fetchAggregates(
+  bbox: Exclude<NormalizedBbox, { kind: "error" }>,
+  zoomLevel: number,
+  filters: VenueQueryFilters,
+): Promise<AggregateCell[]> {
+  // On utilise getSupabaseEdgeClient() (createClient de @supabase/supabase-js)
+  // et non getSupabaseAdminClient() (@supabase/ssr) car ssr importe next/headers
+  // au niveau module — incompatible Edge runtime. Cf. #113.
+  const sb = getSupabaseEdgeClient();
+
+  // `venues_aggregates` (migration 0011) n'est pas encore dans les types Supabase
+  // générés — ceux-ci sont régénérés depuis la prod, où 0011 n'est pas encore
+  // appliquée. On type explicitement l'appel en attendant l'application de la
+  // migration + le regen des types (cf. #114 / #178).
+  const callAggregates = (params: AggregatesParams) =>
+    (
+      sb.rpc as unknown as (
+        fn: "venues_aggregates",
+        params: AggregatesParams,
+      ) => Promise<{
+        data: AggregateCell[] | null;
+        error: { message: string } | null;
+      }>
+    )("venues_aggregates", params);
+
+  if (bbox.kind === "global") {
+    // Bbox mondiale : on passe ±179.9/±89.9 à la RPC (l'index GIST gère
+    // 348k venues sans timeout en GROUP BY simple, vs 5000 LIMIT du mode POI).
+    const { data, error } = await callAggregates({
+      west: -179.9,
+      south: -89.9,
+      east: 179.9,
+      north: 89.9,
+      zoom_level: zoomLevel,
+      fams: filters.fams,
+      sport: filters.sport,
+    });
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  if (bbox.kind === "antimeridian") {
+    const [r1, r2] = await Promise.all([
+      callAggregates({
+        west: bbox.west1,
+        south: bbox.south,
+        east: bbox.east1,
+        north: bbox.north,
+        zoom_level: zoomLevel,
+        fams: filters.fams,
+        sport: filters.sport,
+      }),
+      callAggregates({
+        west: bbox.west2,
+        south: bbox.south,
+        east: bbox.east2,
+        north: bbox.north,
+        zoom_level: zoomLevel,
+        fams: filters.fams,
+        sport: filters.sport,
+      }),
+    ]);
+    if (r1.error) throw r1.error;
+    if (r2.error) throw r2.error;
+    return [...(r1.data ?? []), ...(r2.data ?? [])];
+  }
+
+  const { data, error } = await callAggregates({
+    west: bbox.west,
+    south: bbox.south,
+    east: bbox.east,
+    north: bbox.north,
+    zoom_level: zoomLevel,
+    fams: filters.fams,
+    sport: filters.sport,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Mode POI individuels (comportement historique). Dispatche la requête venues
+ * selon le kind de bbox normalisée. Throw en cas d'erreur Supabase.
  */
 async function fetchVenues(
   bbox: Exclude<NormalizedBbox, { kind: "error" }>,
