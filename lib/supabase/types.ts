@@ -537,6 +537,53 @@ export type Database = {
           slug: string
         }[]
       }
+      /** Tier 1 — agrégats par pays (zoom < 6). Cf. migration 0011. */
+      venues_clustered_country: {
+        Args: {
+          west: number
+          south: number
+          east: number
+          north: number
+          fams?: string[]
+          sport?: string
+        }
+        Returns: {
+          cluster_id: string
+          count: number
+          lat: number
+          lon: number
+          is_cluster: boolean
+          id: string | null
+          slug: string | null
+          name: string | null
+          family_slug: string | null
+          primary_sport_slug: string | null
+        }[]
+      }
+      /** Tier 2 — grille ST_SnapToGrid (6 ≤ zoom < 10). Cf. migration 0011. */
+      venues_clustered_grid: {
+        Args: {
+          west: number
+          south: number
+          east: number
+          north: number
+          cell_deg?: number
+          fams?: string[]
+          sport?: string
+        }
+        Returns: {
+          cluster_id: string
+          count: number
+          lat: number
+          lon: number
+          is_cluster: boolean
+          id: string | null
+          slug: string | null
+          name: string | null
+          family_slug: string | null
+          primary_sport_slug: string | null
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

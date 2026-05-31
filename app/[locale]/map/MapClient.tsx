@@ -16,6 +16,7 @@ import Supercluster from "supercluster";
 import type { ClusterFeature, PointFeature } from "supercluster";
 import { Search, Star } from "lucide-react";
 import type { VenuePin } from "@/lib/supabase/types";
+import type { ClusteredVenue, ClusteredResponse } from "@/app/api/venues/clustered/route";
 import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
 import { saveViewport } from "@/lib/map-storage";
 import {
@@ -24,6 +25,9 @@ import {
   wazeUrl,
   whatsappShareUrl,
 } from "@/lib/utils";
+
+/** Seuil de zoom au-dessus duquel on affiche les POI individuels. */
+const CLUSTER_ZOOM_THRESHOLD = 10;
 
 const FAVORITES_KEY = "sporthub-favorites";
 
@@ -150,9 +154,15 @@ export default function MapClient({
   const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(
     () => initialVenues ?? [],
   );
+  // Agrégats serveur (zoom < CLUSTER_ZOOM_THRESHOLD) retournés par /api/venues/clustered.
+  // Null = pas encore fetchés ou mode pins (zoom ≥ threshold).
+  const [serverClusters, setServerClusters] = useState<ClusteredVenue[] | null>(null);
+
   const venues = presetVenues ?? fetchedVenues;
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [zoom, setZoom] = useState<number>(initialZoom);
+  // AbortController pour annuler la requête in-flight si un nouveau moveend arrive.
+  const abortControllerRef = useRef<AbortController | null>(null);
   // Centre courant — exposé via onVenuesData pour permettre au VenueListPanel
   // (#123) de trier les venues par distance (Haversine).
   const [center, setCenter] = useState<{ lat: number; lon: number }>({
@@ -247,8 +257,22 @@ export default function MapClient({
       }
     }
     setLoading(true);
+
+    // Annule toute requête in-flight avant d'en lancer une nouvelle
+    // (évite les requêtes orphelines sur pan rapide). Cf. #114.
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    // Snapshot du zoom courant pour ce fetch — inclus dans la clé
+    // afin que le tiering (country/grid/pins) soit recalculé à chaque zoom.
+    const zoomSnapshot = zoom;
+
     const handle = setTimeout(async () => {
-      const params = new URLSearchParams({ bbox: bounds.join(",") });
+      const params = new URLSearchParams({
+        bbox: bounds.join(","),
+        zoom: String(Math.round(zoomSnapshot)),
+      });
       if (
         selectedFamilies &&
         totalFamilies &&
@@ -260,32 +284,64 @@ export default function MapClient({
       if (selectedSport) {
         params.set("sport", selectedSport);
       }
-      if (selectedCriteria && selectedCriteria.size > 0) {
+      // feat (critères) : uniquement pour le tier pins (zoom ≥ threshold),
+      // les agrégats n'ont pas de filtre feat (trop coûteux en SQL agrégé).
+      if (selectedCriteria && selectedCriteria.size > 0 && zoomSnapshot >= CLUSTER_ZOOM_THRESHOLD) {
         params.set("feat", Array.from(selectedCriteria).join(","));
       }
       try {
-        const res = await fetch(`/api/venues?${params}`);
+        const res = await fetch(`/api/venues/clustered?${params}`, {
+          signal: controller.signal,
+        });
         if (!res.ok) {
           setFetchedVenues([]);
+          setServerClusters(null);
           onVenuesChange?.(0);
           return;
         }
-        const data = (await res.json()) as { venues: VenuePin[] };
-        setFetchedVenues(data.venues);
-        onVenuesChange?.(data.venues.length);
+        const data = (await res.json()) as ClusteredResponse;
+        if (data.tier === "pins") {
+          // Tier POI individuels : passer les données au Supercluster client
+          const pins = data.venues.map((v) => ({
+            id: v.id ?? "",
+            slug: v.slug ?? "",
+            name: v.name ?? "",
+            lat: v.lat,
+            lon: v.lon,
+            family_slug: v.family_slug ?? "",
+            primary_sport_slug: v.primary_sport_slug ?? null,
+          } satisfies VenuePin));
+          setFetchedVenues(pins);
+          setServerClusters(null);
+          onVenuesChange?.(pins.length);
+        } else {
+          // Tier agrégats : stockés séparément, affichés comme bulles serveur.
+          setServerClusters(data.venues);
+          setFetchedVenues([]);
+          onVenuesChange?.(data.venues.length);
+        }
         lastFetchedKeyRef.current = currentKey;
-      } catch {
+      } catch (err) {
+        // AbortError = requête annulée volontairement (nouveau moveend) → pas d'erreur UI.
+        if (err instanceof Error && err.name === "AbortError") return;
         setFetchedVenues([]);
+        setServerClusters(null);
         onVenuesChange?.(0);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
-    }, 350);
-    return () => clearTimeout(handle);
+    }, 300);
+    return () => {
+      clearTimeout(handle);
+      controller.abort();
+    };
   }, [
     boundsKey,
     filtersKey,
     bounds,
+    zoom,
     selectedFamilies,
     totalFamilies,
     onVenuesChange,
@@ -402,7 +458,44 @@ export default function MapClient({
     >
       <NavigationControl position="top-right" />
 
-      {!emptyFilter &&
+      {/* ── Tier agrégats serveur (zoom < CLUSTER_ZOOM_THRESHOLD) ──────────────
+          Bulles renvoyées par /api/venues/clustered (country ou grid).
+          Clic → flyTo +3 niveaux de zoom pour dézoomer vers les POI. */}
+      {!emptyFilter && serverClusters !== null &&
+        serverClusters.map((cluster) => {
+          const count = Number(cluster.count);
+          // Taille proportionnelle au log du count : 28 → 64 px.
+          const size = Math.min(64, 28 + Math.log2(Math.max(count, 1)) * 6);
+          const targetZoom = Math.min(zoom + 3, 10);
+          return (
+            <Marker
+              key={`srv-${cluster.cluster_id ?? `${cluster.lat},${cluster.lon}`}`}
+              latitude={cluster.lat}
+              longitude={cluster.lon}
+              anchor="center"
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                mapRef.current?.getMap().flyTo({
+                  center: [cluster.lon, cluster.lat],
+                  zoom: targetZoom,
+                  duration: 500,
+                });
+              }}
+            >
+              <button
+                type="button"
+                aria-label={`${count} spots — zoomer`}
+                className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary/80 font-semibold text-white shadow-md transition-transform hover:scale-110"
+                style={{ width: size, height: size, fontSize: size > 40 ? 13 : 11 }}
+              >
+                {count >= 1000 ? `${Math.round(count / 1000)}k` : count}
+              </button>
+            </Marker>
+          );
+        })}
+
+      {/* ── Tier pins + clustering client Supercluster (zoom ≥ threshold) ── */}
+      {!emptyFilter && serverClusters === null &&
         clusters.map((feature) => {
           const [lon, lat] = feature.geometry.coordinates;
 
