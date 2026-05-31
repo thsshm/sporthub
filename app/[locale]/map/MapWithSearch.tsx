@@ -42,6 +42,11 @@ function markPickerSeen() {
   }
 }
 
+/** Flag localStorage "on a déjà proposé la géoloc auto au 1er chargement".
+ * Posé après toute tentative (succès comme refus) → jamais de re-prompt auto
+ * aux visites suivantes. L'utilisateur garde le bouton "Ma position". #214. */
+const GEO_PROMPTED_KEY = "sporthub_geo_prompted";
+
 const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ssr: false,
   loading: () => (
@@ -108,6 +113,16 @@ export function MapWithSearch({
   });
 
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
+
+  // Ref posée dès qu'une intention de position EXPLICITE recentre la carte
+  // (recherche ville, clic liste, ville du picker, bouton "Ma position"). La
+  // géoloc auto (#214) ne recentre QUE si cette ref est encore fausse — sinon
+  // elle pourrait écraser un choix utilisateur résolu plus tôt (anti-race).
+  const userMovedRef = useRef(false);
+  const flyToUser = (t: FlyTarget) => {
+    userMovedRef.current = true;
+    setFlyTarget(t);
+  };
 
   // Init des familles depuis ?family=X[,Y,…] (slugs validés côté Server).
   // Aucun param → toutes les familles (mode explore complet).
@@ -192,6 +207,48 @@ export function MapWithSearch({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
+  // Auto-géolocalisation au 1er chargement (#214). On propose la position du
+  // navigateur et on recentre dessus, UNIQUEMENT pour un nouveau visiteur :
+  //   - pas de viewport sauvé (sinon priorité à la dernière position connue)
+  //   - pas de deep-link positionnel (?q / ?family / ?lat — intention explicite)
+  //   - pas déjà prompté (flag localStorage) → on ne redemande jamais en auto
+  // Refus / erreur / timeout → on reste sur la France (silencieux, fallback du
+  // viewport Server). Le bouton "Ma position" reste dispo pour relancer.
+  useEffect(() => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) return;
+    if (initialView.restored || initialQuery) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("family") || params.has("lat")) return;
+    try {
+      if (window.localStorage.getItem(GEO_PROMPTED_KEY) === "1") return;
+    } catch {
+      /* localStorage inaccessible → on tente une fois quand même */
+    }
+    const markPrompted = () => {
+      try {
+        window.localStorage.setItem(GEO_PROMPTED_KEY, "1");
+      } catch {
+        /* silent */
+      }
+    };
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        markPrompted();
+        // L'utilisateur a déjà choisi une position entre-temps → ne pas écraser.
+        if (userMovedRef.current) return;
+        setFlyTarget({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          zoom: 11,
+          token: Date.now(),
+        });
+      },
+      () => markPrompted(),
+      { timeout: 8000, maximumAge: 60_000 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [selectedCriteria, setSelectedCriteria] = useState<Set<CriteriaKey>>(() => new Set());
   const [autoUpdate, setAutoUpdateState] = useState<boolean>(() => loadAutoUpdate(true));
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -254,7 +311,7 @@ export function MapWithSearch({
   };
 
   const handleListVenueSelect = (v: VenuePin) => {
-    setFlyTarget({ lat: v.lat, lon: v.lon, zoom: 14, token: Date.now() });
+    flyToUser({ lat: v.lat, lon: v.lon, zoom: 14, token: Date.now() });
   };
 
   // Wrapper qui persiste le toggle autoUpdate.
@@ -286,7 +343,7 @@ export function MapWithSearch({
     setGeolocError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setFlyTarget({
+        flyToUser({
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
           zoom: 12,
@@ -326,7 +383,7 @@ export function MapWithSearch({
     }
 
     if (city) {
-      setFlyTarget({ lat: city.lat, lon: city.lon, zoom: 12, token: Date.now() });
+      flyToUser({ lat: city.lat, lon: city.lon, zoom: 12, token: Date.now() });
     }
   };
 
@@ -400,7 +457,7 @@ export function MapWithSearch({
       )}
 
       <SearchBar
-        onSelect={(r) => setFlyTarget({ lat: r.lat, lon: r.lon, zoom: 12, token: Date.now() })}
+        onSelect={(r) => flyToUser({ lat: r.lat, lon: r.lon, zoom: 12, token: Date.now() })}
         className="absolute right-4 top-4 z-20 w-[min(320px,calc(100vw-180px))] md:w-80"
       />
 
