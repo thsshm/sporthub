@@ -255,7 +255,16 @@
       "submit": "Explore",
       "changeSelection": "Change my selection"
     },
-    "legend": "Legend"
+    "legend": "Legend",
+    "surface": {
+      "title": "Surface",
+      "clay": "Clay",
+      "concrete": "Concrete",
+      "synthetic": "Synthetic",
+      "grass": "Grass",
+      "parquet": "Parquet",
+      "sand": "Sand"
+    }
   },
   "footer": {
     "about": "Sport Hub",

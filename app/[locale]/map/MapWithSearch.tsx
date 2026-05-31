@@ -6,7 +6,11 @@ import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import { Crosshair, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
-import { SportFilters, type CriteriaKey } from "@/app/[locale]/map/SportFilters";
+import {
+  SportFilters,
+  type CriteriaKey,
+  type SurfaceKey,
+} from "@/app/[locale]/map/SportFilters";
 import { EmptyStateOverlay } from "@/app/[locale]/map/EmptyStateOverlay";
 import { ViewModeToggle } from "@/app/[locale]/map/ViewModeToggle";
 import { VenueListPanel } from "@/app/[locale]/map/VenueListPanel";
@@ -250,6 +254,7 @@ export function MapWithSearch({
   }, []);
 
   const [selectedCriteria, setSelectedCriteria] = useState<Set<CriteriaKey>>(() => new Set());
+  const [selectedSurfaces, setSelectedSurfaces] = useState<Set<SurfaceKey>>(() => new Set());
   const [autoUpdate, setAutoUpdateState] = useState<boolean>(() => loadAutoUpdate(true));
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
@@ -400,6 +405,8 @@ export function MapWithSearch({
         onChange={setSelectedFamilies}
         selectedCriteria={selectedCriteria}
         onCriteriaChange={setSelectedCriteria}
+        selectedSurfaces={selectedSurfaces}
+        onSurfacesChange={setSelectedSurfaces}
         autoUpdate={autoUpdate}
         onAutoUpdateChange={setAutoUpdate}
         onReopenPicker={() => setPickerOpen(true)}
@@ -443,6 +450,8 @@ export function MapWithSearch({
                 onChange={setSelectedFamilies}
                 selectedCriteria={selectedCriteria}
                 onCriteriaChange={setSelectedCriteria}
+                selectedSurfaces={selectedSurfaces}
+                onSurfacesChange={setSelectedSurfaces}
                 autoUpdate={autoUpdate}
                 onAutoUpdateChange={setAutoUpdate}
                 onReopenPicker={() => {
@@ -548,6 +557,7 @@ export function MapWithSearch({
           selectedFamilies={selectedFamilies}
           totalFamilies={FAMILIES.length}
           selectedCriteria={selectedCriteria}
+          selectedSurfaces={selectedSurfaces}
           autoUpdate={autoUpdate}
           onVenuesChange={setVisibleCount}
           onZoomChange={setCurrentZoom}

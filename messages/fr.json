@@ -255,7 +255,16 @@
       "submit": "Explorer",
       "changeSelection": "Changer ma sélection"
     },
-    "legend": "Légende"
+    "legend": "Légende",
+    "surface": {
+      "title": "Surface",
+      "clay": "Terre battue",
+      "concrete": "Béton",
+      "synthetic": "Synthétique",
+      "grass": "Gazon",
+      "parquet": "Parquet",
+      "sand": "Sable"
+    }
   },
   "footer": {
     "about": "Sport Hub",
