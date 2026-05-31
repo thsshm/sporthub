@@ -764,7 +764,7 @@ export default function MapClient({
 
       {loading && (
         <div className="pointer-events-none absolute right-4 top-20 z-10 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
-          chargement…
+          {tMap("fetching")}
         </div>
       )}
 

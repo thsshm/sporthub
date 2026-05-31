@@ -228,7 +228,9 @@
   },
   "map": {
     "title": "Map of sport spots",
+    "titleSingleFamily": "Map of {family} clubs",
     "loading": "Loading map…",
+    "fetching": "Loading…",
     "spotsInView": "{count} spots in view",
     "searchPlaceholder": "Search a city…",
     "filtersTitle": "Families",
@@ -291,7 +293,9 @@
       "grass": "Grass",
       "parquet": "Parquet",
       "sand": "Sand"
-    }
+    },
+    "descSingleFamily": "Find where to play: all {family} spots geolocated on the Sport Hub interactive map.",
+    "descGeneric": "Explore the Sport Hub world map of sport spots: tennis, padel, surf, yoga, football, pétanque and 50+ disciplines."
   },
   "footer": {
     "about": "Sport Hub",
