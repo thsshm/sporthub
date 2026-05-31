@@ -1,16 +1,13 @@
 /**
- * Section "Villes à explorer" — affiche les villes featured avec leur count
- * de venues publiées. Query directe Supabase (Server Component).
+ * Section "Villes à explorer" — affiche les villes avec le plus de venues
+ * publiées (Server Component).
  *
  * Strategy :
- *   1. SELECT … FROM city WHERE is_featured = true ORDER BY population DESC LIMIT 12
- *      (pool de candidats — tri par population, PAS alphabétique).
- *   2. Pour chaque ville, count(exact) des venues publiées non supprimées.
- *   3. On garde les 6 villes avec le plus de venues → "villes avec le plus de spots".
- *
- * Si aucune ville featured en base, on retombe sur une liste hardcodée
- * (Paris, Lyon, Marseille…) — utile pendant le boot avant que l'admin n'ait
- * marqué les featured cities en DB.
+ *   1. RPC `top_cities_by_venue_count(6)` (migration 0017) : GROUP BY city
+ *      ORDER BY COUNT(venue) DESC → les villes réellement les plus actives,
+ *      indépendamment de is_featured (qui était curé DE/CZ et triait en "A").
+ *   2. Fallback : liste hardcodée (Paris, Lyon…) + count exact par ville, si la
+ *      RPC est indisponible (ex. migration pas encore appliquée) ou vide.
  *
  * count=exact (et pas "planned") : le filtre city_id est sélectif (index dédié)
  * donc COUNT(*) reste rapide par ville ; "planned" renvoyait une estimée
@@ -52,43 +49,41 @@ const fetchFeaturedCities = unstable_cache(
   async (): Promise<FeaturedCity[]> => {
   const sb = getSupabaseStaticClient();
 
-  // 1) On tente de récupérer les featured cities en DB
+  // 1) Voie principale : top villes par nombre de venues publiées, via la RPC
+  // top_cities_by_venue_count (migration 0017). "Villes avec le plus de spots",
+  // indépendant de is_featured (qui était curé DE/CZ et triait en "A").
+  try {
+    const { data, error } = await sb.rpc("top_cities_by_venue_count", {
+      max_results: 6,
+    });
+    if (!error && data && data.length > 0) {
+      return data.map((c) => ({
+        id: c.id,
+        slug: c.slug,
+        name: c.name,
+        country_code: c.country_code,
+        count: Number(c.count) || 0,
+      }));
+    }
+  } catch {
+    /* RPC indisponible (ex. migration 0017 pas encore appliquée) → fallback */
+  }
+
+  // 2) Fallback : liste hardcodée (Paris, Lyon…) + count exact par ville.
+  // Utilisé tant que la RPC n'est pas en base, ou si elle ne renvoie rien.
   let cities: CityRow[] = [];
   try {
+    const slugs = FALLBACK_CITIES.map((c) => c.slug);
     const { data } = await sb
       .from("city")
       .select("id, slug, name, country_code")
-      .eq("is_featured", true)
-      // Tri par population décroissante — PAS alphabétique : `ORDER BY name`
-      // ne remontait que des villes en "A" quand beaucoup sont is_featured.
-      // On prend un pool de 12 candidats (les plus peuplés), puis on garde les
-      // 6 avec le plus de venues (étape 4) → "villes avec le plus de spots".
-      .order("population", { ascending: false, nullsFirst: false })
-      .limit(12);
+      .in("slug", slugs)
+      .eq("country_code", "FR");
     cities = (data as CityRow[] | null) ?? [];
   } catch {
     cities = [];
   }
 
-  // 2) Fallback hardcodé si rien en base — on remonte les rows correspondants
-  if (cities.length === 0) {
-    try {
-      const slugs = FALLBACK_CITIES.map((c) => c.slug);
-      const { data } = await sb
-        .from("city")
-        .select("id, slug, name, country_code")
-        .in("slug", slugs)
-        .eq("country_code", "FR");
-      cities = (data as CityRow[] | null) ?? [];
-    } catch {
-      cities = [];
-    }
-  }
-
-  // 3) Pour chaque ville on récupère le count EXACT de venues publiées.
-  // count="exact" (et pas "planned") : on filtre par city_id (index dédié),
-  // donc COUNT(*) reste rapide par ville — alors que "planned" renvoyait une
-  // estimée pg_stat ~constante (toutes les villes affichaient "19 spots").
   const enriched = await Promise.all(
     cities.map(async (c) => {
       let count = 0;
@@ -112,9 +107,6 @@ const fetchFeaturedCities = unstable_cache(
       } satisfies FeaturedCity;
     }),
   );
-
-  // 4) On trie par count décroissant et on garde les 6 villes les plus actives
-  // (parmi le pool de 12 candidats). Tiebreak alphabétique pour la stabilité.
   return enriched
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, 6);
