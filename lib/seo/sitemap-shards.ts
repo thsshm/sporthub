@@ -17,7 +17,21 @@ import type { SitemapEntry } from "@/lib/seo/sitemap-render";
 
 export const SITE_URL = "https://sporthubmap.com";
 
-/** Cap par shard. 45k < 50k pour laisser de la marge poids (hreflang × 3 locales). */
+/**
+ * Cap par shard. 45k respecte les DEUX limites Google par sitemap :
+ *   1. limite « nombre d'URLs »  : 50 000 max  → 45k OK (marge 10 %)
+ *   2. limite « poids »          : 50 MB max   → voir audit ci-dessous
+ *
+ * Audit poids (#108 part 2/2, hreflang × 3 locales fr/en/zh comptés) :
+ *   chaque <url> = <loc> + lastmod + changefreq + priority + 3 <xhtml:link>.
+ *   Poids mesuré par <url> (cf. MIGRATION.md § « i18n routes /en /zh ») :
+ *     - slug court  (~20 car.) : ~523 B  → 45k = 22,4 MB / shard
+ *     - slug moyen  (~44 car.) : ~619 B  → 45k = 26,6 MB / shard
+ *     - slug long   (~75 car.) : ~743 B  → 45k = 31,9 MB / shard
+ *   Pire cas 31,9 MB < 50 MB : marge confortable. La limite « 50 000 URLs »
+ *   est atteinte AVANT la limite poids (~70k URLs au pire cas), donc 45k
+ *   reste le facteur contraignant — pas besoin de réduire le cap.
+ */
 export const URLS_PER_SHARD = 45_000;
 
 /** 8 shards venues = 360k URLs venues max indexables (~348k actuels). */
