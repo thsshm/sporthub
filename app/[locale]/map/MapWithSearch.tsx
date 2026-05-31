@@ -553,7 +553,7 @@ export function MapWithSearch({
       )}
 
       <div className="bottom-safe-4 pointer-events-none absolute left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
-        <span className="font-semibold">{formatCount(visibleCount)}</span> spots dans la vue
+        {tMap("spotsInView", { count: formatCount(visibleCount) })}
       </div>
 
       {/* Légende couleurs par famille — visible en mode explore (2+ familles
