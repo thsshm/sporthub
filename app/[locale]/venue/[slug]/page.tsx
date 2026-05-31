@@ -15,6 +15,7 @@ import { VenueReviewBadge } from "@/components/venue/VenueReviewBadge";
 import { VenueAmenitiesList } from "@/components/venue/VenueAmenitiesList";
 import { VenueSportsList } from "@/components/venue/VenueSportsList";
 import { VenueAccessibility } from "@/components/venue/VenueAccessibility";
+import { VenueBookingLinks } from "@/components/venue/VenueBookingLinks";
 import { VenueRelated } from "@/components/venue/VenueRelated";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
@@ -187,8 +188,9 @@ export default async function VenuePage({ params }: Props) {
           </section>
         </div>
 
-        {/* Sidebar : review + infos */}
+        {/* Sidebar : réservation + review + infos */}
         <aside className="space-y-4">
+          <VenueBookingLinks bookingLinks={venue.booking_links} />
           <VenueReviewBadge venue={venue} />
           <VenueInfoCard venue={venue} locale={safeLocale} />
         </aside>

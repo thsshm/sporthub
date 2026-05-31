@@ -171,9 +171,9 @@
     "courtsCount": "{count, plural, =0 {aucun terrain} one {1 terrain} other {{count} terrains}}",
     "infoCardTitle": "Informations pratiques",
     "openingHours": "Horaires d'ouverture",
-    "openNow": "Ouvert · ferme à {closesAt}",
-    "closedNowOpensAt": "Fermé · ouvre à {opensAt}",
-    "closedNow": "Fermé",
+    "openNow": "Ouvert maintenant — ferme à {closesAt}",
+    "closedNowOpensAt": "Fermé — ouvre à {opensAt}",
+    "closedNow": "Fermé maintenant",
     "capacity": "Capacité",
     "price": "Tarif",
     "free": "Accès gratuit",
@@ -183,9 +183,6 @@
     "accessibilityTitle": "Accessibilité & accès",
     "primarySport": "Principal",
     "outdoor": "Extérieur",
-    "openNow": "Ouvert maintenant — ferme à {closesAt}",
-    "closedNow": "Fermé maintenant",
-    "closedNowOpensAt": "Fermé — ouvre à {opensAt}",
     "amenity": {
       "indoor": "Couvert",
       "lighting": "Éclairage",
@@ -219,7 +216,9 @@
     },
     "googleReviewsCount": "{count, plural, =0 {aucun avis} one {1 avis Google} other {{count} avis Google}}",
     "googleReviewsAria": "Note Google : {rating} sur 5 — {count} avis",
-    "relatedTitle": "Spots similaires à proximité"
+    "relatedTitle": "Spots similaires à proximité",
+    "bookingTitle": "Réserver",
+    "bookOn": "Réserver sur {partner}"
   },
   "map": {
     "title": "Carte des spots sportifs",
