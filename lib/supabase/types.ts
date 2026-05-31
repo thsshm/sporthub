@@ -681,6 +681,18 @@ export type Database = {
           slug: string
         }[]
       }
+      top_cities_by_venue_count: {
+        Args: {
+          max_results?: number
+        }
+        Returns: {
+          id: string
+          slug: string
+          name: string
+          country_code: string
+          count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
