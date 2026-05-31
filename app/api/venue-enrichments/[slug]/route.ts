@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { getSupabaseEdgeClient } from "@/lib/supabase/server";
 import { captureException } from "@/lib/monitoring";
 import type { VenueEnrichments } from "@/lib/supabase/types";
 
@@ -24,17 +24,16 @@ type EnrichmentsResponse = Pick<
   "photo_url" | "description" | "wikipedia_url" | "wikipedia_label"
 >;
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { slug: string } },
-) {
+export async function GET(_request: Request, { params }: { params: { slug: string } }) {
   const slug = (params.slug || "").trim();
   if (!slug) {
     return NextResponse.json({ error: "slug required" }, { status: 400 });
   }
 
   try {
-    const sb = getSupabaseAdminClient();
+    // Edge runtime : getSupabaseEdgeClient (service_role sans next/headers),
+    // PAS getSupabaseAdminClient qui importe next/headers → KO en edge (#230).
+    const sb = getSupabaseEdgeClient();
     const { data, error } = await sb
       .from("venue")
       .select("enrichments")
@@ -58,8 +57,7 @@ export async function GET(
     return NextResponse.json(body, {
       headers: {
         // Cache long : les enrichments Wikidata sont stables.
-        "Cache-Control":
-          "public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400",
+        "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400",
       },
     });
   } catch (e) {

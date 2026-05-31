@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { getSupabaseEdgeClient } from "@/lib/supabase/server";
 import { captureException } from "@/lib/monitoring";
 import { parseBbox, type NormalizedBbox } from "@/lib/bbox";
 import type { ClubPin } from "@/lib/supabase/types";
@@ -54,10 +54,7 @@ export async function GET(request: Request) {
 
   const bboxRaw = searchParams.get("bbox");
   if (!bboxRaw) {
-    return NextResponse.json(
-      { error: "bbox=west,south,east,north required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "bbox=west,south,east,north required" }, { status: 400 });
   }
 
   const parsed = parseBbox(bboxRaw);
@@ -67,14 +64,14 @@ export async function GET(request: Request) {
 
   const familiesParam = searchParams.get("families");
   const families = familiesParam
-    ? familiesParam.split(",").map((s) => s.trim()).filter(Boolean)
+    ? familiesParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
     : null;
 
   const limitRaw = parseInt(searchParams.get("limit") ?? "2000", 10);
-  const limit = Math.max(
-    1,
-    Math.min(Number.isNaN(limitRaw) ? 2000 : limitRaw, HARD_LIMIT),
-  );
+  const limit = Math.max(1, Math.min(Number.isNaN(limitRaw) ? 2000 : limitRaw, HARD_LIMIT));
 
   const filters: ClubQueryFilters = {
     fams: families,
@@ -89,10 +86,9 @@ export async function GET(request: Request) {
         headers: {
           // Mêmes timings que /api/venues — la donnée club bouge moins, on
           // pourrait monter, mais on reste consistant pour la lisibilité.
-          "Cache-Control":
-            "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
+          "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
         },
-      },
+      }
     );
   } catch (e) {
     captureException(e, {
@@ -119,12 +115,13 @@ export async function GET(request: Request) {
  */
 async function fetchClubs(
   bbox: Exclude<NormalizedBbox, { kind: "error" }>,
-  filters: ClubQueryFilters,
+  filters: ClubQueryFilters
 ): Promise<ClubPin[]> {
-  // Service role : endpoint public en lecture seule, RLS bypass justifié
-  // (même rationale que /api/venues — cf. #101). Pas de data sensible ici,
-  // la table `club` a une policy SELECT publique de toute façon.
-  const sb = getSupabaseAdminClient();
+  // Edge runtime → getSupabaseEdgeClient (createClient service_role, sans
+  // next/headers) et NON getSupabaseAdminClient (@supabase/ssr) qui casse en
+  // edge. Service role justifié : endpoint public read-only, RLS bypass (cf.
+  // #101) ; la table `club` a de toute façon une policy SELECT publique. (#230)
+  const sb = getSupabaseEdgeClient();
 
   // ────────────────────────────────────────────────────────────────────
   // 1. Fetch des clubs dans la bbox
@@ -144,9 +141,7 @@ async function fetchClubs(
     // Bbox mondiale : on skip le filtre spatial (cf. rationale dans
     // /api/venues — sur une vue mondiale, l'index GIST n'aide pas et un
     // statement_timeout peut tomber).
-    let q = sb
-      .from("club")
-      .select("id, slug, name, lat, lon, family_slug");
+    let q = sb.from("club").select("id, slug, name, lat, lon, family_slug");
     if (filters.fams && filters.fams.length > 0) {
       q = q.in("family_slug", filters.fams);
     }
@@ -174,7 +169,7 @@ async function fetchClubs(
           q = q.in("family_slug", filters.fams);
         }
         return q.limit(filters.limit);
-      }),
+      })
     );
     const seen = new Set<string>();
     const merged: ClubRow[] = [];
