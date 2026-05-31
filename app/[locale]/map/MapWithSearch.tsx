@@ -89,6 +89,10 @@ type Props = {
   initialViewMode?: ViewMode | null;
   /** Ville passée via ?q=… (picker explore) : géocodée au mount → flyTo. #132. */
   initialQuery?: string | null;
+  /** Coords résolues côté Server depuis ?city=<slug> (liens home "Villes à
+   * explorer"). Si fourni, la carte s'ouvre centrée sur la ville (zoom 12, mode
+   * POI → pins colorés par famille), prioritaire sur le viewport sauvegardé. */
+  initialCityCenter?: { lat: number; lon: number } | null;
 };
 
 export function MapWithSearch({
@@ -99,6 +103,7 @@ export function MapWithSearch({
   initialFamilies,
   initialViewMode,
   initialQuery,
+  initialCityCenter,
 }: Props) {
   const tMap = useTranslations("map");
 
@@ -109,6 +114,17 @@ export function MapWithSearch({
   // France) devient non pertinent → MapClient devra re-fetcher pour la nouvelle
   // zone. C'est OK : un seul roundtrip /api/venues.
   const [initialView] = useState(() => {
+    // Deep-link ville (?city) → prioritaire sur le viewport sauvé : l'utilisateur
+    // a explicitement cliqué une ville, on l'y emmène (zoom 12 = mode POI).
+    // `restored: true` → on n'enverra pas les venues France SSR (non pertinentes).
+    if (initialCityCenter) {
+      return {
+        lat: initialCityCenter.lat,
+        lon: initialCityCenter.lon,
+        zoom: 12,
+        restored: true,
+      };
+    }
     const saved = loadViewport();
     if (saved) {
       return { lat: saved.lat, lon: saved.lon, zoom: saved.zoom, restored: true };
@@ -148,7 +164,11 @@ export function MapWithSearch({
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const hasDeepLink =
-      params.has("family") || params.has("sports") || params.has("q") || params.has("lat");
+      params.has("family") ||
+      params.has("sports") ||
+      params.has("q") ||
+      params.has("lat") ||
+      params.has("city");
     let seen = false;
     try {
       seen = window.localStorage.getItem(PICKER_SEEN_KEY) === "1";
@@ -222,7 +242,7 @@ export function MapWithSearch({
     if (typeof window === "undefined" || !("geolocation" in navigator)) return;
     if (initialView.restored || initialQuery) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.has("family") || params.has("lat")) return;
+    if (params.has("family") || params.has("lat") || params.has("city")) return;
     try {
       if (window.localStorage.getItem(GEO_PROMPTED_KEY) === "1") return;
     } catch {
