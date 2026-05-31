@@ -144,6 +144,11 @@ export function MapWithSearch({
     setFlyTarget(t);
   };
 
+  // Posée quand la géoloc NAVIGATEUR précise (#214) a recentré la carte. Le
+  // recentrage IP (approximatif, ville) ne doit jamais écraser une position
+  // précise déjà obtenue — priorité : action user > géoloc navigateur > IP.
+  const precisePosRef = useRef(false);
+
   // Init des familles depuis ?family=X[,Y,…] (slugs validés côté Server).
   // Aucun param → toutes les familles (mode explore complet).
   const router = useRouter();
@@ -260,6 +265,7 @@ export function MapWithSearch({
         markPrompted();
         // L'utilisateur a déjà choisi une position entre-temps → ne pas écraser.
         if (userMovedRef.current) return;
+        precisePosRef.current = true; // position précise : prime sur la géoloc IP
         setFlyTarget({
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
@@ -270,6 +276,41 @@ export function MapWithSearch({
       () => markPrompted(),
       { timeout: 8000, maximumAge: 60_000 }
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Recentrage approximatif par IP (#214 suite). Complète la géoloc navigateur :
+  // dès le mount, on appelle /api/geo (géoloc edge Vercel, ~ville, SANS
+  // permission) et on recentre instantanément sur la région du visiteur — au
+  // lieu de la France entière. La géoloc navigateur, plus précise, raffine
+  // ensuite (zoom 11) si l'utilisateur l'autorise.
+  // Mêmes gardes que la géoloc navigateur : pas de viewport restauré, pas de
+  // deep-link positionnel, pas de choix user déjà résolu. Échec / dev local
+  // (headers absents) → silencieux, on garde la vue par défaut.
+  useEffect(() => {
+    if (initialView.restored || initialQuery) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("family") || params.has("lat")) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/geo");
+        if (!res.ok) return;
+        const { geo } = (await res.json()) as {
+          geo: { lat: number; lon: number } | null;
+        };
+        // Une intention précise (user ou géoloc navigateur) est arrivée
+        // entre-temps → ne pas écraser avec l'approximation IP.
+        if (cancelled || !geo || userMovedRef.current || precisePosRef.current) return;
+        setFlyTarget({ lat: geo.lat, lon: geo.lon, zoom: 10, token: Date.now() });
+      } catch {
+        /* /api/geo indispo (dev local) → on garde la vue par défaut */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
