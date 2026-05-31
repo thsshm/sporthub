@@ -11,10 +11,59 @@ const SITE_URL = "https://sporthubmap.com";
 const SITE_NAME = "Sport Hub";
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 
+// On duplique volontairement la config locales ici (au lieu d'importer
+// `routing` depuis `@/i18n/routing`) pour garder ce module sans dépendance
+// sur `next-intl/navigation`, ce qui permet aux tests vitest (env node) de
+// l'importer sans avoir besoin du runtime Next. Source de vérité reste
+// `i18n/routing.ts`. Si ces constantes divergent, ajouter un test.
+const HREFLANG_LOCALES = ["fr", "en", "zh"] as const;
+const HREFLANG_DEFAULT_LOCALE = "fr" as const;
+
+/**
+ * Construit les alternates hreflang pour une page de contenu identique
+ * publiée sur les 3 locales (#108).
+ *
+ * Convention de préfixe (`localePrefix: "as-needed"`, cf. `i18n/routing.ts`) :
+ *   - FR (default) → URL sans préfixe (`/path`)
+ *   - EN          → `/en/path`
+ *   - ZH          → `/zh/path`
+ *
+ * Émet aussi `x-default` (recommandation Google) → renvoie sur le FR canonique.
+ * Renvoie des URLs absolues — `metadataBase` peut être absent sur certaines
+ * pages, donc on ne dépend pas de la résolution relative.
+ *
+ * @param path - chemin sans locale ni domaine, p.ex. `/map`, `/venue/abc`, `/`.
+ */
+export function buildHreflangAlternates(path: string): {
+  canonical: string;
+  languages: Record<string, string>;
+} {
+  // Normalise : pour "/", on veut "" derrière le locale (sinon "/en/")
+  const cleanPath = path === "/" ? "" : path;
+  const languages: Record<string, string> = {};
+  for (const l of HREFLANG_LOCALES) {
+    const localePrefix = l === HREFLANG_DEFAULT_LOCALE ? "" : `/${l}`;
+    // FR root = "/" (pas ""), autres = /xx ou /xx/path
+    const href =
+      cleanPath === "" && l === HREFLANG_DEFAULT_LOCALE
+        ? `${SITE_URL}/`
+        : `${SITE_URL}${localePrefix}${cleanPath}`;
+    languages[l] = href;
+  }
+  // x-default = FR (URL canonique sans préfixe). Google recommande
+  // x-default pour signaler la page à servir aux locales non listées.
+  languages["x-default"] = languages[HREFLANG_DEFAULT_LOCALE];
+  return {
+    canonical: languages[HREFLANG_DEFAULT_LOCALE],
+    languages,
+  };
+}
+
 /**
  * Metadata de base pour la landing.
  */
 export function buildHomeMetadata(): Metadata {
+  const hreflang = buildHreflangAlternates("/");
   return {
     title: {
       default: "Sport Hub · Une seule carte pour tous tes sports",
@@ -23,7 +72,10 @@ export function buildHomeMetadata(): Metadata {
     description:
       "Trouve où pratiquer ton sport : tennis, padel, surf, yoga, foot, pétanque… 267 000 spots dans 13 familles, partout dans le monde. Données ouvertes, sans inscription.",
     metadataBase: new URL(SITE_URL),
-    alternates: { canonical: "/" },
+    alternates: {
+      canonical: hreflang.canonical,
+      languages: hreflang.languages,
+    },
     openGraph: {
       type: "website",
       url: SITE_URL,
@@ -57,10 +109,19 @@ export function buildVenueMetadata(venue: VenueDetail, cityName?: string): Metad
   const ogImage = photoUrl ?? DEFAULT_OG_IMAGE;
   const venueUrl = `${SITE_URL}/venue/${venue.slug}`;
 
+  // hreflang alternates : la même venue est publiée sous FR/EN/ZH (mêmes
+  // contenus métier, UI localisée). Permet à Google d'indexer la bonne URL
+  // par locale et d'éviter le piège "URL identique → uniquement FR indexé"
+  // (#108).
+  const hreflang = buildHreflangAlternates(`/venue/${venue.slug}`);
+
   return {
     title,
     description,
-    alternates: { canonical: `/venue/${venue.slug}` },
+    alternates: {
+      canonical: hreflang.canonical,
+      languages: hreflang.languages,
+    },
     openGraph: {
       type: "website",
       url: venueUrl,

@@ -11,6 +11,7 @@ import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
 import {
   buildBreadcrumbJsonLd,
+  buildHreflangAlternates,
   buildItemListJsonLd,
   buildPlaceJsonLd,
   jsonLdHtml,
@@ -127,11 +128,16 @@ export async function generateMetadata({
     count: ctx.total,
   }).slice(0, 160);
   const path = `/${sport}/${country}/${city}`;
+  // hreflang : page programmatique sport×ville déclinée en FR/EN/ZH (#108).
+  const hreflang = buildHreflangAlternates(path);
 
   return {
     title,
     description,
-    alternates: { canonical: path },
+    alternates: {
+      canonical: hreflang.canonical,
+      languages: hreflang.languages,
+    },
     openGraph: { type: "website", url: `${SITE_URL}${path}`, title, description },
   };
 }
