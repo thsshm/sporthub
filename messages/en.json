@@ -281,6 +281,7 @@
       "navAdmin": "Admin",
       "navVenues": "Venues",
       "navClaims": "Claims",
+      "navAffiliate": "Affiliate",
       "navLogoutShort": "sign out"
     },
     "dashboard": {
@@ -289,7 +290,9 @@
       "venuesTitle": "Venues",
       "venuesHint": "published · manage list",
       "claimsTitle": "Pending claims",
-      "claimsHint": "to moderate"
+      "claimsHint": "to moderate",
+      "affiliateTitle": "Affiliate clicks",
+      "affiliateHint": "Tracking of clicks to booking partners"
     },
     "venues": {
       "title": "Venues",
@@ -347,6 +350,17 @@
       "statusPending": "pending",
       "statusApproved": "approved",
       "statusRejected": "rejected"
+    },
+    "affiliate": {
+      "title": "Affiliate — partner clicks",
+      "subtitle": "Tracking of clicks on booking links (issue #111).",
+      "totalLabel": "Total clicks",
+      "empty": "No affiliate click yet.",
+      "byPartnerTitle": "By partner (over {count} recent clicks)",
+      "recentTitle": "{count} most recent clicks",
+      "colDate": "Date",
+      "colPartner": "Partner",
+      "colSource": "Source"
     }
   },
   "favorites": {

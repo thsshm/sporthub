@@ -63,6 +63,27 @@ export async function GET(
       source,
     });
 
+    // Persistance du clic (table affiliate_click, migration 0011) — alimente
+    // le dashboard /admin/affiliate. Best-effort : on n'attend pas l'insert et
+    // on avale toute erreur, la redirection prime sur la télémétrie.
+    void sb
+      .from("affiliate_click")
+      .insert({
+        booking_link_id: id,
+        partner: data.partner ?? "",
+        venue_id: data.venue_id ?? null,
+        source: source ?? null,
+      })
+      .then(({ error: insertError }) => {
+        if (insertError) {
+          captureException(insertError, {
+            route: "/api/go/[id]",
+            op: "affiliate_click insert",
+            id,
+          });
+        }
+      });
+
     return NextResponse.redirect(target, 302);
   } catch (e) {
     captureException(e, { route: "/api/go/[id]", id });

@@ -54,6 +54,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      affiliate_click: {
+        Row: {
+          booking_link_id: string | null
+          created_at: string
+          id: string
+          partner: string
+          source: string | null
+          venue_id: string | null
+        }
+        Insert: {
+          booking_link_id?: string | null
+          created_at?: string
+          id?: string
+          partner: string
+          source?: string | null
+          venue_id?: string | null
+        }
+        Update: {
+          booking_link_id?: string | null
+          created_at?: string
+          id?: string
+          partner?: string
+          source?: string | null
+          venue_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "affiliate_click_booking_link_id_fkey"
+            columns: ["booking_link_id"]
+            isOneToOne: false
+            referencedRelation: "booking_link"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       amenity: {
         Row: {
           category: string | null
@@ -787,6 +822,17 @@ export type BookingLink = {
   url: string;
   sport_slug: string | null;
   is_active: boolean;
+  created_at: string;
+};
+
+// Clic sur un lien de réservation partenaire (cf. migration 0011, issue #111).
+// Append-only ; partner/venue_id dénormalisés (copie au moment du clic).
+export type AffiliateClick = {
+  id: string;
+  booking_link_id: string | null;
+  partner: string;
+  venue_id: string | null;
+  source: string | null;
   created_at: string;
 };
 
