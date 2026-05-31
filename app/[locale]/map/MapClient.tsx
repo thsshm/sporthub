@@ -15,8 +15,9 @@ import {
 import Supercluster from "supercluster";
 import type { ClusterFeature, PointFeature } from "supercluster";
 import { Search, Star } from "lucide-react";
-import type { VenuePin } from "@/lib/supabase/types";
+import type { VenuePin, ClubPin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
+import ClubMarker from "@/components/map/ClubMarker";
 import { saveViewport } from "@/lib/map-storage";
 import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
 import {
@@ -27,6 +28,27 @@ import {
 } from "@/lib/utils";
 
 const FAVORITES_KEY = "sporthub-favorites";
+
+/**
+ * Familles pour lesquelles le mode clubs (zoom 10-15) n'a pas de sens :
+ * pas de structure "club" avec plusieurs courts regroupés.
+ * Ces familles restent en vue pois individuels même à zoom 10-15.
+ */
+const CLUB_INCOMPATIBLE_FAMILIES = new Set([
+  "ballon",
+  "boules",
+  "nautique",
+  "plus",
+  "snow",
+  "retraites",
+]);
+
+/**
+ * Plage de zoom pour la vue clubs (1 pin/établissement).
+ * En-dessous → agrégats pays/grid (PR #178). Au-dessus → pois individuels.
+ */
+const CLUB_ZOOM_MIN = 10;
+const CLUB_ZOOM_MAX = 15;
 
 function loadFavorites(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -189,6 +211,8 @@ export default function MapClient({
   const [selected, setSelected] = useState<VenuePin | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  // Clubs fetchés depuis /api/venues/clubs (zoom 10-15, familles compatibles).
+  const [clubs, setClubs] = useState<ClubPin[]>([]);
   // Clé "filtres + bounds" du dernier fetch réussi. Permet de détecter si
   // l'utilisateur a pané/zoomé depuis (afficher "Rechercher dans cette zone").
   const lastFetchedKeyRef = useRef<string | null>(null);
@@ -197,6 +221,25 @@ export default function MapClient({
   // pour savoir si "ce tour-ci" est dû à un user-force.
   const [forceFetchToken, setForceFetchToken] = useState(0);
   const prevForceFetchTokenRef = useRef(0);
+  // Clé du dernier fetch clubs réussi (évite les re-fetches identiques).
+  const lastFetchedClubsKeyRef = useRef<string | null>(null);
+
+  // Mode clubs actif : zoom 10-15 ET la sélection se limite à des familles
+  // qui supportent les clubs. Le mode club masque les pois individuels — on
+  // ne l'active donc que si TOUTES les familles cochées sont compatibles.
+  // Sinon (aucun filtre = toutes familles, ou sélection mixte incluant
+  // ballon/boules/nautique/snow/retraites/plus), on garde les pois : sans ça
+  // les venues des familles sans clustering disparaîtraient (pas de club
+  // parent + pois masqués). L'affichage simultané clubs + pois isolés est
+  // prévu palier 4 (#130).
+  const isClubMode = useMemo(() => {
+    if (zoom < CLUB_ZOOM_MIN || zoom > CLUB_ZOOM_MAX) return false;
+    if (!selectedFamilies || selectedFamilies.size === 0) return false;
+    for (const fam of selectedFamilies) {
+      if (CLUB_INCOMPATIBLE_FAMILIES.has(fam)) return false;
+    }
+    return true;
+  }, [zoom, selectedFamilies]);
 
   useEffect(() => {
     setFavorites(loadFavorites());
@@ -226,6 +269,50 @@ export default function MapClient({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flyTarget?.token, flyTarget?.lat, flyTarget?.lon, flyTarget?.zoom]);
+
+  // Fetch clubs debounced quand isClubMode est actif et bbox/filtres changent.
+  // Quand isClubMode passe à false, on vide les clubs (pas de pins orphelins).
+  useEffect(() => {
+    if (!isClubMode || !bounds || presetVenues) {
+      setClubs([]);
+      return;
+    }
+    const famKey =
+      selectedFamilies && totalFamilies &&
+      selectedFamilies.size > 0 && selectedFamilies.size < totalFamilies
+        ? Array.from(selectedFamilies).sort().join(",")
+        : "";
+    const currentKey = `clubs|${bounds.join(",")}|${famKey}`;
+    if (currentKey === lastFetchedClubsKeyRef.current) return;
+
+    const handle = setTimeout(async () => {
+      const params = new URLSearchParams({ bbox: bounds.join(",") });
+      if (famKey) {
+        // Filtrer uniquement les familles compatibles (exclure les incompatibles)
+        const compatFamilies = selectedFamilies
+          ? Array.from(selectedFamilies).filter(
+              (f) => !CLUB_INCOMPATIBLE_FAMILIES.has(f),
+            )
+          : [];
+        if (compatFamilies.length > 0) {
+          params.set("families", compatFamilies.join(","));
+        }
+      }
+      try {
+        const res = await fetch(`/api/venues/clubs?${params}`);
+        if (!res.ok) {
+          setClubs([]);
+          return;
+        }
+        const data = (await res.json()) as { clubs: ClubPin[] };
+        setClubs(data.clubs);
+        lastFetchedClubsKeyRef.current = currentKey;
+      } catch {
+        setClubs([]);
+      }
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [isClubMode, bounds, selectedFamilies, totalFamilies, presetVenues]);
 
   // Clés normalisées pour comparer "ce qui changerait le résultat".
   // On les sépare pour distinguer "filtres ont changé" vs "uniquement bbox".
@@ -529,8 +616,9 @@ export default function MapClient({
         })}
 
       {/* Mode POI individuels (zoom ≥ 10, ou presetVenues, ou rétro-compat).
-          Fade-in coordonné avec les agrégats au swap zoom 9↔10. */}
-      {!emptyFilter &&
+          Fade-in coordonné avec les agrégats au swap zoom 9↔10.
+          Masqués en mode clubs pour éviter le double affichage. */}
+      {!emptyFilter && !isClubMode &&
         clusters.map((feature) => {
           const [lon, lat] = feature.geometry.coordinates;
           // Fade quand on quitte le mode POI (ex: dézoom 10→9). En presetVenues
@@ -607,6 +695,31 @@ export default function MapClient({
             </Marker>
           );
         })}
+
+      {/* Mode clubs : zoom 10-15, familles compatibles. 1 pin/établissement.
+          Click → zoom +3 pour révéler les pois individuels.
+          Note : ClubMarker appelle e.stopPropagation() → le onClick du Marker
+          react-map-gl ne se déclenche pas. On passe uniquement onClick à ClubMarker. */}
+      {isClubMode && !emptyFilter &&
+        clubs.map((club) => (
+          <Marker
+            key={`club-${club.id}`}
+            latitude={club.lat}
+            longitude={club.lon}
+            anchor="center"
+          >
+            <ClubMarker
+              club={club}
+              onClick={() => {
+                mapRef.current?.getMap().flyTo({
+                  center: [club.lon, club.lat],
+                  zoom: Math.min(zoom + 3, 18),
+                  duration: 600,
+                });
+              }}
+            />
+          </Marker>
+        ))}
 
       {loading && (
         <div className="pointer-events-none absolute right-4 top-20 z-10 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">

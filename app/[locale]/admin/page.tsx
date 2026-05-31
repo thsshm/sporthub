@@ -9,17 +9,19 @@ export default async function AdminDashboard() {
   const sb = getSupabaseAdminClient();
   const t = await getTranslations("admin.dashboard");
 
-  const [venuesCount, pendingClaimsCount] = await Promise.all([
-    sb
-      .from("venue")
-      .select("id", { count: "exact", head: true })
-      .eq("is_published", true)
-      .is("deleted_at", null),
-    sb
-      .from("claim_request")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "pending"),
-  ]);
+  const [venuesCount, pendingClaimsCount, affiliateClicksCount] =
+    await Promise.all([
+      sb
+        .from("venue")
+        .select("id", { count: "exact", head: true })
+        .eq("is_published", true)
+        .is("deleted_at", null),
+      sb
+        .from("claim_request")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending"),
+      sb.from("affiliate_click").select("id", { count: "exact", head: true }),
+    ]);
 
   return (
     <main className="container mx-auto max-w-4xl px-6 py-10">
@@ -49,6 +51,19 @@ export default async function AdminDashboard() {
             {formatCount(pendingClaimsCount.count ?? 0)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{t("claimsHint")}</p>
+        </Link>
+
+        <Link
+          href="/admin/affiliate"
+          className="rounded-lg border p-5 transition hover:bg-accent"
+        >
+          <h2 className="font-semibold">{t("affiliateTitle")}</h2>
+          <p className="mt-1 text-2xl font-bold">
+            {formatCount(affiliateClicksCount.count ?? 0)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("affiliateHint")}
+          </p>
         </Link>
       </nav>
     </main>

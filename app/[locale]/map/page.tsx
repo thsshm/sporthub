@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { MapWithSearch } from "@/app/[locale]/map/MapWithSearch";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { isViewMode, type ViewMode } from "@/lib/map-storage";
+import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenuePin } from "@/lib/supabase/types";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
 
@@ -13,16 +14,39 @@ const INITIAL_LIMIT = 500;
 
 // hreflang : /map est servi en FR (canonique), /en/map en EN, /zh/map en ZH.
 // Sans `languages`, Google indexait uniquement /map en FR (cf. #108).
+// Le canonical reste STRICTEMENT "/map" (sans query) : les variantes
+// ?family= ne sont que des filtres, pas des URLs canoniques distinctes (#132,
+// évite le duplicate content que /explore créait en V1).
 const mapHreflang = buildHreflangAlternates("/map");
-export const metadata: Metadata = {
-  title: "Carte des spots sportifs",
-  description:
-    "Explorez la carte mondiale des spots sportifs SportHub : tennis, padel, surf, yoga, foot, pétanque et plus de 50 disciplines.",
-  alternates: {
-    canonical: mapHreflang.canonical,
-    languages: mapHreflang.languages,
-  },
-};
+
+/** Parse `?family=raquette,ballon` → slugs valides, dédupliqués. Cf. #132. */
+function parseFamilies(raw: string | undefined): string[] {
+  if (typeof raw !== "string") return [];
+  const seen = new Set<string>();
+  for (const part of raw.split(",")) {
+    const slug = part.trim();
+    if (slug && FAMILIES_BY_SLUG[slug]) seen.add(slug);
+  }
+  return Array.from(seen);
+}
+
+// Metadata adaptative selon les query params (#132) :
+//   - 1 famille → "Carte des clubs de {famille}" (intention SEO famille)
+//   - 0 ou multi → titre générique "explorer tous les sports"
+export function generateMetadata({ searchParams }: MapPageProps): Metadata {
+  const families = parseFamilies(searchParams.family);
+  const single = families.length === 1 ? FAMILIES_BY_SLUG[families[0]] : null;
+  return {
+    title: single ? `Carte des clubs de ${single.name_fr}` : "Carte des spots sportifs",
+    description: single
+      ? `Trouvez où pratiquer : tous les spots ${single.name_fr.toLowerCase()} géolocalisés sur la carte interactive SportHub.`
+      : "Explorez la carte mondiale des spots sportifs SportHub : tennis, padel, surf, yoga, foot, pétanque et plus de 50 disciplines.",
+    alternates: {
+      canonical: mapHreflang.canonical,
+      languages: mapHreflang.languages,
+    },
+  };
+}
 
 // Cache ISR 60s — un revalidate trop élevé (genre 1h) bloque la propagation
 // des fixes de code après un nouveau deploy (la HTML cachée référence les
@@ -52,20 +76,20 @@ async function fetchInitialVenues(): Promise<VenuePin[]> {
 type MapPageProps = {
   // Next.js 14 expose les query params en prop des Server Components.
   // On extrait :
-  //   ?family=X → switcher #121
-  //   ?view=X   → mode d'affichage #123 (map / list / split)
+  //   ?family=X[,Y,…] → familles filtrées (1 = mode famille, multi = explore) #121/#132
+  //   ?view=X         → mode d'affichage #123 (map / list / split)
+  //   ?q=ville        → recentrage initial sur une ville (picker explore) #132
   // Lecture côté Server pour éviter "useSearchParams should be wrapped in
   // Suspense" qui casserait le prerender ISR.
-  searchParams: { family?: string; view?: string };
+  searchParams: { family?: string; view?: string; q?: string };
 };
 
 export default async function MapPage({ searchParams }: MapPageProps) {
   const initialVenues = await fetchInitialVenues();
-  const initialFamily =
-    typeof searchParams.family === "string" ? searchParams.family : null;
-  const initialViewMode: ViewMode | null = isViewMode(searchParams.view)
-    ? searchParams.view
-    : null;
+  const initialFamilies = parseFamilies(searchParams.family);
+  const initialViewMode: ViewMode | null = isViewMode(searchParams.view) ? searchParams.view : null;
+  const initialQuery =
+    typeof searchParams.q === "string" && searchParams.q.trim() ? searchParams.q.trim() : null;
 
   return (
     <>
@@ -84,8 +108,9 @@ export default async function MapPage({ searchParams }: MapPageProps) {
           initialLon={2.5}
           initialZoom={5}
           initialVenues={initialVenues}
-          initialFamily={initialFamily}
+          initialFamilies={initialFamilies}
           initialViewMode={initialViewMode}
+          initialQuery={initialQuery}
         />
       </div>
     </>

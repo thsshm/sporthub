@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
@@ -10,6 +10,8 @@ import { SportFilters, type CriteriaKey } from "@/app/[locale]/map/SportFilters"
 import { EmptyStateOverlay } from "@/app/[locale]/map/EmptyStateOverlay";
 import { ViewModeToggle } from "@/app/[locale]/map/ViewModeToggle";
 import { VenueListPanel } from "@/app/[locale]/map/VenueListPanel";
+import { ExplorePicker, type PickerSelection } from "@/app/[locale]/map/ExplorePicker";
+import { MapLegend } from "@/app/[locale]/map/MapLegend";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
 import {
@@ -28,17 +30,24 @@ import type { VenuePin } from "@/lib/supabase/types";
  * passerait sinon par-dessus la carte sur étroit). Matche le min desktop V1. */
 const SPLIT_MIN_PX = 1100;
 
+/** Flag localStorage "le picker explore a déjà été vu". Une fois posé, on ne
+ * re-prompt jamais le picker initial sur /map sans filtre (#132). */
+const PICKER_SEEN_KEY = "sporthub_picker_seen";
+
+function markPickerSeen() {
+  try {
+    window.localStorage.setItem(PICKER_SEEN_KEY, "1");
+  } catch {
+    /* localStorage plein/privé → silent (le picker pourra réapparaître) */
+  }
+}
+
 const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ssr: false,
   loading: () => (
     <div className="flex h-full w-full items-center justify-center bg-muted/20">
       <div className="flex items-center gap-2 rounded-md bg-background/95 px-4 py-2 text-sm text-muted-foreground shadow-md backdrop-blur">
-        <svg
-          className="h-4 w-4 animate-spin"
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden="true"
-        >
+        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle
             cx="12"
             cy="12"
@@ -63,12 +72,14 @@ type Props = {
   /** Venues pré-fetched côté Server pour le LCP. Affichés immédiatement avant
    * que le bbox-aware fetch client retourne. */
   initialVenues?: VenuePin[];
-  /** Slug famille passé via ?family=X dans l'URL (lu côté Server par page.tsx
-   * pour éviter le bailout dynamic de useSearchParams). Cf. #121. */
-  initialFamily?: string | null;
+  /** Familles passées via ?family=X[,Y,…] (slugs déjà validés côté Server par
+   * page.tsx). 1 slug = mode famille, plusieurs = mode explore. Cf. #121/#132. */
+  initialFamilies?: string[] | null;
   /** Mode d'affichage initial (?view=X dans l'URL, lu côté Server). Cf. #123.
    * URL prioritaire sur localStorage si valide. */
   initialViewMode?: ViewMode | null;
+  /** Ville passée via ?q=… (picker explore) : géocodée au mount → flyTo. #132. */
+  initialQuery?: string | null;
 };
 
 export function MapWithSearch({
@@ -76,8 +87,9 @@ export function MapWithSearch({
   initialLon,
   initialZoom,
   initialVenues,
-  initialFamily,
+  initialFamilies,
   initialViewMode,
+  initialQuery,
 }: Props) {
   const tMap = useTranslations("map");
 
@@ -97,50 +109,91 @@ export function MapWithSearch({
 
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
 
-  // Init du switcher #121 depuis ?family=X (lu côté Server par page.tsx).
-  // Si valide → on init avec cette seule famille. Sinon = toutes.
+  // Init des familles depuis ?family=X[,Y,…] (slugs validés côté Server).
+  // Aucun param → toutes les familles (mode explore complet).
   const router = useRouter();
   const pathname = usePathname();
-  const validInitialFamily =
-    initialFamily && FAMILIES.some((f) => f.slug === initialFamily)
-      ? initialFamily
-      : null;
 
   const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(() =>
-    validInitialFamily
-      ? new Set([validInitialFamily])
-      : new Set(FAMILIES.map((f) => f.slug)),
+    initialFamilies && initialFamilies.length > 0
+      ? new Set(initialFamilies)
+      : new Set(FAMILIES.map((f) => f.slug))
   );
 
-  // Sync URL ↔ selectedFamilies. Si on est en mode "1 famille" → push
-  // ?family=X. Sinon (0 ou multi ou toutes) → retirer le param.
-  // router.replace évite de polluer l'historique (cf. pattern V1).
-  // NB: on lit window.location pour préserver les éventuels autres params
-  // (futurs ?sports=, ?view=…) sans wrapper la page dans <Suspense>.
+  // Picker explore (#132) : overlay multi-familles au 1er visit de /map sans
+  // deep-link (?family / ?sports / ?q / ?lat) tant que le flag localStorage
+  // "vu" n'est pas posé. Décision côté client au mount pour préserver l'ISR de
+  // /map (pas de cookies() côté Server — cf. #191).
+  const [pickerOpen, setPickerOpen] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (selectedFamilies.size === 1) {
-      const slug = Array.from(selectedFamilies)[0];
-      if (params.get("family") !== slug) {
-        params.set("family", slug);
+    const hasDeepLink =
+      params.has("family") || params.has("sports") || params.has("q") || params.has("lat");
+    let seen = false;
+    try {
+      seen = window.localStorage.getItem(PICKER_SEEN_KEY) === "1";
+    } catch {
+      /* localStorage inaccessible → on considère non-vu */
+    }
+    if (!hasDeepLink && !seen) setPickerOpen(true);
+  }, []);
+
+  // Sync URL ↔ selectedFamilies (checkboxes/switcher) :
+  //   - 0 ou TOUTES → URL propre (pas de ?family) = explore complet
+  //   - sous-ensemble strict → ?family=slug1,slug2 (liste triée, stable)
+  // router.replace (pas d'historique). On lit window.location pour préserver
+  // les autres params (?q, ?view…) sans wrapper la page dans <Suspense>.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const size = selectedFamilies.size;
+    if (size === 0 || size === FAMILIES.length) {
+      if (params.has("family")) {
+        params.delete("family");
+        const qs = params.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      }
+    } else {
+      const slugs = Array.from(selectedFamilies).sort().join(",");
+      if (params.get("family") !== slugs) {
+        params.set("family", slugs);
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
       }
-    } else if (params.has("family")) {
-      params.delete("family");
-      const qs = params.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFamilies]);
 
+  // Géocodage one-shot de ?q=ville au mount → flyTo (picker explore, #132).
+  const didGeocodeRef = useRef(false);
+  useEffect(() => {
+    if (!initialQuery || didGeocodeRef.current) return;
+    didGeocodeRef.current = true;
+    (async () => {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          initialQuery
+        )}&limit=1&accept-language=fr`;
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        if (!res.ok) return;
+        const rows = (await res.json()) as { lat: string; lon: string }[];
+        if (rows[0]) {
+          setFlyTarget({
+            lat: parseFloat(rows[0].lat),
+            lon: parseFloat(rows[0].lon),
+            zoom: 12,
+            token: Date.now(),
+          });
+        }
+      } catch {
+        /* géocodage échoué → on reste sur la vue par défaut */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuery]);
 
-  const [selectedCriteria, setSelectedCriteria] = useState<Set<CriteriaKey>>(
-    () => new Set(),
-  );
-  const [autoUpdate, setAutoUpdateState] = useState<boolean>(() =>
-    loadAutoUpdate(true),
-  );
+  const [selectedCriteria, setSelectedCriteria] = useState<Set<CriteriaKey>>(() => new Set());
+  const [autoUpdate, setAutoUpdateState] = useState<boolean>(() => loadAutoUpdate(true));
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
   const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
@@ -187,8 +240,7 @@ export function MapWithSearch({
   }, []);
 
   /** Mode effectivement appliqué — split dégradé en map sur étroit. */
-  const effectiveMode: ViewMode =
-    viewMode === "split" && !isWideEnoughForSplit ? "map" : viewMode;
+  const effectiveMode: ViewMode = viewMode === "split" && !isWideEnoughForSplit ? "map" : viewMode;
 
   // Snapshot venues + center reporté par MapClient pour alimenter
   // VenueListPanel sans re-fetch propre (#123).
@@ -197,10 +249,7 @@ export function MapWithSearch({
     center: { lat: number; lon: number };
   }>({ venues: [], center: { lat: initialLat, lon: initialLon } });
 
-  const handleVenuesData = (
-    venues: VenuePin[],
-    center: { lat: number; lon: number },
-  ) => {
+  const handleVenuesData = (venues: VenuePin[], center: { lat: number; lon: number }) => {
     setVenuesSnapshot({ venues, center });
   };
 
@@ -225,7 +274,7 @@ export function MapWithSearch({
   // (les venues France SSR-pre-fetched ne correspondent pas à la zone restaurée).
   const effectiveInitialVenues = useMemo(
     () => (initialView.restored ? undefined : initialVenues),
-    [initialView.restored, initialVenues],
+    [initialView.restored, initialVenues]
   );
 
   // Bouton "Ma position" — demande la géolocalisation navigateur puis flyTo.
@@ -246,14 +295,44 @@ export function MapWithSearch({
       },
       (err) => {
         // 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT
-        setGeolocError(
-          err.code === 1
-            ? tMap("myLocationDenied")
-            : tMap("myLocationUnavailable"),
-        );
+        setGeolocError(err.code === 1 ? tMap("myLocationDenied") : tMap("myLocationUnavailable"));
       },
-      { timeout: 8000, maximumAge: 60_000 },
+      { timeout: 8000, maximumAge: 60_000 }
     );
+  };
+
+  // Validation du picker explore : applique la sélection, écrit l'URL
+  // canonique (?family=…&q=…), recentre sur la ville, marque "vu". #132.
+  const handlePickerSubmit = ({ families, city }: PickerSelection) => {
+    markPickerSeen();
+    setPickerOpen(false);
+    setSelectedFamilies(new Set(families));
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (families.length > 0 && families.length < FAMILIES.length) {
+        params.set("family", [...families].sort().join(","));
+      } else {
+        params.delete("family");
+      }
+      if (city) {
+        // Token court de ville pour une URL propre ("Paris, …" → "paris").
+        params.set("q", city.display_name.split(",")[0].trim().toLowerCase());
+      } else {
+        params.delete("q");
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
+
+    if (city) {
+      setFlyTarget({ lat: city.lat, lon: city.lon, zoom: 12, token: Date.now() });
+    }
+  };
+
+  const handleClosePicker = () => {
+    markPickerSeen();
+    setPickerOpen(false);
   };
 
   return (
@@ -266,6 +345,7 @@ export function MapWithSearch({
         onCriteriaChange={setSelectedCriteria}
         autoUpdate={autoUpdate}
         onAutoUpdateChange={setAutoUpdate}
+        onReopenPicker={() => setPickerOpen(true)}
         className="absolute left-4 top-4 z-20 hidden max-h-[calc(100%-2rem)] w-56 overflow-auto md:flex"
       />
 
@@ -308,6 +388,10 @@ export function MapWithSearch({
                 onCriteriaChange={setSelectedCriteria}
                 autoUpdate={autoUpdate}
                 onAutoUpdateChange={setAutoUpdate}
+                onReopenPicker={() => {
+                  setMobileFiltersOpen(false);
+                  setPickerOpen(true);
+                }}
                 className="border-0 p-0 shadow-none"
               />
             </div>
@@ -316,9 +400,7 @@ export function MapWithSearch({
       )}
 
       <SearchBar
-        onSelect={(r) =>
-          setFlyTarget({ lat: r.lat, lon: r.lon, zoom: 12, token: Date.now() })
-        }
+        onSelect={(r) => setFlyTarget({ lat: r.lat, lon: r.lon, zoom: 12, token: Date.now() })}
         className="absolute right-4 top-4 z-20 w-[min(320px,calc(100vw-180px))] md:w-80"
       />
 
@@ -328,7 +410,7 @@ export function MapWithSearch({
         onClick={handleMyLocation}
         aria-label={tMap("myLocation")}
         title={tMap("myLocation")}
-        className="absolute bottom-safe-16 right-4 z-20 flex h-11 w-11 items-center justify-center rounded-md border bg-background/95 text-foreground shadow-md backdrop-blur hover:bg-accent"
+        className="bottom-safe-16 absolute right-4 z-20 flex h-11 w-11 items-center justify-center rounded-md border bg-background/95 text-foreground shadow-md backdrop-blur hover:bg-accent"
       >
         <Crosshair className="h-5 w-5" aria-hidden="true" />
       </button>
@@ -343,9 +425,17 @@ export function MapWithSearch({
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-safe-4 left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
+      <div className="bottom-safe-4 pointer-events-none absolute left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
         <span className="font-semibold">{formatCount(visibleCount)}</span> spots dans la vue
       </div>
+
+      {/* Légende couleurs par famille — visible en mode explore (2+ familles
+          actives), cachée quand une seule famille filtrée. Cf. #132. */}
+      {selectedFamilies.size >= 2 && (
+        <div className="bottom-safe-16 pointer-events-none absolute left-1/2 z-20 -translate-x-1/2">
+          <MapLegend activeSlugs={Array.from(selectedFamilies).sort()} />
+        </div>
+      )}
 
       {/* Empty state intelligent (#125) : overlay centré quand 0 spots dans la
           vue, avec message contextuel (zoom trop bas/haut, filtres restrictifs,
@@ -409,6 +499,16 @@ export function MapWithSearch({
           initialVenues={effectiveInitialVenues}
         />
       </div>
+
+      {/* Picker explore (#132) : overlay multi-familles + ville. Au-dessus de
+          tout (z-40). Monté seulement quand ouvert. */}
+      {pickerOpen && (
+        <ExplorePicker
+          initialFamilies={Array.from(selectedFamilies)}
+          onSubmit={handlePickerSubmit}
+          onClose={handleClosePicker}
+        />
+      )}
     </div>
   );
 }
