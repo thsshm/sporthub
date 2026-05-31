@@ -244,7 +244,18 @@
       "title": "场所列表",
       "empty": "视图中无场所。",
       "countNearest": "最近的 {count} 个场所"
-    }
+    },
+    "picker": {
+      "title": "您在寻找哪些运动？",
+      "subtitle": "选择一个或多个运动类别进行探索。",
+      "selectAll": "全选",
+      "selectNone": "全部取消",
+      "cityLabel": "城市（可选）",
+      "cityPlaceholder": "例如：北京、上海、广州…",
+      "submit": "开始探索",
+      "changeSelection": "更改我的选择"
+    },
+    "legend": "图例"
   },
   "footer": {
     "about": "Sport Hub",

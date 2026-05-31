@@ -31,6 +31,8 @@ type Props = {
    * un bouton "Rechercher dans cette zone" apparaît dans MapClient. */
   autoUpdate: boolean;
   onAutoUpdateChange: (next: boolean) => void;
+  /** Rouvre le picker explore (#132). Si absent, le bouton n'est pas rendu. */
+  onReopenPicker?: () => void;
   className?: string;
 };
 
@@ -41,6 +43,7 @@ export function SportFilters({
   onCriteriaChange,
   autoUpdate,
   onAutoUpdateChange,
+  onReopenPicker,
   className,
 }: Props) {
   const tMap = useTranslations("map");
@@ -95,6 +98,19 @@ export function SportFilters({
       aria-label={tMap("filtersTitle")}
       className={`flex flex-col gap-3 rounded-lg border bg-background/95 p-3 shadow-md backdrop-blur ${className ?? ""}`}
     >
+      {/* Rouvre le picker explore (multi-familles + ville) — point d'entrée
+          pour changer toute sa sélection d'un coup. Cf. #132. */}
+      {onReopenPicker && (
+        <button
+          type="button"
+          onClick={onReopenPicker}
+          className="flex items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-orange-500 to-yellow-400 px-2 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90"
+        >
+          <span aria-hidden="true">🔄</span>
+          {tMap("picker.changeSelection")}
+        </button>
+      )}
+
       {/* Switcher famille rapide — pattern V1 "1 famille active en 1 clic".
           Complète les checkboxes multi-select ci-dessous. Cf. #121. */}
       <FamilySwitcher

@@ -244,7 +244,18 @@
       "title": "Liste des spots",
       "empty": "Aucun spot dans la vue.",
       "countNearest": "{count} spots les plus proches"
-    }
+    },
+    "picker": {
+      "title": "Quels sports cherchez-vous ?",
+      "subtitle": "Choisissez une ou plusieurs familles de sport à explorer.",
+      "selectAll": "Tout sélectionner",
+      "selectNone": "Tout désélectionner",
+      "cityLabel": "Ville (optionnel)",
+      "cityPlaceholder": "Ex : Paris, Lyon, Marseille…",
+      "submit": "Explorer",
+      "changeSelection": "Changer ma sélection"
+    },
+    "legend": "Légende"
   },
   "footer": {
     "about": "Sport Hub",
