@@ -11,7 +11,11 @@
 import { getTranslations } from "next-intl/server";
 import { Phone, Globe, MapPin, Clock, Users, Wallet } from "lucide-react";
 import type { VenueDetail } from "@/lib/supabase/types";
-import { parseOpeningHours, formatRange } from "@/lib/venue/opening-hours";
+import {
+  parseOpeningHours,
+  formatRange,
+  getOpenStatus,
+} from "@/lib/venue/opening-hours";
 
 type Props = {
   venue: VenueDetail;
@@ -47,6 +51,9 @@ export async function VenueInfoCard({ venue, locale }: Props) {
       ?.opening_hours ?? null
   ) as string | null;
   const openingSpecs = parseOpeningHours(openingHoursRaw);
+  // Statut courant — calculé côté serveur, peut donc "rafraîchir" au prochain
+  // SSR (cf. revalidate=3600 sur la page). Suffisant pour un indicateur visuel.
+  const openStatus = getOpenStatus(openingSpecs);
 
   const hasAnyField =
     fullAddress ||
@@ -118,7 +125,36 @@ export async function VenueInfoCard({ venue, locale }: Props) {
               <Clock className="h-4 w-4" aria-hidden="true" />
               {t("openingHours")}
             </dt>
-            <dd className="mt-1">
+            <dd className="mt-1 space-y-1.5">
+              {openStatus && (
+                <p className="text-xs">
+                  {openStatus.isOpen ? (
+                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                      {t("openNow", {
+                        closesAt: formatRange(
+                          openStatus.closesAt,
+                          openStatus.closesAt,
+                          locale,
+                        ).split("-")[0],
+                      })}
+                    </span>
+                  ) : openStatus.opensAt ? (
+                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                      {t("closedNowOpensAt", {
+                        opensAt: formatRange(
+                          openStatus.opensAt,
+                          openStatus.opensAt,
+                          locale,
+                        ).split("-")[0],
+                      })}
+                    </span>
+                  ) : (
+                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                      {t("closedNow")}
+                    </span>
+                  )}
+                </p>
+              )}
               <ul className="space-y-0.5">
                 {openingSpecs.map((spec) => (
                   <li key={spec.day} className="flex gap-2 text-xs">

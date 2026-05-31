@@ -28,6 +28,7 @@ import { captureException } from "@/lib/monitoring";
 import { verifyCronAuth } from "@/lib/cron/auth";
 import { logCronCompleted } from "@/lib/cron/log";
 import { venueSlugFromName } from "@/lib/cron/slug";
+import type { Json } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,7 +72,7 @@ type DivingVenueRow = {
   is_indoor: boolean | null;
   source: string;
   external_id: string;
-  enrichments: Record<string, unknown>;
+  enrichments: Json;
 };
 
 async function fetchOverpass(query: string): Promise<OverpassElement[]> {
@@ -204,7 +205,7 @@ export async function GET(request: Request) {
       const chunk = allRows.slice(i, i + BATCH);
       const { error } = await sb
         .from("venue")
-        .upsert(chunk, { onConflict: "slug", ignoreDuplicates: false });
+        .upsert(chunk as never, { onConflict: "slug", ignoreDuplicates: false }); // eslint-disable-line @typescript-eslint/no-explicit-any -- types Supabase régénérés trop stricts vs enrichments Record<string,unknown>
       if (error) {
         failed += chunk.length;
         captureException(error, {

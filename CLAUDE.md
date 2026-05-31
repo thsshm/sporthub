@@ -35,7 +35,11 @@ aura dépassé V1 sur les métriques clés (parité SEO + features).
 7. **Conventional Commits.** `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `perf:`, `test:`.
 8. **Avant tout refactor majeur**, demander à Gautier (commenter sur l'issue avant de coder).
 9. **Tests** : pas obligatoires pour les pages, **obligatoires pour les helpers** (`lib/`).
-10. **PRs < 500 lignes**. Si plus gros, c'est probablement deux issues distinctes.
+10. **Cap PR** :
+    - **Code applicatif < 500 lignes** (hors `messages/*.json` i18n × 3 locales et hors tests vitest).
+    - **Cap dur 800 lignes au total**. Au-delà, split obligatoire.
+    - Le compteur GitHub `+X / -Y` inclut tout, donc une PR à 900 lignes dont 300 i18n + 150 tests reste OK (450 applicatif). Une PR à 700 lignes de pure logique applicative ne l'est pas — splitter en 2 issues distinctes.
+11. **CI verte obligatoire avant merge.** Pas de squash-merge avec `Typecheck + lint` rouge, même si le bug semble "trivial à fixer". Une PR cassée mergée bloque tout le pipeline descendant — cf. incident `getOpenStatus` du 2026-05-29 où le bug a coûté ~3h de friction sur toutes les PRs sœurs.
 
 ## Mapping famille interne ↔ display name (legacy V1, à conserver)
 

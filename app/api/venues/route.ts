@@ -5,6 +5,21 @@ import { parseBbox, type NormalizedBbox } from "@/lib/bbox";
 import type { VenuePin } from "@/lib/supabase/types";
 
 /**
+ * Runtime Edge — supprime le cold start serverless (200-800ms aléatoires)
+ * en exécutant la route au plus près du user. @supabase/supabase-js est
+ * compatible Edge (fetch native). Cf. #167.
+ */
+export const runtime = "edge";
+
+/**
+ * Arrondi des coords bbox à 3 décimales (~111m) avant l'appel RPC. Pan
+ * minimum visuel ≥ 1km au zoom max → invisible. Bénéfice : pans micro
+ * tombent dans le même bucket cache HTTP edge → hit rate dramatique. Cf. #167.
+ */
+const roundCoord = (n: number) => Math.round(n * 1000) / 1000;
+
+
+/**
  * GET /api/venues?bbox=west,south,east,north
  *   [&families=raquette,glisse]
  *   [&sport=padel]
@@ -288,23 +303,23 @@ async function fetchVenues(
     // Le total est cappé au `limit` demandé (pas 2×limit).
     const [r1, r2] = await Promise.all([
       sb.rpc("venues_in_bbox", {
-        west: bbox.west1,
-        south: bbox.south,
-        east: bbox.east1,
-        north: bbox.north,
-        fams: filters.fams,
-        sport: filters.sport,
-        feat: filters.feat,
+        west: roundCoord(bbox.west1),
+        south: roundCoord(bbox.south),
+        east: roundCoord(bbox.east1),
+        north: roundCoord(bbox.north),
+        fams: filters.fams ?? undefined,
+        sport: filters.sport ?? undefined,
+        feat: filters.feat ?? undefined,
         max_results: filters.limit,
       }),
       sb.rpc("venues_in_bbox", {
-        west: bbox.west2,
-        south: bbox.south,
-        east: bbox.east2,
-        north: bbox.north,
-        fams: filters.fams,
-        sport: filters.sport,
-        feat: filters.feat,
+        west: roundCoord(bbox.west2),
+        south: roundCoord(bbox.south),
+        east: roundCoord(bbox.east2),
+        north: roundCoord(bbox.north),
+        fams: filters.fams ?? undefined,
+        sport: filters.sport ?? undefined,
+        feat: filters.feat ?? undefined,
         max_results: filters.limit,
       }),
     ]);
@@ -324,13 +339,13 @@ async function fetchVenues(
 
   // Bbox normale, valeurs déjà clampées par parseBbox.
   const { data, error } = await sb.rpc("venues_in_bbox", {
-    west: bbox.west,
-    south: bbox.south,
-    east: bbox.east,
-    north: bbox.north,
-    fams: filters.fams,
-    sport: filters.sport,
-    feat: filters.feat,
+    west: roundCoord(bbox.west),
+    south: roundCoord(bbox.south),
+    east: roundCoord(bbox.east),
+    north: roundCoord(bbox.north),
+    fams: filters.fams ?? undefined,
+    sport: filters.sport ?? undefined,
+    feat: filters.feat ?? undefined,
     max_results: filters.limit,
   });
   if (error) throw error;

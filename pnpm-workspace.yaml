@@ -2,4 +2,9 @@ allowBuilds:
   '@parcel/watcher': true
   '@sentry/cli': false
   '@swc/core': true
+  # Dépendances transitives de posthog-js (#96). On n'a pas besoin de leurs
+  # build scripts (core-js : message de funding ; protobufjs : build optionnel),
+  # on les déclare en false pour éviter ERR_PNPM_IGNORED_BUILDS en CI.
+  core-js: false
+  protobufjs: false
   unrs-resolver: true

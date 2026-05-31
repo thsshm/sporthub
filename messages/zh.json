@@ -148,6 +148,9 @@
     "previous": "← 上一页",
     "next": "下一页 →",
     "mapHint": "交互地图 — 拖动/缩放重新加载视图中的{sport}场所(最多 2 000 个)。",
+    "listModeAll": "全部场所",
+    "listModeViewport": "当前视图({count})",
+    "viewportHint": "列表随地图变化 — 移动地图以查看其他场所。",
     "metaDescription": "全球 {sport} 俱乐部和场地的地图与列表 — Sport Hub。"
   },
   "programmatic": {
@@ -168,6 +171,9 @@
     "courtsCount": "{count, plural, =0 {无场地} other {{count} 个场地}}",
     "infoCardTitle": "实用信息",
     "openingHours": "营业时间",
+    "openNow": "营业中 · {closesAt} 关门",
+    "closedNowOpensAt": "已关闭 · {opensAt} 开门",
+    "closedNow": "已关闭",
     "capacity": "容量",
     "price": "价格",
     "free": "免费入场",
@@ -371,5 +377,11 @@
     "proofPlaceholder": "官方网站、企业注册、社交媒体链接，任何能证明你与该场地关联的信息…",
     "submitButton": "提交申请",
     "errorUnknown": "未知错误"
+  },
+  "notFound": {
+    "title": "页面未找到",
+    "description": "您查找的页面不存在或已被移动。",
+    "backToHome": "返回首页",
+    "goToMap": "打开地图"
   }
 }

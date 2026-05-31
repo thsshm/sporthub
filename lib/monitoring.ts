@@ -42,15 +42,26 @@ export function captureException(error: unknown, context?: Record<string, unknow
 /**
  * Track un événement produit (page view, click, conversion).
  * Server-side : émet un log structuré qu'on peut piper dans n'importe quoi.
- * Client-side : à remplacer par posthog.capture() une fois posthog-js wired.
+ * Client-side : relaie vers posthog.capture() (issue #96).
+ *
+ * posthog-js est browser-only : on l'importe en dynamique et UNIQUEMENT
+ * derrière un garde `window`, pour ne jamais l'embarquer dans les bundles
+ * server/edge (où il casserait). Le module est déjà chargé par le
+ * <PostHogProvider> monté dans le layout, donc l'import dynamique résout
+ * depuis le cache — aucun coût réseau supplémentaire.
  */
 export function trackEvent(name: string, properties?: Record<string, unknown>) {
   if (isDev) {
     console.log(`[monitoring] event "${name}":`, properties ?? {});
   }
-  if (posthogEnabled) {
-    // Stub : à remplacer par `posthog.capture(name, properties)` côté client
-    // ou un POST vers /api/posthog côté server
+  if (posthogEnabled && typeof window !== "undefined") {
+    void import("posthog-js")
+      .then(({ default: posthog }) => {
+        posthog.capture(name, properties);
+      })
+      .catch(() => {
+        // best-effort : un échec de tracking ne doit jamais casser l'app.
+      });
   }
 }
 

@@ -5,15 +5,27 @@
  */
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
+
+/**
+ * Réconcilie le type de client renvoyé par @supabase/ssr avec celui de
+ * @supabase/supabase-js. ssr@0.5.2 deep-importe `GenericSchema` depuis un
+ * chemin interne supprimé dans supabase-js ≥ 2.106 → le générique
+ * `SupabaseClient<Database>` de ssr ne s'aligne plus sur le nôtre, ce qui
+ * casse `.insert()` (attend `never`) et `.rpc()` (args `undefined`).
+ * On re-type explicitement via le `SupabaseClient<Database>` de supabase-js.
+ * À retirer dès qu'on bump @supabase/ssr ≥ 0.6.
+ */
+const asTypedClient = (c: unknown) => c as SupabaseClient<Database>;
 
 /**
  * Client standard (clé anon + RLS actif) — pour la plupart des Server Components.
  */
-export function getSupabaseServerClient() {
+export function getSupabaseServerClient(): SupabaseClient<Database> {
   const cookieStore = cookies();
 
-  return createServerClient<Database>(
+  return asTypedClient(createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -33,7 +45,36 @@ export function getSupabaseServerClient() {
         },
       },
     }
-  );
+  ));
+}
+
+/**
+ * Client stateless pour les pages ISR/statiques (home, sports, programmatiques).
+ *
+ * N'appelle PAS `cookies()` — évite d'opter la route dans le mode dynamic de
+ * Next.js, ce qui forçait Vercel à servir `cache-control: private, no-store`
+ * même avec `export const revalidate = 300` (cf. issue #191).
+ *
+ * Utilise la service_role key (bypass RLS). À utiliser UNIQUEMENT pour des
+ * reads publics (is_published=true, deleted_at IS NULL), jamais pour des
+ * données utilisateur. Les handlers cookies sont des no-ops intentionnels.
+ */
+export function getSupabaseStaticClient(): SupabaseClient<Database> {
+  // Fallback placeholder au build sans .env.local (worktrees locaux, CI sans
+  // secrets). createServerClient rejette les chaînes vides → placeholder non-
+  // vide. Les appels réseau échoueront mais les try/catch dans chaque fetch
+  // retournent des données vides, donc le build passe avec du contenu vide.
+  // Sur Vercel, les vraies env vars sont toujours présentes — ce cas n'arrive pas.
+  return asTypedClient(createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54321",
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? "build-placeholder",
+    {
+      cookies: {
+        getAll() { return []; },  // stateless — pas de session utilisateur
+        setAll() {},              // no-op
+      },
+    }
+  ));
 }
 
 /**
@@ -41,10 +82,10 @@ export function getSupabaseServerClient() {
  * Réservé aux Route Handlers admin + scripts serveur.
  * Ne jamais exposer côté client.
  */
-export function getSupabaseAdminClient() {
+export function getSupabaseAdminClient(): SupabaseClient<Database> {
   const cookieStore = cookies();
 
-  return createServerClient<Database>(
+  return asTypedClient(createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
@@ -63,5 +104,5 @@ export function getSupabaseAdminClient() {
         },
       },
     }
-  );
+  ));
 }

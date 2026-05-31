@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { VenueDetail } from "@/lib/supabase/types";
 import {
+  buildBreadcrumbJsonLd,
   buildHomeMetadata,
+  buildHreflangAlternates,
+  buildItemListJsonLd,
+  buildPlaceJsonLd,
   buildVenueJsonLd,
   buildVenueMetadata,
   buildWebsiteJsonLd,
+  jsonLdHtml,
 } from "@/lib/seo/metadata";
 
 // Factory pour générer un venue de test minimal complet.
@@ -45,6 +50,33 @@ function makeVenue(overrides: Partial<VenueDetail> = {}): VenueDetail {
   };
 }
 
+describe("buildHreflangAlternates (#108)", () => {
+  it("racine '/' → /, /en, /zh + x-default", () => {
+    const out = buildHreflangAlternates("/");
+    expect(out.canonical).toBe("https://sporthubmap.com/");
+    expect(out.languages.fr).toBe("https://sporthubmap.com/");
+    expect(out.languages.en).toBe("https://sporthubmap.com/en");
+    expect(out.languages.zh).toBe("https://sporthubmap.com/zh");
+    expect(out.languages["x-default"]).toBe("https://sporthubmap.com/");
+  });
+
+  it("/map → /map, /en/map, /zh/map", () => {
+    const out = buildHreflangAlternates("/map");
+    expect(out.canonical).toBe("https://sporthubmap.com/map");
+    expect(out.languages.fr).toBe("https://sporthubmap.com/map");
+    expect(out.languages.en).toBe("https://sporthubmap.com/en/map");
+    expect(out.languages.zh).toBe("https://sporthubmap.com/zh/map");
+    expect(out.languages["x-default"]).toBe("https://sporthubmap.com/map");
+  });
+
+  it("path imbriqué /padel/fr/paris décliné × 3", () => {
+    const out = buildHreflangAlternates("/padel/fr/paris");
+    expect(out.languages.fr).toBe("https://sporthubmap.com/padel/fr/paris");
+    expect(out.languages.en).toBe("https://sporthubmap.com/en/padel/fr/paris");
+    expect(out.languages.zh).toBe("https://sporthubmap.com/zh/padel/fr/paris");
+  });
+});
+
 describe("buildHomeMetadata", () => {
   const meta = buildHomeMetadata();
 
@@ -55,8 +87,17 @@ describe("buildHomeMetadata", () => {
     }
   });
 
-  it("a un canonical /", () => {
-    expect(meta.alternates?.canonical).toBe("/");
+  it("canonical pointe vers la home FR absolue", () => {
+    expect(meta.alternates?.canonical).toBe("https://sporthubmap.com/");
+  });
+
+  it("expose les hreflang languages fr/en/zh + x-default (#108)", () => {
+    const langs = meta.alternates?.languages;
+    expect(langs).toBeDefined();
+    expect(langs?.fr).toBe("https://sporthubmap.com/");
+    expect(langs?.en).toBe("https://sporthubmap.com/en");
+    expect(langs?.zh).toBe("https://sporthubmap.com/zh");
+    expect(langs?.["x-default"]).toBe("https://sporthubmap.com/");
   });
 
   it("inclut une image OG par défaut", () => {
@@ -93,9 +134,23 @@ describe("buildVenueMetadata", () => {
     expect(meta.description).toBe("Club historique du 15e.");
   });
 
-  it("canonical pointe vers /venue/[slug]", () => {
+  it("canonical pointe vers la version FR absolue de /venue/[slug]", () => {
     const meta = buildVenueMetadata(makeVenue({ slug: "padel-marseille-7" }));
-    expect(meta.alternates?.canonical).toBe("/venue/padel-marseille-7");
+    expect(meta.alternates?.canonical).toBe(
+      "https://sporthubmap.com/venue/padel-marseille-7",
+    );
+  });
+
+  it("expose les hreflang languages fr/en/zh + x-default (#108)", () => {
+    const meta = buildVenueMetadata(makeVenue({ slug: "padel-marseille-7" }));
+    const langs = meta.alternates?.languages;
+    expect(langs).toBeDefined();
+    expect(langs?.fr).toBe("https://sporthubmap.com/venue/padel-marseille-7");
+    expect(langs?.en).toBe("https://sporthubmap.com/en/venue/padel-marseille-7");
+    expect(langs?.zh).toBe("https://sporthubmap.com/zh/venue/padel-marseille-7");
+    expect(langs?.["x-default"]).toBe(
+      "https://sporthubmap.com/venue/padel-marseille-7",
+    );
   });
 
   it("utilise photo_url de enrichments comme image OG si disponible", () => {
@@ -222,5 +277,101 @@ describe("buildWebsiteJsonLd", () => {
     expect(ld["url"]).toContain("sporthubmap.com");
     const action = ld["potentialAction"] as { "@type": string };
     expect(action["@type"]).toBe("SearchAction");
+  });
+});
+
+type ListItem = {
+  "@type": string;
+  position: number;
+  name: string;
+  item?: string;
+  url?: string;
+};
+
+describe("buildBreadcrumbJsonLd", () => {
+  it("produit un BreadcrumbList avec positions séquentielles et item = url", () => {
+    const ld = buildBreadcrumbJsonLd([
+      { name: "Accueil", url: "https://sporthubmap.com/" },
+      { name: "Tennis", url: "https://sporthubmap.com/sports/tennis" },
+    ]) as Record<string, unknown>;
+    expect(ld["@context"]).toBe("https://schema.org");
+    expect(ld["@type"]).toBe("BreadcrumbList");
+    const items = ld["itemListElement"] as ListItem[];
+    expect(items).toHaveLength(2);
+    expect(items[0]["@type"]).toBe("ListItem");
+    expect(items[0].position).toBe(1);
+    expect(items[0].name).toBe("Accueil");
+    expect(items[0].item).toBe("https://sporthubmap.com/");
+    expect(items[1].position).toBe(2);
+    expect(items[1].item).toBe("https://sporthubmap.com/sports/tennis");
+  });
+
+  it("liste vide ne crashe pas", () => {
+    const ld = buildBreadcrumbJsonLd([]) as Record<string, unknown>;
+    expect(ld["itemListElement"]).toHaveLength(0);
+  });
+});
+
+describe("buildItemListJsonLd", () => {
+  it("produit une ItemList avec name, numberOfItems et positions séquentielles", () => {
+    const ld = buildItemListJsonLd("Courts de tennis à Paris", [
+      { name: "Tennis Club Paris 15", url: "https://sporthubmap.com/venue/tcp15" },
+      { name: "Padel Marseille 7", url: "https://sporthubmap.com/venue/pm7" },
+    ]) as Record<string, unknown>;
+    expect(ld["@context"]).toBe("https://schema.org");
+    expect(ld["@type"]).toBe("ItemList");
+    expect(ld["name"]).toBe("Courts de tennis à Paris");
+    expect(ld["numberOfItems"]).toBe(2);
+    const items = ld["itemListElement"] as ListItem[];
+    expect(items).toHaveLength(2);
+    expect(items[0]["@type"]).toBe("ListItem");
+    expect(items[0].position).toBe(1);
+    expect(items[0].name).toBe("Tennis Club Paris 15");
+    expect(items[0].url).toBe("https://sporthubmap.com/venue/tcp15");
+    expect(items[1].position).toBe(2);
+  });
+
+  it("liste vide → numberOfItems 0 et itemListElement vide", () => {
+    const ld = buildItemListJsonLd("Vide", []) as Record<string, unknown>;
+    expect(ld["numberOfItems"]).toBe(0);
+    expect(ld["itemListElement"]).toHaveLength(0);
+  });
+});
+
+describe("buildPlaceJsonLd", () => {
+  it("produit un Place avec PostalAddress", () => {
+    const ld = buildPlaceJsonLd({
+      name: "Paris",
+      country_code: "FR",
+      url: "https://sporthubmap.com/tennis/fr/paris",
+    }) as Record<string, unknown>;
+    expect(ld["@context"]).toBe("https://schema.org");
+    expect(ld["@type"]).toBe("Place");
+    expect(ld["name"]).toBe("Paris");
+    expect(ld["url"]).toBe("https://sporthubmap.com/tennis/fr/paris");
+    const addr = ld["address"] as Record<string, unknown>;
+    expect(addr["@type"]).toBe("PostalAddress");
+    expect(addr["addressLocality"]).toBe("Paris");
+    expect(addr["addressCountry"]).toBe("FR");
+  });
+});
+
+describe("jsonLdHtml", () => {
+  it("produit un JSON valide pour des données normales", () => {
+    const html = jsonLdHtml({ "@type": "Thing", name: "Tennis Club" });
+    expect(JSON.parse(html)).toEqual({ "@type": "Thing", name: "Tennis Club" });
+  });
+
+  it("échappe `<` pour empêcher une rupture de balise </script> (XSS)", () => {
+    const html = jsonLdHtml({
+      "@type": "Place",
+      name: "Evil</script><script>alert(1)</script>",
+    });
+    // Aucun `<` littéral ne doit subsister dans la sortie injectée.
+    expect(html).not.toContain("<");
+    expect(html).toContain("\\u003c");
+    // Reste un JSON-LD valide une fois parsé.
+    const parsed = JSON.parse(html) as { name: string };
+    expect(parsed.name).toBe("Evil</script><script>alert(1)</script>");
   });
 });

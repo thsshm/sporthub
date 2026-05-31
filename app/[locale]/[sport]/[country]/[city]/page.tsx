@@ -11,8 +11,10 @@ import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
 import {
   buildBreadcrumbJsonLd,
+  buildHreflangAlternates,
   buildItemListJsonLd,
   buildPlaceJsonLd,
+  jsonLdHtml,
 } from "@/lib/seo/metadata";
 
 const PAGE_SIZE = 24;
@@ -126,11 +128,16 @@ export async function generateMetadata({
     count: ctx.total,
   }).slice(0, 160);
   const path = `/${sport}/${country}/${city}`;
+  // hreflang : page programmatique sport×ville déclinée en FR/EN/ZH (#108).
+  const hreflang = buildHreflangAlternates(path);
 
   return {
     title,
     description,
-    alternates: { canonical: path },
+    alternates: {
+      canonical: hreflang.canonical,
+      languages: hreflang.languages,
+    },
     openGraph: { type: "website", url: `${SITE_URL}${path}`, title, description },
   };
 }
@@ -184,17 +191,17 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd) }}
       />
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(placeJsonLd) }}
       />
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdHtml(itemListJsonLd) }}
       />
       <header className="border-b pb-6">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">

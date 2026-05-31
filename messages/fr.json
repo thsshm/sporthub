@@ -148,6 +148,9 @@
     "previous": "← Précédent",
     "next": "Suivant →",
     "mapHint": "Carte interactive — pan/zoom recharge les venues {sport} du viewport (jusqu'à 2 000).",
+    "listModeAll": "Tous les venues",
+    "listModeViewport": "Dans cette vue ({count})",
+    "viewportHint": "La liste suit la carte — déplacez-la pour découvrir d'autres venues.",
     "metaDescription": "Carte et liste des clubs et terrains de {sport} partout dans le monde — Sport Hub."
   },
   "programmatic": {
@@ -168,6 +171,9 @@
     "courtsCount": "{count, plural, =0 {aucun terrain} one {1 terrain} other {{count} terrains}}",
     "infoCardTitle": "Informations pratiques",
     "openingHours": "Horaires d'ouverture",
+    "openNow": "Ouvert · ferme à {closesAt}",
+    "closedNowOpensAt": "Fermé · ouvre à {opensAt}",
+    "closedNow": "Fermé",
     "capacity": "Capacité",
     "price": "Tarif",
     "free": "Accès gratuit",
@@ -371,5 +377,11 @@
     "proofPlaceholder": "Site officiel, registre, lien réseau social qui confirme ton lien avec ce lieu…",
     "submitButton": "Envoyer la demande",
     "errorUnknown": "Erreur inconnue"
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "description": "La page que tu cherches n’existe pas ou a été déplacée.",
+    "backToHome": "Retour à l’accueil",
+    "goToMap": "Voir la carte"
   }
 }

@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { VenuePin } from "@/lib/supabase/types";
+import type { FlyTarget } from "@/app/[locale]/map/MapClient";
 import { formatCount } from "@/lib/utils";
 
 const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
@@ -22,6 +23,11 @@ type Props = {
   initialVenues: VenuePin[];
   /** Total venues du sport (pour l'overlay info). */
   totalSportVenues?: number;
+  /** Reporte au parent la liste des venues visibles + le centre courant,
+   * pour la liste viewport-synced (#98). */
+  onVenuesData?: (venues: VenuePin[], center: { lat: number; lon: number }) => void;
+  /** Cible de flyTo (clic sur un item de la liste viewport). */
+  flyTarget?: FlyTarget | null;
 };
 
 /**
@@ -30,7 +36,13 @@ type Props = {
  * refetch via /api/venues?sport=X&bbox=... pour tous les venues du sport
  * dans la nouvelle vue.
  */
-export function SportPageMap({ sportSlug, initialVenues, totalSportVenues }: Props) {
+export function SportPageMap({
+  sportSlug,
+  initialVenues,
+  totalSportVenues,
+  onVenuesData,
+  flyTarget,
+}: Props) {
   const [visibleCount, setVisibleCount] = useState(initialVenues.length);
 
   // Calc initial center + zoom depuis les venues initiaux
@@ -60,6 +72,8 @@ export function SportPageMap({ sportSlug, initialVenues, totalSportVenues }: Pro
         initialZoom={initial.zoom}
         selectedSport={sportSlug}
         onVenuesChange={setVisibleCount}
+        onVenuesData={onVenuesData}
+        flyTarget={flyTarget}
       />
       <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-background/90 px-2 py-1 text-[11px] shadow backdrop-blur">
         <span className="font-semibold">{formatCount(visibleCount)}</span> visible

@@ -3,6 +3,7 @@ import { MapWithSearch } from "@/app/[locale]/map/MapWithSearch";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { isViewMode, type ViewMode } from "@/lib/map-storage";
 import type { VenuePin } from "@/lib/supabase/types";
+import { buildHreflangAlternates } from "@/lib/seo/metadata";
 
 // Bbox d'initialisation : Europe élargie centrée sur la France.
 // Permet d'afficher des pins dès le first paint (LCP), avant le bbox-aware
@@ -10,11 +11,17 @@ import type { VenuePin } from "@/lib/supabase/types";
 const INITIAL_BBOX = { west: -10, south: 35, east: 20, north: 55 } as const;
 const INITIAL_LIMIT = 500;
 
+// hreflang : /map est servi en FR (canonique), /en/map en EN, /zh/map en ZH.
+// Sans `languages`, Google indexait uniquement /map en FR (cf. #108).
+const mapHreflang = buildHreflangAlternates("/map");
 export const metadata: Metadata = {
   title: "Carte des spots sportifs",
   description:
     "Explorez la carte mondiale des spots sportifs SportHub : tennis, padel, surf, yoga, foot, pétanque et plus de 50 disciplines.",
-  alternates: { canonical: "/map" },
+  alternates: {
+    canonical: mapHreflang.canonical,
+    languages: mapHreflang.languages,
+  },
 };
 
 // Cache ISR 60s — un revalidate trop élevé (genre 1h) bloque la propagation
@@ -31,8 +38,8 @@ async function fetchInitialVenues(): Promise<VenuePin[]> {
       south: INITIAL_BBOX.south,
       east: INITIAL_BBOX.east,
       north: INITIAL_BBOX.north,
-      fams: null,
-      sport: null,
+      fams: undefined,
+      sport: undefined,
       max_results: INITIAL_LIMIT,
     });
     if (error) return [];
