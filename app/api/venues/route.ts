@@ -51,10 +51,22 @@ const roundCoord = (n: number) => Math.round(n * 100) / 100;
  */
 const KNOWN_FEAT = new Set(["lit", "indoor", "wheelchair", "free", "paid"]);
 
+// Surfaces canoniques (#99). La surface est portée par venue_sport → filtrée
+// côté RPC venues_in_bbox (0014) via EXISTS. Valeurs inconnues ignorées.
+const KNOWN_SURFACES = new Set([
+  "clay",
+  "concrete",
+  "synthetic",
+  "grass",
+  "parquet",
+  "sand",
+]);
+
 type VenueQueryFilters = {
   fams: string[] | null;
   sport: string | null;
   feat: string[] | null;
+  surfaces: string[] | null;
   limit: number;
 };
 
@@ -91,6 +103,12 @@ export async function GET(request: Request) {
   // On laisse passer pour cohérence (count = 0), c'est le comportement attendu
   // si l'utilisateur coche les deux.
 
+  const surfaceParam = searchParams.get("surface");
+  const surfaceRaw = surfaceParam
+    ? surfaceParam.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+    : [];
+  const surfaces = surfaceRaw.filter((s) => KNOWN_SURFACES.has(s));
+
   const limitRaw = parseInt(searchParams.get("limit") ?? "2000", 10);
   const limit = Math.max(1, Math.min(Number.isNaN(limitRaw) ? 2000 : limitRaw, 5000));
 
@@ -98,6 +116,7 @@ export async function GET(request: Request) {
     fams: families,
     sport,
     feat: feat.length > 0 ? feat : null,
+    surfaces: surfaces.length > 0 ? surfaces : null,
     limit,
   };
 
@@ -162,6 +181,11 @@ async function fetchVenues(
     if (filters.sport) {
       q = q.eq("primary_sport_slug", filters.sport);
     }
+    // NB surface (#99) : non appliquée sur la vue mondiale — elle vit sur
+    // venue_sport (jointure), incompatible avec ce select scalaire direct. En
+    // pratique l'utilisateur n'a pas encore de filtre surface au premier paint
+    // mondial ; il s'applique dès qu'il zoome (chemin RPC normal). Compromis
+    // identique à celui des `feat` ci-dessus.
     // Mapping des feat scalaires côté colonne (subset des critères supportés).
     if (filters.feat) {
       for (const f of filters.feat) {
@@ -191,6 +215,7 @@ async function fetchVenues(
         fams: filters.fams ?? undefined,
         sport: filters.sport ?? undefined,
         feat: filters.feat ?? undefined,
+        surfaces: filters.surfaces ?? undefined,
         max_results: filters.limit,
       }),
       sb.rpc("venues_in_bbox", {
@@ -201,6 +226,7 @@ async function fetchVenues(
         fams: filters.fams ?? undefined,
         sport: filters.sport ?? undefined,
         feat: filters.feat ?? undefined,
+        surfaces: filters.surfaces ?? undefined,
         max_results: filters.limit,
       }),
     ]);
@@ -227,6 +253,7 @@ async function fetchVenues(
     fams: filters.fams ?? undefined,
     sport: filters.sport ?? undefined,
     feat: filters.feat ?? undefined,
+    surfaces: filters.surfaces ?? undefined,
     max_results: filters.limit,
   });
   if (error) throw error;

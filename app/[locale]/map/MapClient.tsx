@@ -144,6 +144,9 @@ type Props = {
   /** Critères universels cochés (lit / indoor / wheelchair / free / paid).
    * Envoyés à /api/venues?feat=... — AND entre critères côté DB. */
   selectedCriteria?: Set<string>;
+  /** Surfaces cochées (clay / concrete / synthetic / grass / parquet / sand).
+   * Envoyées à /api/venues?surface=... — filtre EXISTS sur venue_sport (#99). */
+  selectedSurfaces?: Set<string>;
   /** Quand true (défaut), MapClient re-fetch automatiquement à chaque pan/zoom.
    * Quand false, le pan/zoom ne déclenche pas de fetch — un bouton "Rechercher
    * dans cette zone" apparaît à la place, et c'est le user qui décide quand
@@ -165,6 +168,7 @@ export default function MapClient({
   selectedSport,
   initialVenues,
   selectedCriteria,
+  selectedSurfaces,
   autoUpdate = true,
 }: Props) {
   const tMap = useTranslations("map");
@@ -303,8 +307,12 @@ export default function MapClient({
       selectedCriteria && selectedCriteria.size > 0
         ? Array.from(selectedCriteria).sort().join(",")
         : "";
-    return `${fam}|${selectedSport || ""}|${crit}`;
-  }, [selectedFamilies, totalFamilies, selectedSport, selectedCriteria]);
+    const surf =
+      selectedSurfaces && selectedSurfaces.size > 0
+        ? Array.from(selectedSurfaces).sort().join(",")
+        : "";
+    return `${fam}|${selectedSport || ""}|${crit}|${surf}`;
+  }, [selectedFamilies, totalFamilies, selectedSport, selectedCriteria, selectedSurfaces]);
 
   const boundsKey = useMemo(() => (bounds ? bounds.join(",") : ""), [bounds]);
 
@@ -350,6 +358,9 @@ export default function MapClient({
       if (selectedCriteria && selectedCriteria.size > 0) {
         params.set("feat", Array.from(selectedCriteria).join(","));
       }
+      if (selectedSurfaces && selectedSurfaces.size > 0) {
+        params.set("surface", Array.from(selectedSurfaces).join(","));
+      }
       try {
         const res = await fetch(`/api/venues?${params}`);
         if (!res.ok) {
@@ -379,6 +390,7 @@ export default function MapClient({
     presetVenues,
     selectedSport,
     selectedCriteria,
+    selectedSurfaces,
     autoUpdate,
     forceFetchToken,
   ]);

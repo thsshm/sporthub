@@ -22,11 +22,26 @@ export const CRITERIA = [
 
 export type CriteriaKey = (typeof CRITERIA)[number]["key"];
 
+/** Surfaces de terrain (#99). Valeurs canoniques alignées sur le filtre RPC
+ * venues_in_bbox (0014) qui matche venue_sport.surface. AND avec les critères. */
+export const SURFACES = [
+  { key: "clay", emoji: "🟧" },
+  { key: "concrete", emoji: "⬜" },
+  { key: "synthetic", emoji: "🟩" },
+  { key: "grass", emoji: "🌱" },
+  { key: "parquet", emoji: "🟫" },
+  { key: "sand", emoji: "🏖️" },
+] as const;
+
+export type SurfaceKey = (typeof SURFACES)[number]["key"];
+
 type Props = {
   selected: Set<string>;
   onChange: (next: Set<string>) => void;
   selectedCriteria: Set<CriteriaKey>;
   onCriteriaChange: (next: Set<CriteriaKey>) => void;
+  selectedSurfaces: Set<SurfaceKey>;
+  onSurfacesChange: (next: Set<SurfaceKey>) => void;
   /** Toggle "Mise à jour auto" (recharge à chaque pan/zoom). Quand off,
    * un bouton "Rechercher dans cette zone" apparaît dans MapClient. */
   autoUpdate: boolean;
@@ -41,6 +56,8 @@ export function SportFilters({
   onChange,
   selectedCriteria,
   onCriteriaChange,
+  selectedSurfaces,
+  onSurfacesChange,
   autoUpdate,
   onAutoUpdateChange,
   onReopenPicker,
@@ -49,6 +66,7 @@ export function SportFilters({
   const tMap = useTranslations("map");
   const tFamilies = useTranslations("families");
   const tFeat = useTranslations("map.feat");
+  const tSurface = useTranslations("map.surface");
 
   const toggle = (slug: string) => {
     const next = new Set(selected);
@@ -66,10 +84,12 @@ export function SportFilters({
   const hasActiveFilters =
     selected.size < FAMILIES.length ||
     selectedCriteria.size > 0 ||
+    selectedSurfaces.size > 0 ||
     !autoUpdate;
   const resetAll = () => {
     onChange(new Set(FAMILIES.map((f) => f.slug)));
     onCriteriaChange(new Set());
+    onSurfacesChange(new Set());
     onAutoUpdateChange(true);
   };
 
@@ -78,6 +98,13 @@ export function SportFilters({
     if (next.has(key)) next.delete(key);
     else next.add(key);
     onCriteriaChange(next);
+  };
+
+  const toggleSurface = (key: SurfaceKey) => {
+    const next = new Set(selectedSurfaces);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    onSurfacesChange(next);
   };
 
   // Single-active : si exactement 1 famille cochée, on est en mode "switcher".
@@ -195,6 +222,31 @@ export function SportFilters({
                     aria-label={name}
                   />
                   <span aria-hidden="true">{c.emoji}</span>
+                  <span className="truncate">{name}</span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      {/* Surface des terrains (#99) — filtre RPC sur venue_sport.surface */}
+      <div className="flex flex-col gap-2 border-t pt-3">
+        <h3 className="text-sm font-semibold">{tSurface("title")}</h3>
+        <ul className="space-y-0.5">
+          {SURFACES.map((s) => {
+            const name = tSurface(s.key);
+            return (
+              <li key={s.key}>
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    checked={selectedSurfaces.has(s.key)}
+                    onChange={() => toggleSurface(s.key)}
+                    className="h-3.5 w-3.5 cursor-pointer"
+                    aria-label={name}
+                  />
+                  <span aria-hidden="true">{s.emoji}</span>
                   <span className="truncate">{name}</span>
                 </label>
               </li>

@@ -255,7 +255,16 @@
       "submit": "开始探索",
       "changeSelection": "更改我的选择"
     },
-    "legend": "图例"
+    "legend": "图例",
+    "surface": {
+      "title": "场地材质",
+      "clay": "红土",
+      "concrete": "混凝土",
+      "synthetic": "合成材质",
+      "grass": "草地",
+      "parquet": "木地板",
+      "sand": "沙地"
+    }
   },
   "footer": {
     "about": "Sport Hub",
