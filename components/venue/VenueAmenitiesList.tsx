@@ -1,53 +1,86 @@
 /**
- * Liste des amenities / caractéristiques scalaires d'une venue — Server Component.
+ * Liste des amenities / caractéristiques d'une venue — Server Component.
  *
- * Grille d'icônes pour les booléens scalaires (`is_indoor`, `has_lighting`,
- * `is_wheelchair_accessible`, `fee_required`) + nombre de courts si dispo.
+ * Combine deux sources :
+ *   - colonnes scalaires de `venue` (is_indoor, has_lighting, fee_required)
+ *   - amenities issues du M:N `venue_amenity` joint à `amenity` (douche,
+ *     vestiaire, wifi, bar…). On exclut celles déjà traitées par
+ *     `VenueAccessibility` (parking, bike_parking, public_transit, wheelchair).
  *
- * Gracieux : si tous les flags sont null/false (donnée pauvre), retourne null
- * → pas de bloc "Caractéristiques" vide.
+ * Gracieux : si tous les flags sont null/false ET pas d'amenity DB →
+ * retourne null. Pas de bloc "Caractéristiques" vide.
  */
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import {
   Home,
   Lightbulb,
-  Accessibility,
   Coins,
   CircleDollarSign,
   LayoutGrid,
+  Check,
 } from "lucide-react";
-import type { VenueDetail } from "@/lib/supabase/types";
+import type { VenueDetail, VenueAmenity, Amenity } from "@/lib/supabase/types";
 
 type Props = {
   venue: VenueDetail;
 };
 
 type Feature = {
+  key: string;
   icon: React.ComponentType<{ className?: string }>;
-  labelKey: string;
+  label: string;
 };
+
+type VenueAmenityRow = VenueAmenity & { amenity?: Amenity | null };
+
+/** Slugs gérés par VenueAccessibility — à exclure ici pour éviter les doublons. */
+const ACCESSIBILITY_SLUGS = new Set([
+  "parking",
+  "bike_parking",
+  "public_transit",
+  "wheelchair",
+]);
 
 export async function VenueAmenitiesList({ venue }: Props) {
   const t = await getTranslations("venue");
+  const locale = await getLocale();
+  const lang = locale === "en" || locale === "zh" ? locale : "fr";
 
   const features: Feature[] = [];
   if (venue.is_indoor === true) {
-    features.push({ icon: Home, labelKey: "amenity.indoor" });
+    features.push({ key: "indoor", icon: Home, label: t("amenity.indoor") });
   }
   if (venue.has_lighting === true) {
-    features.push({ icon: Lightbulb, labelKey: "amenity.lighting" });
-  }
-  if (venue.is_wheelchair_accessible === true) {
-    features.push({ icon: Accessibility, labelKey: "amenity.wheelchair" });
+    features.push({
+      key: "lighting",
+      icon: Lightbulb,
+      label: t("amenity.lighting"),
+    });
   }
   if (venue.fee_required === false) {
-    features.push({ icon: Coins, labelKey: "amenity.free" });
+    features.push({ key: "free", icon: Coins, label: t("amenity.free") });
   }
   if (venue.fee_required === true) {
-    features.push({ icon: CircleDollarSign, labelKey: "amenity.paid" });
+    features.push({
+      key: "paid",
+      icon: CircleDollarSign,
+      label: t("amenity.paid"),
+    });
   }
 
-  // Si pas de features booléennes et pas de courts → pas de bloc.
+  // Amenities DB (jointure M:N) — on prend la version localisée du nom.
+  const dbAmenities = ((venue.amenities ?? []) as VenueAmenityRow[]).filter(
+    (row) => !ACCESSIBILITY_SLUGS.has(row.amenity_slug) && row.amenity,
+  );
+  for (const row of dbAmenities) {
+    const a = row.amenity!;
+    // Skip si on a déjà la feature scalaire équivalente.
+    if (a.slug === "indoor" && venue.is_indoor === true) continue;
+    if (a.slug === "lighting" && venue.has_lighting === true) continue;
+    const label = lang === "en" ? a.name_en : a.name_fr;
+    features.push({ key: `db:${a.slug}`, icon: Check, label });
+  }
+
   if (features.length === 0 && !venue.courts_count) {
     return null;
   }
@@ -62,11 +95,14 @@ export async function VenueAmenitiesList({ venue }: Props) {
           const Icon = f.icon;
           return (
             <li
-              key={f.labelKey}
+              key={f.key}
               className="flex items-center gap-2 rounded-md border bg-card px-3 py-2"
             >
-              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <span>{t(f.labelKey)}</span>
+              <Icon
+                className="h-4 w-4 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <span>{f.label}</span>
             </li>
           );
         })}
