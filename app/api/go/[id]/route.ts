@@ -16,7 +16,12 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
-import { buildAffiliateUrl, hashIp, clientIpFromHeader } from "@/lib/affiliate";
+import {
+  buildAffiliateUrl,
+  hashIp,
+  clientIpFromHeader,
+  normalizePartnerSlug,
+} from "@/lib/affiliate";
 import { trackEvent, captureException } from "@/lib/monitoring";
 
 // node:crypto (hashIp) → runtime nodejs, pas edge.
@@ -91,14 +96,17 @@ export async function GET(
       source,
     });
 
-    // Persistance du clic (table affiliate_click, migrations 0011 + 0012) —
+    // Persistance du clic (table affiliate_click, migrations 0011 + 0012 + 0015) —
     // alimente le dashboard /admin/affiliate. Best-effort : on n'attend pas
     // l'insert et on avale toute erreur, la redirection prime sur la télémétrie.
+    // `partner_slug` = forme normalisée de `partner`, alignée sur `partner.slug`
+    // (#209) → permet de joindre le référentiel sans dépendre du texte libre.
     void sb
       .from("affiliate_click")
       .insert({
         booking_link_id: id,
         partner: data.partner ?? "",
+        partner_slug: normalizePartnerSlug(data.partner),
         venue_id: data.venue_id ?? null,
         source: source ?? null,
         ip_hash: ipHash,

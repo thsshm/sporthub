@@ -86,3 +86,31 @@ export function clientIpFromHeader(forwardedFor: string | null): string | null {
   const first = forwardedFor.split(",")[0]?.trim();
   return first || null;
 }
+
+/**
+ * Normalise un nom de partenaire libre (`booking_link.partner` /
+ * `affiliate_click.partner`) vers le slug canonique du référentiel
+ * `partner.slug` (#209) — pour relier les clics au référentiel sans FK fragile.
+ *
+ * Règle : minuscules, accents retirés, tout caractère non alphanumérique
+ * collapsé en `-`, tirets de bord supprimés. Aligné sur les slugs seedés en
+ * 0012 :
+ *   "Anybuddy"         → "anybuddy"
+ *   "Kitesurf Schools" → "kitesurf-schools"
+ *   "Surf-Forecast"    → "surf-forecast"
+ *   "BookYogaRetreats" → "bookyogaretreats"
+ *
+ * Retourne `null` pour une entrée vide (→ on stocke NULL, pas une chaîne vide).
+ */
+export function normalizePartnerSlug(
+  partner: string | null | undefined,
+): string | null {
+  if (!partner) return null;
+  const slug = partner
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // retire les diacritiques
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || null;
+}

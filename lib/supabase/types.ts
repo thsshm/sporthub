@@ -61,6 +61,7 @@ export type Database = {
           id: string
           ip_hash: string | null
           partner: string
+          partner_slug: string | null
           referer: string | null
           source: string | null
           user_agent: string | null
@@ -72,6 +73,7 @@ export type Database = {
           id?: string
           ip_hash?: string | null
           partner: string
+          partner_slug?: string | null
           referer?: string | null
           source?: string | null
           user_agent?: string | null
@@ -83,6 +85,7 @@ export type Database = {
           id?: string
           ip_hash?: string | null
           partner?: string
+          partner_slug?: string | null
           referer?: string | null
           source?: string | null
           user_agent?: string | null
