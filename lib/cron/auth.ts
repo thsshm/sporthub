@@ -15,10 +15,32 @@
  * exposer un endpoint cron sans secret.
  */
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 
 export type CronAuthFailure = {
   response: NextResponse;
 };
+
+/**
+ * Comparaison de chaînes à temps constant (anti timing-attack).
+ *
+ * `a !== b` court-circuite au premier octet différent → le temps de réponse
+ * fuit la longueur du préfixe commun, ce qui permet (en théorie) de
+ * reconstruire un secret octet par octet. `crypto.timingSafeEqual` compare en
+ * temps constant, mais exige des Buffers de MÊME longueur — sinon il throw.
+ *
+ * On gère ça en deux temps :
+ *   1. compare les longueurs en premier (une différence de longueur n'est pas
+ *      un secret exploitable) ;
+ *   2. si égales, compare le contenu à temps constant.
+ * Exportée pour être testable unitairement.
+ */
+export function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 /**
  * Vérifie le header `Authorization: Bearer <CRON_SECRET>`.
@@ -40,7 +62,7 @@ export function verifyCronAuth(request: Request): CronAuthFailure | null {
 
   const header = request.headers.get("authorization") ?? "";
   const expected = `Bearer ${secret}`;
-  if (header !== expected) {
+  if (!safeEqual(header, expected)) {
     return {
       response: NextResponse.json(
         { error: "Unauthorized" },
