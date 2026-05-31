@@ -1,22 +1,29 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { getSupabaseEdgeClient } from "@/lib/supabase/server";
 import { captureException } from "@/lib/monitoring";
 import { parseBbox, type NormalizedBbox } from "@/lib/bbox";
 import type { VenuePin } from "@/lib/supabase/types";
 
 /**
  * Runtime Edge — supprime le cold start serverless (200-800ms aléatoires)
- * en exécutant la route au plus près du user. @supabase/supabase-js est
- * compatible Edge (fetch native). Cf. #167.
+ * en exécutant la route au plus près du user.
+ *
+ * Choix client Supabase : on utilise `getSupabaseEdgeClient()` qui wrape
+ * `createClient` de @supabase/supabase-js plutôt que `getSupabaseAdminClient()`
+ * (qui wrape @supabase/ssr). Raison : @supabase/ssr importe `next/headers` au
+ * niveau module — Next.js interdit ce module en Edge runtime même si cookies()
+ * n'est pas appelé. createClient est basé sur fetch natif, 100% compatible Edge.
+ * Cf. #113.
  */
 export const runtime = "edge";
 
 /**
- * Arrondi des coords bbox à 3 décimales (~111m) avant l'appel RPC. Pan
- * minimum visuel ≥ 1km au zoom max → invisible. Bénéfice : pans micro
- * tombent dans le même bucket cache HTTP edge → hit rate dramatique. Cf. #167.
+ * Arrondi des coords bbox à 2 décimales (~1.1 km) avant l'appel RPC (#113).
+ * Pans micro tombent dans le même bucket cache HTTP edge → hit rate élevé.
+ * Le viewport MapLibre garde sa précision côté client — seule la query DB
+ * et la clé de cache CDN sont "snappées" sur cette grille.
  */
-const roundCoord = (n: number) => Math.round(n * 1000) / 1000;
+const roundCoord = (n: number) => Math.round(n * 100) / 100;
 
 
 /**
@@ -100,14 +107,14 @@ export async function GET(request: Request) {
       { venues, count: venues.length },
       {
         headers: {
-          // Cache navigateur + edge CDN. Une bbox+filtres identiques renvoie
-          // le même résultat tant que la DB n'a pas changé.
-          //   - max-age=300       : cache navigateur 5min (pans/zooms rapides)
-          //   - s-maxage=300      : cache edge Vercel 5min
-          //   - stale-while-revalidate=3600 : sert l'ancien pendant 1h pendant
+          // Cache edge CDN Vercel (#113).
+          //   - s-maxage=60                 : edge CDN sert pendant 60s (fraîcheur
+          //     compatible avec les mises à jour admin)
+          //   - stale-while-revalidate=300  : sert l'ancien jusqu'à 5 min pendant
           //     la revalidation en arrière-plan → 0 wait pour le user
-          "Cache-Control":
-            "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
+          // Le max-age navigateur est volontairement absent : le browser ne
+          // re-frappera pas la même URL (les pans changent bbox → nouvelle URL).
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
         },
       },
     );
@@ -125,13 +132,14 @@ async function fetchVenues(
   bbox: Exclude<NormalizedBbox, { kind: "error" }>,
   filters: VenueQueryFilters,
 ): Promise<VenuePin[]> {
-  // Service role (RLS bypass). /api/venues est un endpoint public en lecture
-  // seule — les filtres `is_published=true AND deleted_at IS NULL` sont
-  // appliqués partout en SQL, donc aucun row "privé" ne fuit. Le bypass est
-  // nécessaire car la policy RLS anon cause un statement_timeout (~3s) sur
-  // les régions à faible densité de venues (Atlantique, Pacifique, etc.)
-  // alors que service_role n'a pas cette limite (cf. fix #101).
-  const sb = getSupabaseAdminClient();
+  // service_role (bypass RLS). Endpoint public lecture seule — filtres
+  // is_published=true + deleted_at IS NULL appliqués en SQL côté RPC/select.
+  // Aucun row "privé" ne fuit. Bypass RLS nécessaire car la policy anon cause
+  // un statement_timeout (~3s) sur les régions peu denses (cf. fix #101).
+  // On utilise getSupabaseEdgeClient() (createClient de @supabase/supabase-js)
+  // et non getSupabaseAdminClient() (@supabase/ssr) car ssr importe next/headers
+  // au niveau module — incompatible Edge runtime. Cf. #113.
+  const sb = getSupabaseEdgeClient();
 
   if (bbox.kind === "global") {
     // Bbox mondiale : appeler la RPC avec spatial filter timeout sur ~348k

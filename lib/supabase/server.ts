@@ -4,6 +4,7 @@
  * Utilise la clé anon par défaut — passer serviceRoleKey pour les opérations admin.
  */
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
@@ -75,6 +76,26 @@ export function getSupabaseStaticClient(): SupabaseClient<Database> {
       },
     }
   ));
+}
+
+/**
+ * Client Edge — utilise `createClient` de @supabase/supabase-js directement
+ * (pas de @supabase/ssr) pour rester compatible avec le Edge runtime Vercel.
+ *
+ * @supabase/ssr importe `next/headers` au niveau module, ce qui interdit le
+ * Edge runtime dès qu'on importe getSupabaseAdminClient/getSupabaseServerClient
+ * (même si cookies() n'est pas appelé). createClient n'a pas cette dépendance
+ * et tourne nativement sur fetch (compatible Vercel Edge, Deno, Cloudflare Workers).
+ *
+ * Utilise la service_role key (bypass RLS). Réservé aux Route Handlers publics
+ * en lecture seule (is_published=true, deleted_at IS NULL appliqués en SQL).
+ * Ne jamais exposer côté client. Cf. #113.
+ */
+export function getSupabaseEdgeClient(): SupabaseClient<Database> {
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54321",
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? "build-placeholder",
+  );
 }
 
 /**
