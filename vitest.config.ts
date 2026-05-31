@@ -8,7 +8,8 @@ import path from "node:path";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["lib/**/*.test.ts"],
+    // Helpers lib/ (TS) + scripts utilitaires testables (.mjs, ex. gate migrations #228).
+    include: ["lib/**/*.test.ts", "scripts/**/*.test.mjs"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],

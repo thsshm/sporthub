@@ -61,6 +61,7 @@ export type Database = {
           id: string
           ip_hash: string | null
           partner: string
+          partner_slug: string | null
           referer: string | null
           source: string | null
           user_agent: string | null
@@ -72,6 +73,7 @@ export type Database = {
           id?: string
           ip_hash?: string | null
           partner: string
+          partner_slug?: string | null
           referer?: string | null
           source?: string | null
           user_agent?: string | null
@@ -83,6 +85,7 @@ export type Database = {
           id?: string
           ip_hash?: string | null
           partner?: string
+          partner_slug?: string | null
           referer?: string | null
           source?: string | null
           user_agent?: string | null
@@ -665,6 +668,7 @@ export type Database = {
           north: number
           south: number
           sport?: string
+          surfaces?: string[]
           west: number
         }
         Returns: {
@@ -675,6 +679,18 @@ export type Database = {
           name: string
           primary_sport_slug: string
           slug: string
+        }[]
+      }
+      top_cities_by_venue_count: {
+        Args: {
+          max_results?: number
+        }
+        Returns: {
+          id: string
+          slug: string
+          name: string
+          country_code: string
+          count: number
         }[]
       }
     }
@@ -856,6 +872,11 @@ export type Venue = {
 export type VenueEnrichments = {
   wikipedia_url?: string;
   wikipedia_label?: string;
+  /**
+   * Extrait Wikipedia tronqué (≤ 400 chars) — issue #106, importé via
+   * `scripts/import_enrichments_v1.py`. Affiché dans popup map + page venue.
+   */
+  description?: string;
   photo_url?: string;
   google_place_id?: string;
   google_rating?: number;

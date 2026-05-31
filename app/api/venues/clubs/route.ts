@@ -48,10 +48,7 @@ export async function GET(request: Request) {
 
   const bboxRaw = searchParams.get("bbox");
   if (!bboxRaw) {
-    return NextResponse.json(
-      { error: "bbox=west,south,east,north required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "bbox=west,south,east,north required" }, { status: 400 });
   }
 
   const parsed = parseBbox(bboxRaw);
@@ -61,14 +58,14 @@ export async function GET(request: Request) {
 
   const familiesParam = searchParams.get("families");
   const families = familiesParam
-    ? familiesParam.split(",").map((s) => s.trim()).filter(Boolean)
+    ? familiesParam
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
     : null;
 
   const limitRaw = parseInt(searchParams.get("limit") ?? "2000", 10);
-  const limit = Math.max(
-    1,
-    Math.min(Number.isNaN(limitRaw) ? 2000 : limitRaw, HARD_LIMIT),
-  );
+  const limit = Math.max(1, Math.min(Number.isNaN(limitRaw) ? 2000 : limitRaw, HARD_LIMIT));
 
   const filters: ClubQueryFilters = {
     fams: families,
@@ -83,10 +80,9 @@ export async function GET(request: Request) {
         headers: {
           // Mêmes timings que /api/venues — la donnée club bouge moins, on
           // pourrait monter, mais on reste consistant pour la lisibilité.
-          "Cache-Control":
-            "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
+          "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=3600",
         },
-      },
+      }
     );
   } catch (e) {
     captureException(e, {
@@ -113,13 +109,10 @@ export async function GET(request: Request) {
  */
 async function fetchClubs(
   bbox: Exclude<NormalizedBbox, { kind: "error" }>,
-  filters: ClubQueryFilters,
+  filters: ClubQueryFilters
 ): Promise<ClubPin[]> {
   // Client anon (clé publique) + RPC `clubs_in_bbox` SECURITY DEFINER
   // (migration 0015). Plus de service_role sur ce chemin public (#225).
-  // La RPC lit `club` + compte les venues rattachés (is_published=true,
-  // deleted_at IS NULL) en une passe SQL — aucune fuite, pas de pagination
-  // PostgREST à gérer côté client, pas de N+1.
   const sb = getSupabaseAnonEdgeClient();
 
   // `clubs_in_bbox` n'est pas dans les types générés tant que la migration 0015

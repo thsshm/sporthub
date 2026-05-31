@@ -20,6 +20,7 @@ import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
 import ClubMarker from "@/components/map/ClubMarker";
 import { saveViewport } from "@/lib/map-storage";
 import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
+import { VenuePopupEnrichments } from "@/components/map/VenuePopupEnrichments";
 import {
   appleMapsUrl,
   googleMapsUrl,
@@ -70,6 +71,9 @@ function persistFavorites(favs: Set<string>) {
 
 type Bounds = [number, number, number, number]; // [west, south, east, north]
 type PointProps = { venue: VenuePin };
+/** Propriétés agrégées par cluster (Supercluster map/reduce) : compte de venues
+ * par famille → permet de colorer la bulle de cluster par famille dominante. */
+type ClusterProps = { fams: Record<string, number> };
 
 /** Cellule d'agrégat retournée par l'API (cf. #114). */
 type AggregateCell = {
@@ -468,7 +472,19 @@ export default function MapClient({
 
   // Supercluster index
   const supercluster = useMemo(() => {
-    const sc = new Supercluster<PointProps>({ radius: 60, maxZoom: 16 });
+    const sc = new Supercluster<PointProps, ClusterProps>({
+      radius: 60,
+      maxZoom: 16,
+      // Agrège le nombre de venues par famille dans chaque cluster, pour
+      // colorer la bulle par famille dominante (séparation visuelle par
+      // activité même quand les pins sont regroupés). Cf. retour utilisateur.
+      map: (props) => ({ fams: { [props.venue.family_slug]: 1 } }),
+      reduce: (acc, props) => {
+        for (const slug in props.fams) {
+          acc.fams[slug] = (acc.fams[slug] ?? 0) + props.fams[slug];
+        }
+      },
+    });
     sc.load(
       venues.map((v) => ({
         type: "Feature" as const,
@@ -639,9 +655,21 @@ export default function MapClient({
 
           // Cluster bubble (count)
           if ("cluster" in feature.properties && feature.properties.cluster) {
-            const cf = feature as ClusterFeature<PointProps>;
+            const cf = feature as ClusterFeature<ClusterProps>;
             const count = cf.properties.point_count;
             const size = Math.min(60, 20 + Math.log2(count) * 8);
+            // Famille dominante du cluster → couleur de la bulle (séparation
+            // visuelle par activité). Fallback gris si pas d'info famille.
+            const fams = cf.properties.fams ?? {};
+            let domFam: string | null = null;
+            let domCount = -1;
+            for (const slug in fams) {
+              if (fams[slug] > domCount) {
+                domCount = fams[slug];
+                domFam = slug;
+              }
+            }
+            const clusterColor = domFam ? getFamilyColor(domFam) : "#374151";
             return (
               <Marker
                 key={`cluster-${cf.id}`}
@@ -664,11 +692,12 @@ export default function MapClient({
                 <button
                   type="button"
                   aria-label={`${count} spots — zoomer`}
-                  className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary/90 font-semibold text-white shadow-md transition-all hover:scale-110"
+                  className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white font-semibold text-white shadow-md transition-all hover:scale-110"
                   style={{
                     width: size,
                     height: size,
                     fontSize: size > 36 ? 14 : 12,
+                    backgroundColor: clusterColor,
                     opacity: poiOpacity,
                     transition: `opacity ${FADE_TRANSITION_MS}ms ease-in, transform 150ms`,
                   }}
@@ -758,6 +787,10 @@ export default function MapClient({
             maxWidth="320px"
           >
             <div className="min-w-[260px] max-w-[300px] space-y-2.5 p-1 text-sm">
+              {/* Enrichissements Wikimedia/Wikipedia (#107) — lazy-fetch.
+                  Ne rend rien si le venue n'est pas enrichi. */}
+              <VenuePopupEnrichments slug={selected.slug} />
+
               {/* Header : chip famille (gauche) + étoile favori (droite) */}
               <div className="flex items-start justify-between gap-2">
                 <span

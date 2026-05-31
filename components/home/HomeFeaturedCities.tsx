@@ -1,17 +1,17 @@
 /**
- * Section "Villes à explorer" — affiche les villes featured avec leur count
- * de venues publiées. Query directe Supabase (Server Component).
+ * Section "Villes à explorer" — affiche les villes avec le plus de venues
+ * publiées (Server Component).
  *
  * Strategy :
- *   1. SELECT id, slug, name, country_code FROM city WHERE is_featured = true ORDER BY name ;
- *   2. Pour chaque ville, count(planned) des venues publiées non supprimées.
+ *   1. RPC `top_cities_by_venue_count(6)` (migration 0017) : GROUP BY city
+ *      ORDER BY COUNT(venue) DESC → les villes réellement les plus actives,
+ *      indépendamment de is_featured (qui était curé DE/CZ et triait en "A").
+ *   2. Fallback : liste hardcodée (Paris, Lyon…) + count exact par ville, si la
+ *      RPC est indisponible (ex. migration pas encore appliquée) ou vide.
  *
- * Si aucune ville featured en base, on retombe sur une liste hardcodée
- * (Paris, Lyon, Marseille) — utile pendant le boot avant que l'admin n'ait
- * marqué les featured cities en DB.
- *
- * Note count=planned : sur la table venue (centaines de milliers de lignes)
- * count=exact timeout. planned est instantané, précision ±1% suffisante.
+ * count=exact (et pas "planned") : le filtre city_id est sélectif (index dédié)
+ * donc COUNT(*) reste rapide par ville ; "planned" renvoyait une estimée
+ * pg_stat ~constante (toutes les villes affichaient le même "19 spots").
  */
 import { unstable_cache } from "next/cache";
 import { MapPin } from "lucide-react";
@@ -49,43 +49,48 @@ const fetchFeaturedCities = unstable_cache(
   async (): Promise<FeaturedCity[]> => {
   const sb = getSupabaseStaticClient();
 
-  // 1) On tente de récupérer les featured cities en DB
+  // 1) Voie principale : top villes par nombre de venues publiées, via la RPC
+  // top_cities_by_venue_count (migration 0017). "Villes avec le plus de spots",
+  // indépendant de is_featured (qui était curé DE/CZ et triait en "A").
+  try {
+    const { data, error } = await sb.rpc("top_cities_by_venue_count", {
+      max_results: 6,
+    });
+    if (!error && data && data.length > 0) {
+      return data.map((c) => ({
+        id: c.id,
+        slug: c.slug,
+        name: c.name,
+        country_code: c.country_code,
+        count: Number(c.count) || 0,
+      }));
+    }
+  } catch {
+    /* RPC indisponible (ex. migration 0017 pas encore appliquée) → fallback */
+  }
+
+  // 2) Fallback : liste hardcodée (Paris, Lyon…) + count exact par ville.
+  // Utilisé tant que la RPC n'est pas en base, ou si elle ne renvoie rien.
   let cities: CityRow[] = [];
   try {
+    const slugs = FALLBACK_CITIES.map((c) => c.slug);
     const { data } = await sb
       .from("city")
       .select("id, slug, name, country_code")
-      .eq("is_featured", true)
-      .order("name", { ascending: true })
-      .limit(6);
+      .in("slug", slugs)
+      .eq("country_code", "FR");
     cities = (data as CityRow[] | null) ?? [];
   } catch {
     cities = [];
   }
 
-  // 2) Fallback hardcodé si rien en base — on remonte les rows correspondants
-  if (cities.length === 0) {
-    try {
-      const slugs = FALLBACK_CITIES.map((c) => c.slug);
-      const { data } = await sb
-        .from("city")
-        .select("id, slug, name, country_code")
-        .in("slug", slugs)
-        .eq("country_code", "FR");
-      cities = (data as CityRow[] | null) ?? [];
-    } catch {
-      cities = [];
-    }
-  }
-
-  // 3) Pour chaque ville on récupère le count (planned) de venues publiées
   const enriched = await Promise.all(
     cities.map(async (c) => {
       let count = 0;
       try {
         const res = await sb
           .from("venue")
-          .select("id", { count: "planned", head: true })
+          .select("id", { count: "exact", head: true })
           .eq("city_id", c.id)
           .eq("is_published", true)
           .is("deleted_at", null);
@@ -102,9 +107,9 @@ const fetchFeaturedCities = unstable_cache(
       } satisfies FeaturedCity;
     }),
   );
-
-  // 4) On trie par count décroissant pour montrer les plus actives en premier
-  return enriched.sort((a, b) => b.count - a.count);
+  return enriched
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, 6);
   },
   ["home-featured-cities"],
   { revalidate: 300, tags: ["home"] },

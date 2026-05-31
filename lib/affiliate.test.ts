@@ -4,6 +4,7 @@ import {
   AFFILIATE_UTM,
   hashIp,
   clientIpFromHeader,
+  normalizePartnerSlug,
 } from "./affiliate";
 
 const ctx = { venueId: "venue-123", partner: "Anybuddy", source: "venue_page" };
@@ -103,5 +104,32 @@ describe("clientIpFromHeader", () => {
     expect(clientIpFromHeader(null)).toBeNull();
     expect(clientIpFromHeader("")).toBeNull();
     expect(clientIpFromHeader("   ")).toBeNull();
+  });
+});
+
+describe("normalizePartnerSlug", () => {
+  it("mappe les 8 partenaires seedés (0012) sur leur slug canonique", () => {
+    expect(normalizePartnerSlug("Anybuddy")).toBe("anybuddy");
+    expect(normalizePartnerSlug("ClassPass")).toBe("classpass");
+    expect(normalizePartnerSlug("Mindbody")).toBe("mindbody");
+    expect(normalizePartnerSlug("Playtomic")).toBe("playtomic");
+    expect(normalizePartnerSlug("Surf-Forecast")).toBe("surf-forecast");
+    expect(normalizePartnerSlug("Kitesurf Schools")).toBe("kitesurf-schools");
+    expect(normalizePartnerSlug("Superprof")).toBe("superprof");
+    expect(normalizePartnerSlug("BookYogaRetreats")).toBe("bookyogaretreats");
+  });
+
+  it("collapse espaces, casse et caractères spéciaux en un slug propre", () => {
+    expect(normalizePartnerSlug("  Foo   Bar  ")).toBe("foo-bar");
+    expect(normalizePartnerSlug("A&B / C")).toBe("a-b-c");
+    expect(normalizePartnerSlug("Été Sport")).toBe("ete-sport"); // accents retirés
+  });
+
+  it("retourne null pour une entrée vide/nullish", () => {
+    expect(normalizePartnerSlug("")).toBeNull();
+    expect(normalizePartnerSlug("   ")).toBeNull();
+    expect(normalizePartnerSlug("---")).toBeNull();
+    expect(normalizePartnerSlug(null)).toBeNull();
+    expect(normalizePartnerSlug(undefined)).toBeNull();
   });
 });

@@ -153,6 +153,13 @@ const nextConfig = {
         protocol: "https",
         hostname: "upload.wikimedia.org",
       },
+      // commons.wikimedia.org/wiki/Special:FilePath/... — pour générer des
+      // vignettes Wikimedia à la demande via `?width=N` (cf. lib/venue/wikimedia.ts).
+      {
+        protocol: "https",
+        hostname: "commons.wikimedia.org",
+        pathname: "/wiki/Special:FilePath/**",
+      },
       // Google Places photos (enrichment Google) — issue #127
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "lh4.googleusercontent.com" },

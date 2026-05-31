@@ -54,6 +54,30 @@ export function generateMetadata({ searchParams }: MapPageProps): Metadata {
 // charge DB faible. Cf. incident #100 où le fix mettait 1h à être visible.
 export const revalidate = 60;
 
+/** Résout `?city=<slug>` → coords de la ville (table `city`, slug UNIQUE) pour
+ * centrer la carte côté Server. Les cartes "Villes à explorer" de la home lient
+ * vers /map?city=<slug> — sans ça, le param était ignoré et la carte restait en
+ * vue France (agrégats), sans recentrage. Renvoie null si slug inconnu. */
+async function fetchCityCenter(
+  slug: string,
+): Promise<{ lat: number; lon: number } | null> {
+  try {
+    const sb = getSupabaseServerClient();
+    const { data } = await sb
+      .from("city")
+      .select("lat, lon")
+      .eq("slug", slug)
+      .limit(1)
+      .maybeSingle();
+    if (data && Number.isFinite(data.lat) && Number.isFinite(data.lon)) {
+      return { lat: data.lat, lon: data.lon };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchInitialVenues(): Promise<VenuePin[]> {
   try {
     const sb = getSupabaseServerClient();
@@ -79,17 +103,26 @@ type MapPageProps = {
   //   ?family=X[,Y,…] → familles filtrées (1 = mode famille, multi = explore) #121/#132
   //   ?view=X         → mode d'affichage #123 (map / list / split)
   //   ?q=ville        → recentrage initial sur une ville (picker explore) #132
+  //   ?city=slug      → recentrage sur une ville par slug (liens home, résolu DB)
   // Lecture côté Server pour éviter "useSearchParams should be wrapped in
   // Suspense" qui casserait le prerender ISR.
-  searchParams: { family?: string; view?: string; q?: string };
+  searchParams: { family?: string; view?: string; q?: string; city?: string };
 };
 
 export default async function MapPage({ searchParams }: MapPageProps) {
-  const initialVenues = await fetchInitialVenues();
   const initialFamilies = parseFamilies(searchParams.family);
   const initialViewMode: ViewMode | null = isViewMode(searchParams.view) ? searchParams.view : null;
   const initialQuery =
     typeof searchParams.q === "string" && searchParams.q.trim() ? searchParams.q.trim() : null;
+  const citySlug =
+    typeof searchParams.city === "string" && searchParams.city.trim()
+      ? searchParams.city.trim()
+      : null;
+  // Résolution ville et venues SSR en parallèle.
+  const [initialCityCenter, initialVenues] = await Promise.all([
+    citySlug ? fetchCityCenter(citySlug) : Promise.resolve(null),
+    fetchInitialVenues(),
+  ]);
 
   return (
     <>
@@ -111,6 +144,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
           initialFamilies={initialFamilies}
           initialViewMode={initialViewMode}
           initialQuery={initialQuery}
+          initialCityCenter={initialCityCenter}
         />
       </div>
     </>

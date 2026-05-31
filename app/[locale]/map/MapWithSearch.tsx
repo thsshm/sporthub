@@ -89,6 +89,10 @@ type Props = {
   initialViewMode?: ViewMode | null;
   /** Ville passée via ?q=… (picker explore) : géocodée au mount → flyTo. #132. */
   initialQuery?: string | null;
+  /** Coords résolues côté Server depuis ?city=<slug> (liens home "Villes à
+   * explorer"). Si fourni, la carte s'ouvre centrée sur la ville (zoom 12, mode
+   * POI → pins colorés par famille), prioritaire sur le viewport sauvegardé. */
+  initialCityCenter?: { lat: number; lon: number } | null;
 };
 
 export function MapWithSearch({
@@ -99,6 +103,7 @@ export function MapWithSearch({
   initialFamilies,
   initialViewMode,
   initialQuery,
+  initialCityCenter,
 }: Props) {
   const tMap = useTranslations("map");
 
@@ -109,6 +114,17 @@ export function MapWithSearch({
   // France) devient non pertinent → MapClient devra re-fetcher pour la nouvelle
   // zone. C'est OK : un seul roundtrip /api/venues.
   const [initialView] = useState(() => {
+    // Deep-link ville (?city) → prioritaire sur le viewport sauvé : l'utilisateur
+    // a explicitement cliqué une ville, on l'y emmène (zoom 12 = mode POI).
+    // `restored: true` → on n'enverra pas les venues France SSR (non pertinentes).
+    if (initialCityCenter) {
+      return {
+        lat: initialCityCenter.lat,
+        lon: initialCityCenter.lon,
+        zoom: 12,
+        restored: true,
+      };
+    }
     const saved = loadViewport();
     if (saved) {
       return { lat: saved.lat, lon: saved.lon, zoom: saved.zoom, restored: true };
@@ -127,6 +143,11 @@ export function MapWithSearch({
     userMovedRef.current = true;
     setFlyTarget(t);
   };
+
+  // Posée quand la géoloc NAVIGATEUR précise (#214) a recentré la carte. Le
+  // recentrage IP (approximatif, ville) ne doit jamais écraser une position
+  // précise déjà obtenue — priorité : action user > géoloc navigateur > IP.
+  const precisePosRef = useRef(false);
 
   // Init des familles depuis ?family=X[,Y,…] (slugs validés côté Server).
   // Aucun param → toutes les familles (mode explore complet).
@@ -148,7 +169,11 @@ export function MapWithSearch({
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const hasDeepLink =
-      params.has("family") || params.has("sports") || params.has("q") || params.has("lat");
+      params.has("family") ||
+      params.has("sports") ||
+      params.has("q") ||
+      params.has("lat") ||
+      params.has("city");
     let seen = false;
     try {
       seen = window.localStorage.getItem(PICKER_SEEN_KEY) === "1";
@@ -222,7 +247,7 @@ export function MapWithSearch({
     if (typeof window === "undefined" || !("geolocation" in navigator)) return;
     if (initialView.restored || initialQuery) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.has("family") || params.has("lat")) return;
+    if (params.has("family") || params.has("lat") || params.has("city")) return;
     try {
       if (window.localStorage.getItem(GEO_PROMPTED_KEY) === "1") return;
     } catch {
@@ -240,6 +265,7 @@ export function MapWithSearch({
         markPrompted();
         // L'utilisateur a déjà choisi une position entre-temps → ne pas écraser.
         if (userMovedRef.current) return;
+        precisePosRef.current = true; // position précise : prime sur la géoloc IP
         setFlyTarget({
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
@@ -250,6 +276,41 @@ export function MapWithSearch({
       () => markPrompted(),
       { timeout: 8000, maximumAge: 60_000 }
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Recentrage approximatif par IP (#214 suite). Complète la géoloc navigateur :
+  // dès le mount, on appelle /api/geo (géoloc edge Vercel, ~ville, SANS
+  // permission) et on recentre instantanément sur la région du visiteur — au
+  // lieu de la France entière. La géoloc navigateur, plus précise, raffine
+  // ensuite (zoom 11) si l'utilisateur l'autorise.
+  // Mêmes gardes que la géoloc navigateur : pas de viewport restauré, pas de
+  // deep-link positionnel, pas de choix user déjà résolu. Échec / dev local
+  // (headers absents) → silencieux, on garde la vue par défaut.
+  useEffect(() => {
+    if (initialView.restored || initialQuery) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("family") || params.has("lat")) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/geo");
+        if (!res.ok) return;
+        const { geo } = (await res.json()) as {
+          geo: { lat: number; lon: number } | null;
+        };
+        // Une intention précise (user ou géoloc navigateur) est arrivée
+        // entre-temps → ne pas écraser avec l'approximation IP.
+        if (cancelled || !geo || userMovedRef.current || precisePosRef.current) return;
+        setFlyTarget({ lat: geo.lat, lon: geo.lon, zoom: 10, token: Date.now() });
+      } catch {
+        /* /api/geo indispo (dev local) → on garde la vue par défaut */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
