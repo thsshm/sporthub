@@ -665,6 +665,7 @@ export type Database = {
           north: number
           south: number
           sport?: string
+          surfaces?: string[]
           west: number
         }
         Returns: {
