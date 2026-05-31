@@ -59,24 +59,33 @@ export type Database = {
           booking_link_id: string | null
           created_at: string
           id: string
+          ip_hash: string | null
           partner: string
+          referer: string | null
           source: string | null
+          user_agent: string | null
           venue_id: string | null
         }
         Insert: {
           booking_link_id?: string | null
           created_at?: string
           id?: string
+          ip_hash?: string | null
           partner: string
+          referer?: string | null
           source?: string | null
+          user_agent?: string | null
           venue_id?: string | null
         }
         Update: {
           booking_link_id?: string | null
           created_at?: string
           id?: string
+          ip_hash?: string | null
           partner?: string
+          referer?: string | null
           source?: string | null
+          user_agent?: string | null
           venue_id?: string | null
         }
         Relationships: [
@@ -338,6 +347,36 @@ export type Database = {
           emoji_flag?: string | null
           name_en?: string
           name_fr?: string
+        }
+        Relationships: []
+      }
+      partner: {
+        Row: {
+          affiliate_id: string | null
+          commission_rate: number | null
+          created_at: string
+          is_active: boolean
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          affiliate_id?: string | null
+          commission_rate?: number | null
+          created_at?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          affiliate_id?: string | null
+          commission_rate?: number | null
+          created_at?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -899,7 +938,21 @@ export type AffiliateClick = {
   partner: string;
   venue_id: string | null;
   source: string | null;
+  ip_hash: string | null;
+  user_agent: string | null;
+  referer: string | null;
   created_at: string;
+};
+
+// Référentiel des plateformes partenaires affiliées (cf. migration 0012).
+export type Partner = {
+  slug: string;
+  name: string;
+  affiliate_id: string | null;
+  commission_rate: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 // Favoris persistés en DB pour les users authentifiés (cf. migration 0010).

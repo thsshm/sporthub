@@ -1,7 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
 import { formatCount } from "@/lib/utils";
-import type { AffiliateClick } from "@/lib/supabase/types";
+import type { AffiliateClick, Partner } from "@/lib/supabase/types";
 
 /**
  * Dashboard partenaires — clics affiliés (issue #111, part 2/2).
@@ -28,16 +28,24 @@ export default async function AffiliateDashboardPage() {
   const locale = await getLocale();
   const dateLocale = LOCALE_TO_BCP47[locale] ?? "fr-FR";
 
-  const [{ count: totalCount }, { data: recentRaw }] = await Promise.all([
-    sb.from("affiliate_click").select("id", { count: "exact", head: true }),
-    sb
-      .from("affiliate_click")
-      .select("id, booking_link_id, partner, venue_id, source, created_at")
-      .order("created_at", { ascending: false })
-      .limit(RECENT_LIMIT),
-  ]);
+  const [{ count: totalCount }, { data: recentRaw }, { data: partnersRaw }] =
+    await Promise.all([
+      sb.from("affiliate_click").select("id", { count: "exact", head: true }),
+      sb
+        .from("affiliate_click")
+        .select(
+          "id, booking_link_id, partner, venue_id, source, ip_hash, user_agent, referer, created_at",
+        )
+        .order("created_at", { ascending: false })
+        .limit(RECENT_LIMIT),
+      sb
+        .from("partner")
+        .select("slug, name, affiliate_id, commission_rate, is_active, created_at, updated_at")
+        .order("name", { ascending: true }),
+    ]);
 
   const recent = (recentRaw ?? []) as AffiliateClick[];
+  const partners = (partnersRaw ?? []) as Partner[];
 
   // Agrégat "clics par partenaire" sur l'échantillon récent. Pour un compte
   // exact par partenaire à grande échelle, il faudrait une vue SQL agrégée ;
@@ -67,6 +75,49 @@ export default async function AffiliateDashboardPage() {
           {formatCount(totalCount ?? 0)}
         </p>
       </div>
+
+      {/* Référentiel des partenaires + statut du deal d'affiliation. */}
+      {partners.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            {t("partnersTitle", { count: partners.length })}
+          </h2>
+          <div className="mt-3 overflow-x-auto rounded-lg border">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2 font-medium">{t("colPartner")}</th>
+                  <th className="px-4 py-2 font-medium">{t("colDeal")}</th>
+                  <th className="px-4 py-2 font-medium">{t("colCommission")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {partners.map((p) => (
+                  <tr key={p.slug} className={p.is_active ? "" : "opacity-50"}>
+                    <td className="px-4 py-2 font-medium">{p.name}</td>
+                    <td className="px-4 py-2">
+                      {p.affiliate_id ? (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-900">
+                          {t("dealSigned")}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                          {t("dealPending")}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 tabular-nums text-muted-foreground">
+                      {p.commission_rate != null
+                        ? `${(p.commission_rate * 100).toFixed(2)} %`
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {recent.length === 0 ? (
         <p className="mt-10 text-center text-muted-foreground">{t("empty")}</p>

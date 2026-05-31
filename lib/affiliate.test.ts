@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildAffiliateUrl, AFFILIATE_UTM } from "./affiliate";
+import {
+  buildAffiliateUrl,
+  AFFILIATE_UTM,
+  hashIp,
+  clientIpFromHeader,
+} from "./affiliate";
 
 const ctx = { venueId: "venue-123", partner: "Anybuddy", source: "venue_page" };
 
@@ -55,5 +60,48 @@ describe("buildAffiliateUrl", () => {
     const once = buildAffiliateUrl("https://anybuddy.fr/c", ctx);
     const twice = buildAffiliateUrl(once, ctx);
     expect(twice).toBe(once);
+  });
+});
+
+describe("hashIp", () => {
+  it("retourne un SHA-256 hex de 64 caractères", () => {
+    expect(hashIp("203.0.113.7", "salt")).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("est déterministe pour le même couple ip+salt", () => {
+    expect(hashIp("1.2.3.4", "s")).toBe(hashIp("1.2.3.4", "s"));
+  });
+
+  it("change avec le sel (non ré-identifiable par dictionnaire)", () => {
+    expect(hashIp("1.2.3.4", "saltA")).not.toBe(hashIp("1.2.3.4", "saltB"));
+  });
+
+  it("ne stocke jamais l'IP en clair dans le hash", () => {
+    const ip = "198.51.100.23";
+    expect(hashIp(ip, "salt")).not.toContain(ip);
+  });
+
+  it("retourne null si l'IP est absente", () => {
+    expect(hashIp(null, "salt")).toBeNull();
+    expect(hashIp(undefined, "salt")).toBeNull();
+    expect(hashIp("", "salt")).toBeNull();
+  });
+});
+
+describe("clientIpFromHeader", () => {
+  it("extrait la première IP d'une chaîne x-forwarded-for", () => {
+    expect(clientIpFromHeader("203.0.113.7, 70.41.3.18, 150.172.238.178")).toBe(
+      "203.0.113.7",
+    );
+  });
+
+  it("gère une IP unique sans virgule", () => {
+    expect(clientIpFromHeader("203.0.113.7")).toBe("203.0.113.7");
+  });
+
+  it("retourne null si le header est absent ou vide", () => {
+    expect(clientIpFromHeader(null)).toBeNull();
+    expect(clientIpFromHeader("")).toBeNull();
+    expect(clientIpFromHeader("   ")).toBeNull();
   });
 });
