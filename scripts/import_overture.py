@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-import_overture.py — Import Overture Maps « places » (Fitness + Bien-être) → Supabase.
+import_overture.py — Import Overture Maps « places » → Supabase.
+
+Familles couvertes : Fitness + Bien-être (#110), Snow + Retraites (#97).
 
 Issue #110 (phase 3, area:data). Top #2 ROI du DASHBOARD V1 : la V2 (fetch bbox
 + PostGIS + clustering MapLibre) lève la contrainte de poids qui bloquait
@@ -44,6 +46,14 @@ Paliers recommandés (cf. workflow validé : vérifier live → petit → grand)
     1. --country FR --family fitness --limit 1000 --dry-run   (valider mapping/counts)
     2. --country FR --family fitness --published true          (France d'abord)
     3. --country WW --family all     --published false         (monde, revue ensuite)
+
+Snow (#97) : la bbox FR ne couvre que les Alpes françaises + Pyrénées. Pour le
+massif alpin complet (CH/AT/IT), lancer --country WW :
+    python3 scripts/import_overture.py --family snow --country FR --published true
+    python3 scripts/import_overture.py --family snow --country WW --published false
+Retraites (#97) : couverture Overture quasi-nulle (~4 health_retreats FR) — la
+densité réelle exige une source dédiée (retreatguru / bookyogaretreats), hors
+scope Overture ; cette famille reste à compléter par un scraper spécifique.
 """
 from __future__ import annotations
 
@@ -106,11 +116,27 @@ CATEGORY_MAP: dict[str, tuple[str, str]] = {
     "health_and_wellness_club": ("yoga", "spa"),
     "sauna": ("yoga", "sauna"),
     "hammam": ("yoga", "hammam"),
+    # ── Snow / sports d'hiver (issue #97 : 0 venue en base) ──
+    # Vérifié en live (France) : ski_resort 3243, ski_and_snowboard_school 705,
+    # ski_area 4, mountain_huts 41. Les pièges « ski » substring (skin_care,
+    # skilled_nursing) sont écartés par construction (exact match, absents du map).
+    "ski_resort": ("snow", "skiing"),
+    "ski_area": ("snow", "skiing"),
+    "ski_and_snowboard_school": ("snow", "skiing"),
+    "mountain_huts": ("snow", "skiing"),  # refuges d'altitude → base ski touring
+    # ── Retraites & camps (issue #97) ──
+    # Couverture Overture TRÈS faible (health_retreats ≈ 4 en FR). On importe le
+    # peu qui existe (surtout en WW) mais la vraie densité « retraites » exige une
+    # source dédiée (retraites yoga/surf : retreatguru, bookyogaretreats…) — cf.
+    # note PR : hors-scope Overture.
+    "health_retreats": ("retraites", "wellness_retreat"),
 }
 
 FAMILY_CATEGORIES: dict[str, list[str]] = {
     "fitness": [c for c, (f, _) in CATEGORY_MAP.items() if f == "fitness"],
     "yoga": [c for c, (f, _) in CATEGORY_MAP.items() if f == "yoga"],
+    "snow": [c for c, (f, _) in CATEGORY_MAP.items() if f == "snow"],
+    "retraites": [c for c, (f, _) in CATEGORY_MAP.items() if f == "retraites"],
 }
 FAMILY_CATEGORIES["all"] = list(CATEGORY_MAP.keys())
 
@@ -389,8 +415,10 @@ def _flush(sb, batch: list[dict]) -> int:
 
 
 def main(argv: Iterable[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Import Overture Maps places → Supabase (#110)")
-    p.add_argument("--family", choices=["fitness", "yoga", "all"], default="fitness")
+    p = argparse.ArgumentParser(
+        description="Import Overture Maps places → Supabase (#110 fitness/yoga, #97 snow/retraites)")
+    p.add_argument("--family", choices=["fitness", "yoga", "snow", "retraites", "all"],
+                   default="fitness")
     p.add_argument("--country", choices=["FR", "WW"], default="FR")
     p.add_argument("--limit", type=int, default=None, help="Cap le nb de POI (test)")
     p.add_argument("--published", choices=["true", "false"], default="false",
