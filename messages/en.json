@@ -371,7 +371,12 @@
       "recentTitle": "{count} most recent clicks",
       "colDate": "Date",
       "colPartner": "Partner",
-      "colSource": "Source"
+      "colSource": "Source",
+      "partnersTitle": "Partners ({count})",
+      "colDeal": "Deal",
+      "colCommission": "Commission",
+      "dealSigned": "Signed",
+      "dealPending": "To negotiate"
     }
   },
   "favorites": {
