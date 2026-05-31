@@ -69,6 +69,16 @@ type AggregateCell = {
   country_code: string | null;
 };
 
+type AggregatesParams = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+  zoom_level: number;
+  fams: string[] | null;
+  sport: string | null;
+};
+
 type ApiResponse =
   | { mode: "pois"; venues: VenuePin[]; count: number }
   | { mode: "aggregates"; cells: AggregateCell[]; count: number };
@@ -186,10 +196,25 @@ async function fetchAggregates(
 ): Promise<AggregateCell[]> {
   const sb = getSupabaseAdminClient();
 
+  // `venues_aggregates` (migration 0011) n'est pas encore dans les types Supabase
+  // générés — ceux-ci sont régénérés depuis la prod, où 0011 n'est pas encore
+  // appliquée. On type explicitement l'appel en attendant l'application de la
+  // migration + le regen des types (cf. #114 / #178).
+  const callAggregates = (params: AggregatesParams) =>
+    (
+      sb.rpc as unknown as (
+        fn: "venues_aggregates",
+        params: AggregatesParams,
+      ) => Promise<{
+        data: AggregateCell[] | null;
+        error: { message: string } | null;
+      }>
+    )("venues_aggregates", params);
+
   if (bbox.kind === "global") {
     // Bbox mondiale : on passe ±179.9/±89.9 à la RPC (l'index GIST gère
     // 348k venues sans timeout en GROUP BY simple, vs 5000 LIMIT du mode POI).
-    const { data, error } = await sb.rpc("venues_aggregates", {
+    const { data, error } = await callAggregates({
       west: -179.9,
       south: -89.9,
       east: 179.9,
@@ -199,12 +224,12 @@ async function fetchAggregates(
       sport: filters.sport,
     });
     if (error) throw error;
-    return ((data ?? []) as AggregateCell[]);
+    return data ?? [];
   }
 
   if (bbox.kind === "antimeridian") {
     const [r1, r2] = await Promise.all([
-      sb.rpc("venues_aggregates", {
+      callAggregates({
         west: bbox.west1,
         south: bbox.south,
         east: bbox.east1,
@@ -213,7 +238,7 @@ async function fetchAggregates(
         fams: filters.fams,
         sport: filters.sport,
       }),
-      sb.rpc("venues_aggregates", {
+      callAggregates({
         west: bbox.west2,
         south: bbox.south,
         east: bbox.east2,
@@ -225,13 +250,10 @@ async function fetchAggregates(
     ]);
     if (r1.error) throw r1.error;
     if (r2.error) throw r2.error;
-    return [
-      ...((r1.data ?? []) as AggregateCell[]),
-      ...((r2.data ?? []) as AggregateCell[]),
-    ];
+    return [...(r1.data ?? []), ...(r2.data ?? [])];
   }
 
-  const { data, error } = await sb.rpc("venues_aggregates", {
+  const { data, error } = await callAggregates({
     west: bbox.west,
     south: bbox.south,
     east: bbox.east,
@@ -241,7 +263,7 @@ async function fetchAggregates(
     sport: filters.sport,
   });
   if (error) throw error;
-  return ((data ?? []) as AggregateCell[]);
+  return data ?? [];
 }
 
 /**
