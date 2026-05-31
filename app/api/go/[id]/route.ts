@@ -24,9 +24,24 @@ export const runtime = "nodejs";
 // Lookup DB par requête → rendu dynamique (pas de cache statique).
 export const dynamic = "force-dynamic";
 
-// Sel pour le hash d'IP (RGPD). Fallback dev pour que build/previews sans
-// secret fonctionnent ; en prod, définir IP_HASH_SALT.
-const IP_HASH_SALT = process.env.IP_HASH_SALT ?? "sporthub-dev-ip-salt";
+/**
+ * Sel pour le hash d'IP (RGPD), résolu de façon fail-closed.
+ *
+ * En production, on EXIGE `IP_HASH_SALT` : sans lui, un sel codé en dur serait
+ * public → le hash redeviendrait ré-identifiable par dictionnaire (l'espace
+ * IPv4 est petit), ce qui annule l'objectif RGPD. Donc en prod sans variable,
+ * on retourne `null` et on stocke `ip_hash = NULL` plutôt qu'un hash faussement
+ * anonyme.
+ *
+ * Hors prod (dev/preview), un fallback connu permet au build et aux previews
+ * de fonctionner sans secret.
+ */
+function resolveIpHashSalt(): string | null {
+  const fromEnv = process.env.IP_HASH_SALT;
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === "production") return null;
+  return "sporthub-dev-ip-salt";
+}
 
 export async function GET(
   request: NextRequest,
@@ -62,10 +77,11 @@ export async function GET(
     });
 
     // Métadonnées RGPD-safe du clic : IP hashée (jamais en clair), UA, referer.
-    const ipHash = hashIp(
-      clientIpFromHeader(request.headers.get("x-forwarded-for")),
-      IP_HASH_SALT,
-    );
+    // salt null (prod sans IP_HASH_SALT) → ipHash null (pas de hash à sel public).
+    const salt = resolveIpHashSalt();
+    const ipHash = salt
+      ? hashIp(clientIpFromHeader(request.headers.get("x-forwarded-for")), salt)
+      : null;
 
     // Best-effort : un échec de tracking ne doit pas empêcher la redirection.
     trackEvent("affiliate_click", {
