@@ -395,6 +395,11 @@ class SupabaseRest:
                 "select": select,
                 "family_slug": f"eq.{family_slug}",
                 "deleted_at": "is.null",
+                # On ne cluster que les venues publiés : c'est ce que compte
+                # l'endpoint /api/venues/clubs (courts_count) et ce qui s'affiche
+                # sur la carte. Clusteriser des venues non publiés créerait des
+                # clubs fantômes ou un courts_count incohérent.
+                "is_published": "eq.true",
                 "limit": n,
                 "offset": offset,
                 "order": "id",
