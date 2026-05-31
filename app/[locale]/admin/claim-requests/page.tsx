@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { ClaimActions } from "./claim-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ type ClaimRow = {
   proof_text: string | null;
   status: "pending" | "approved" | "rejected";
   notes: string | null;
+  reviewed_at: string | null;
   created_at: string;
   venue: { slug: string; name: string } | null;
 };
@@ -38,7 +40,7 @@ export default async function ClaimRequestsPage() {
   const { data } = await sb
     .from("claim_request")
     .select(
-      "id, venue_id, requester_email, requester_name, requester_role, proof_text, status, notes, created_at, venue:venue_id ( slug, name )",
+      "id, venue_id, requester_email, requester_name, requester_role, proof_text, status, notes, reviewed_at, created_at, venue:venue_id ( slug, name )",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -74,7 +76,7 @@ export default async function ClaimRequestsPage() {
           {claims.map((c) => (
             <li key={c.id} className="rounded-lg border p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 text-sm">
                     <span
                       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[c.status]}`}
@@ -112,6 +114,12 @@ export default async function ClaimRequestsPage() {
                       {c.proof_text}
                     </p>
                   )}
+                  {c.notes && (
+                    <p className="mt-2 whitespace-pre-line rounded border-l-2 border-muted-foreground/30 bg-muted/10 p-2 text-xs">
+                      <span className="font-semibold">{t("notesLabel")}</span>{" "}
+                      {c.notes}
+                    </p>
+                  )}
                 </div>
                 <time className="text-xs text-muted-foreground">
                   {new Date(c.created_at).toLocaleDateString(dateLocale, {
@@ -120,6 +128,24 @@ export default async function ClaimRequestsPage() {
                     year: "numeric",
                   })}
                 </time>
+              </div>
+
+              <div className="mt-3 border-t pt-3">
+                {c.status === "pending" ? (
+                  <ClaimActions claimId={c.id} canResolve={true} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {t("resolvedOn", {
+                      date: c.reviewed_at
+                        ? new Date(c.reviewed_at).toLocaleDateString(dateLocale, {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "—",
+                    })}
+                  </p>
+                )}
               </div>
             </li>
           ))}
