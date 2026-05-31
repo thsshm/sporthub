@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdminClient } from "@/lib/supabase/server";
+import { getSupabaseEdgeClient } from "@/lib/supabase/server";
 import { captureException } from "@/lib/monitoring";
 import type { VenueEnrichments } from "@/lib/supabase/types";
 
@@ -34,7 +34,10 @@ export async function GET(
   }
 
   try {
-    const sb = getSupabaseAdminClient();
+    // Edge runtime → getSupabaseEdgeClient (createClient supabase-js, sans
+    // next/headers) et non getSupabaseAdminClient (@supabase/ssr, incompatible
+    // Edge). Lecture publique seule (is_published) → service_role OK. Cf. #230.
+    const sb = getSupabaseEdgeClient();
     const { data, error } = await sb
       .from("venue")
       .select("enrichments")
