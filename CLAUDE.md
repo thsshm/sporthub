@@ -14,14 +14,14 @@ aura dépassé V1 sur les métriques clés (parité SEO + features).
 
 ## Stack V2
 
-| Couche | Tech |
-|---|---|
-| Framework | Next.js 14 (App Router) + TypeScript strict |
-| Styling | Tailwind CSS + shadcn/ui |
-| Carte | MapLibre GL + react-map-gl |
-| Backend | Supabase (Postgres + Auth + Storage + Realtime) |
-| Hosting | Vercel (preview URL par PR) |
-| Monitoring | Sentry (erreurs) + PostHog (analytics produit) |
+| Couche      | Tech                                                        |
+| ----------- | ----------------------------------------------------------- |
+| Framework   | Next.js 14 (App Router) + TypeScript strict                 |
+| Styling     | Tailwind CSS + shadcn/ui                                    |
+| Carte       | MapLibre GL + react-map-gl                                  |
+| Backend     | Supabase (Postgres + Auth + Storage + Realtime)             |
+| Hosting     | Vercel (preview URL par PR)                                 |
+| Monitoring  | Sentry (erreurs) + PostHog (analytics produit)              |
 | Source data | `data-pipeline/data/sportpin.sqlite` (V1, en lecture seule) |
 
 ## Règles de travail strictes
@@ -43,21 +43,21 @@ aura dépassé V1 sur les métriques clés (parité SEO + features).
 
 ## Mapping famille interne ↔ display name (legacy V1, à conserver)
 
-| `family_slug` (DB) | Display FR | Display EN |
-|---|---|---|
-| `raquette` | Raquette | Racket sports |
-| `ballon` | Ballon | Ball sports |
-| `fitness` | Fitness | Fitness |
-| `combat` | Combat | Combat |
-| `yoga` | Bien-être | Wellness |
-| `baignade` | Baignade | Swimming |
-| `boules` | Boules | Boules |
-| `nautique` | Nautique | Nautical |
-| `glisse` | Glisse | Board sports |
-| `snow` | Sport d'hiver | Winter sports |
-| `hike` | Plein air & endurance | Outdoor & endurance |
-| `retraites` | Retraites & camps | Retreats & camps |
-| `plus` | Plus de sports | More sports |
+| `family_slug` (DB) | Display FR            | Display EN          |
+| ------------------ | --------------------- | ------------------- |
+| `raquette`         | Raquette              | Racket sports       |
+| `ballon`           | Ballon                | Ball sports         |
+| `fitness`          | Fitness               | Fitness             |
+| `combat`           | Combat                | Combat              |
+| `yoga`             | Bien-être             | Wellness            |
+| `baignade`         | Baignade              | Swimming            |
+| `boules`           | Boules                | Boules              |
+| `nautique`         | Nautique              | Nautical            |
+| `glisse`           | Glisse                | Board sports        |
+| `snow`             | Sport d'hiver         | Winter sports       |
+| `hike`             | Plein air & endurance | Outdoor & endurance |
+| `retraites`        | Retraites & camps     | Retreats & camps    |
+| `plus`             | Plus de sports        | More sports         |
 
 **Important** : `yoga` côté data = "Bien-être" côté UI (héritage V1, ne pas
 renommer la clé tant que les anciennes URLs SEO ne sont pas redirigées).
@@ -65,11 +65,19 @@ renommer la clé tant que les anciennes URLs SEO ne sont pas redirigées).
 ## Couleurs par famille (CSS variables)
 
 ```css
---f-raquette: #2d7a3e;  --f-ballon:   #b45309;  --f-fitness:  #7c3aed;
---f-combat:   #b91c1c;  --f-yoga:     #db2777;  --f-baignade: #0891b2;
---f-boules:   #ca8a04;  --f-nautique: #1e40af;  --f-glisse:   #0ea5e9;
---f-snow:     #6366f1;  --f-hike:     #16a34a;  --f-retraites:#be185d;
---f-plus:     #6b7280;
+--f-raquette: #2d7a3e;
+--f-ballon: #b45309;
+--f-fitness: #7c3aed;
+--f-combat: #b91c1c;
+--f-yoga: #db2777;
+--f-baignade: #0891b2;
+--f-boules: #ca8a04;
+--f-nautique: #1e40af;
+--f-glisse: #0ea5e9;
+--f-snow: #6366f1;
+--f-hike: #16a34a;
+--f-retraites: #be185d;
+--f-plus: #6b7280;
 ```
 
 ## Conventions DB Supabase
@@ -90,6 +98,8 @@ renommer la clé tant que les anciennes URLs SEO ne sont pas redirigées).
   git commit + push                           # versionne dans le repo
   ```
   Le projet est linké via `supabase link --project-ref qwfvcrisfmnrfzsrnjwn`. Le CLI track les migrations appliquées côté DB → pas de divergence code/schéma. **Ne plus utiliser** `scripts/apply_migration.py` (deprecated, gardé pour fallback).
+- **Gate CI migrations (#228)** : le CI exécute `node scripts/check-migrations.mjs` (= `pnpm check:migrations` en local) qui **bloque tout doublon de numéro** `NNNN_*.sql` et tout nom mal formé. C'est le garde-fou contre les collisions entre PRs concurrentes (vécues sur `0011`, `0014/0015`). **Avant de créer une migration** : `gh pr list` + vérifier le dernier numéro sur `origin/main` pour prendre le prochain libre. Les trous historiques (0002, 0008) sont tolérés (warning).
+- **`CREATE INDEX CONCURRENTLY`** ne passe PAS dans une transaction `db-push` → l'exécuter à la main via le SQL Editor Supabase (cf. `supabase/migrations/0009_*` et `docs/perf-audit-*.md`).
 
 ## Conventions Next.js
 
@@ -153,23 +163,27 @@ gh pr create --fill --body "Closes #42"
 ## Objectifs MVP par phase
 
 ### Phase 1 (semaines 1-2) — Fondations
+
 - Repo scaffold, Supabase project, Vercel branché
 - Schema 0001 + 0003 (PostGIS)
 - Script `import_v1.py` qui peuple ≥ 60k venues depuis SQLite V1
 
 ### Phase 2 (semaines 3-6) — Lecture parité
+
 - `/venue/[slug]` avec metadata SEO + schema.org SportsActivityLocation
 - `/map` avec MapLibre + clustering + filtres sport
 - `/sports/[sport]` et `/[sport]/[country]/[city]`
 - Sitemap dynamique
 
 ### Phase 3 (semaines 7-10) — Écriture & admin
+
 - Auth Supabase (magic link + Google)
 - `/admin/venues` (CRUD)
 - `/venue/[slug]/claim` + `/admin/claim-requests`
 - Favoris persistés (vs localStorage V1)
 
 ### Phase 4 (semaines 11-12) — Cutover
+
 - 301 redirects de toutes les URLs V1 vers V2
 - Migration finale du domaine
 - Décommission Netlify V1
