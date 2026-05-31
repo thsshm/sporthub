@@ -218,7 +218,13 @@
     "googleReviewsAria": "Note Google : {rating} sur 5 — {count} avis",
     "relatedTitle": "Spots similaires à proximité",
     "bookingTitle": "Réserver",
-    "bookOn": "Réserver sur {partner}"
+    "bookOn": "Réserver sur {partner}",
+    "about": {
+      "title": "À propos",
+      "learnMore": "Pour en savoir plus",
+      "wikipedia": "Wikipédia",
+      "officialWebsite": "Site officiel ({host})"
+    }
   },
   "map": {
     "title": "Carte des spots sportifs",

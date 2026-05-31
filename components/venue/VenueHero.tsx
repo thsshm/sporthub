@@ -12,6 +12,7 @@ import { Link } from "@/i18n/routing";
 import { getTranslations } from "next-intl/server";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenueDetail } from "@/lib/supabase/types";
+import { wikimediaThumb } from "@/lib/venue/wikimedia";
 
 type Props = {
   venue: VenueDetail;
@@ -25,7 +26,10 @@ export async function VenueHero({ venue, cityName, locale }: Props) {
   const family = FAMILIES_BY_SLUG[venue.family_slug];
   const emoji = family?.emoji ?? "🏟️";
   const color = family?.color ?? "#6b7280";
-  const photoUrl = (venue.enrichments as { photo_url?: string } | null)?.photo_url;
+  const rawPhotoUrl = (venue.enrichments as { photo_url?: string } | null)?.photo_url;
+  // Bannière hero : 1200 px de large suffit pour un LCP raisonnable même sur
+  // écrans 2× ; transforme l'URL `upload.wikimedia.org` en vignette Wikimedia.
+  const photoUrl = wikimediaThumb(rawPhotoUrl, 1200) ?? rawPhotoUrl;
 
   return (
     <header>
