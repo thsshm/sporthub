@@ -385,13 +385,21 @@ class SupabaseRest:
         limit: int | None = None,
         page_size: int = 1000,
     ) -> list[dict[str, Any]]:
-        """Récupère les venues d'une famille (pagination automatique)."""
+        """Récupère les venues d'une famille (pagination keyset par id).
+
+        On pagine en keyset (`id > dernier_id`) et NON en OFFSET : sur les
+        familles denses (raquette ~47k, fitness…), `offset=47000` force
+        Postgres à scanner/sauter 47k lignes par page → statement timeout
+        (57014). Le keyset utilise l'index PK → O(1) par page, jamais de
+        timeout. L'`id` est un UUID : l'ordre n'est pas chronologique mais
+        total et stable, ce qui suffit pour une pagination exhaustive.
+        """
         venues: list[dict[str, Any]] = []
-        offset = 0
+        last_id: str | None = None
         select = "id,name,slug,lat,lon,city_id,country_code,club_id"
         while True:
             n = min(page_size, limit - len(venues)) if limit else page_size
-            qs = urllib.parse.urlencode({
+            params = {
                 "select": select,
                 "family_slug": f"eq.{family_slug}",
                 "deleted_at": "is.null",
@@ -401,14 +409,16 @@ class SupabaseRest:
                 # clubs fantômes ou un courts_count incohérent.
                 "is_published": "eq.true",
                 "limit": n,
-                "offset": offset,
-                "order": "id",
-            })
+                "order": "id.asc",
+            }
+            if last_id is not None:
+                params["id"] = f"gt.{last_id}"
+            qs = urllib.parse.urlencode(params)
             batch: list[dict[str, Any]] = self._req("GET", f"/venue?{qs}")
             if not batch:
                 break
             venues.extend(batch)
-            offset += len(batch)
+            last_id = batch[-1]["id"]
             if len(batch) < n:
                 break
             if limit and len(venues) >= limit:
