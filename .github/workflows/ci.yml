@@ -42,6 +42,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Migrations gate (numérotation séquentielle + zéro doublon)
+        run: node scripts/check-migrations.mjs
+
       - name: TypeScript check
         run: pnpm exec tsc --noEmit
 
