@@ -516,5 +516,11 @@
     "noVenues": "No clubs found for this sport.",
     "ctaMap": "See all {sport} spots on the map",
     "otherDisciplines": "Other disciplines"
+  },
+  "pwa": {
+    "installTitle": "Install SportHub",
+    "installText": "Quick access to the map from your home screen, even offline.",
+    "installCta": "Install",
+    "installLater": "Later"
   }
 }

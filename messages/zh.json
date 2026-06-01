@@ -516,5 +516,11 @@
     "noVenues": "未找到该运动的俱乐部。",
     "ctaMap": "在地图上查看所有{sport}场所",
     "otherDisciplines": "其他运动项目"
+  },
+  "pwa": {
+    "installTitle": "安装 SportHub",
+    "installText": "从主屏幕快速访问地图，即使离线也可使用。",
+    "installCta": "安装",
+    "installLater": "稍后"
   }
 }

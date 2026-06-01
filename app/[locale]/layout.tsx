@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Nav } from "@/components/layout/Nav";
 import { Footer } from "@/components/layout/Footer";
 import { FavoritesSyncOnLogin } from "@/components/FavoritesSyncOnLogin";
+import { InstallPwaButton } from "@/components/InstallPwaButton";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { routing, type Locale } from "@/i18n/routing";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
@@ -43,6 +44,17 @@ export async function generateMetadata({
       canonical: hreflang.canonical,
       languages: hreflang.languages,
     },
+    // PWA iOS (#249) : Next.js génère apple-mobile-web-app-capable,
+    // apple-mobile-web-app-status-bar-style, apple-mobile-web-app-title et
+    // les <link rel="apple-touch-icon"> à partir de ces champs.
+    appleWebApp: {
+      capable: true,
+      title: "SportHub",
+      statusBarStyle: "black-translucent",
+    },
+    icons: {
+      apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+    },
   };
 }
 
@@ -76,6 +88,8 @@ export default async function LocaleLayout({
             {/* Watcher invisible : sync favoris localStorage → DB au login.
                 Issue #91. No UI, juste un useEffect onAuthStateChange. */}
             <FavoritesSyncOnLogin />
+            {/* Invite à installer la PWA après ≥2 visites (#249). */}
+            <InstallPwaButton />
           </PostHogProvider>
         </NextIntlClientProvider>
       </body>
