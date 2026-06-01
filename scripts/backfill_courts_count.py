@@ -93,29 +93,48 @@ def _load_env_client():
     if not url or not key:
         print("❌ Définir NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY", file=sys.stderr)
         raise SystemExit(1)
-    return create_client(url, key)
+    client = create_client(url, key)
+    # Timeout PostgREST large : on pagine ~350k venues (700+ requêtes), chaque
+    # page peut être lente sous charge → 120s évite les ReadTimeout (défaut court).
+    # On agit sur le client httpx sous-jacent (l'API ClientOptions varie selon la
+    # version de supabase-py, donc on règle le timeout directement et sûrement).
+    try:
+        client.postgrest.session.timeout = 120  # httpx.Client.timeout
+    except Exception:
+        pass
+    return client
 
 
 def fetch_all_venues(sb, limit: int | None) -> list[dict]:
     """Charge les venues publiées (id, address, city_id, family_slug,
     courts_count) en paginant. limit = cap total pour les tests."""
     rows: list[dict] = []
-    page, page_size = 0, 1000
+    # KEYSET pagination (WHERE id > dernier_id) plutôt qu'OFFSET : sur ~350k
+    # venues, OFFSET élevé fait scanner+jeter N lignes par page → statement
+    # timeout Postgres (57014) vers la page ~120. Le keyset reste O(page_size)
+    # quel que soit l'avancement (index PK sur id). Pages de 1000.
+    page_size = 1000
+    last_id = ""
     while True:
         q = (
             sb.table("venue")
             .select("id, address, city_id, family_slug, courts_count")
             .eq("is_published", True)
             .is_("deleted_at", "null")
-            .range(page * page_size, page * page_size + page_size - 1)
+            .order("id")
+            .limit(page_size)
         )
+        if last_id:
+            q = q.gt("id", last_id)
         chunk = q.execute().data or []
         if not chunk:
             break
         rows.extend(chunk)
+        last_id = chunk[-1]["id"]
+        if len(rows) % 20000 < page_size:
+            print(f"    … {len(rows):,} venues chargées", flush=True)
         if limit and len(rows) >= limit:
             return rows[:limit]
-        page += 1
     return rows
 
 
