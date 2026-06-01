@@ -161,27 +161,13 @@ export function MapWithSearch({
   );
 
   // Picker explore (#132) : overlay multi-familles au 1er visit de /map sans
-  // deep-link (?family / ?sports / ?q / ?lat) tant que le flag localStorage
-  // "vu" n'est pas posé. Décision côté client au mount pour préserver l'ISR de
-  // /map (pas de cookies() côté Server — cf. #191).
+  // Le picker n'est plus ouvert automatiquement au mount (#257) : un utilisateur
+  // qui arrive sur /map (via le CTA "Explore the map" de la home ou directement)
+  // veut voir la carte immédiatement. Le picker bloquant avant la carte crée de
+  // la friction inutile (cf. pattern Google Maps / AirBnb : carte d'abord,
+  // filtres ensuite). Le picker reste accessible via le bouton "Changer ma
+  // sélection" dans la sidebar (onReopenPicker, déjà câblé).
   const [pickerOpen, setPickerOpen] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const hasDeepLink =
-      params.has("family") ||
-      params.has("sports") ||
-      params.has("q") ||
-      params.has("lat") ||
-      params.has("city");
-    let seen = false;
-    try {
-      seen = window.localStorage.getItem(PICKER_SEEN_KEY) === "1";
-    } catch {
-      /* localStorage inaccessible → on considère non-vu */
-    }
-    if (!hasDeepLink && !seen) setPickerOpen(true);
-  }, []);
 
   // Sync URL ↔ selectedFamilies (checkboxes/switcher) :
   //   - 0 ou TOUTES → URL propre (pas de ?family) = explore complet
