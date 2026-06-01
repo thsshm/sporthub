@@ -22,7 +22,12 @@ export function MapLegend({ activeSlugs, className }: Props) {
     <div
       role="group"
       aria-label={tMap("legend")}
-      className={`pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-2.5 overflow-x-auto rounded-full border bg-background/90 px-3 py-1.5 text-xs shadow-md backdrop-blur ${className ?? ""}`}
+      // max-w : sur mobile (sidebar masquée) on prend toute la largeur dispo ;
+      // sur desktop on cappe à 42rem pour que la légende reste centrée dans la
+      // zone carte et SCROLLE horizontalement (overflow-x-auto) au lieu de
+      // s'étaler sur 1300px+ et chevaucher la sidebar gauche + le bouton géoloc
+      // à droite (13 familles actives = mode explore complet).
+      className={`pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-2.5 overflow-x-auto rounded-full border bg-background/90 px-3 py-1.5 text-xs shadow-md backdrop-blur md:max-w-[42rem] ${className ?? ""}`}
     >
       {activeSlugs.map((slug) => {
         const f = FAMILIES_BY_SLUG[slug];

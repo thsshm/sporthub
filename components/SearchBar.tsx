@@ -29,11 +29,7 @@ type Props = {
  * Nominatim policy : User-Agent identifiant + max ~1 req/sec.
  * Pour de gros volumes, basculer sur Mapbox/MapTiler Geocoding (issue future).
  */
-export function SearchBar({
-  onSelect,
-  placeholder,
-  className,
-}: Props) {
+export function SearchBar({ onSelect, placeholder, className }: Props) {
   const tMap = useTranslations("map");
   const ph = placeholder ?? tMap("searchPlaceholder");
   const [q, setQ] = useState("");
@@ -66,7 +62,7 @@ export function SearchBar({
             display_name: r.display_name,
             lat: parseFloat(r.lat),
             lon: parseFloat(r.lon),
-          })),
+          }))
         );
         setOpen(true);
       } catch {
@@ -89,7 +85,13 @@ export function SearchBar({
   }, [open]);
 
   return (
-    <div ref={wrapperRef} className={`relative ${className ?? ""}`}>
+    // NB: pas de `relative` codé en dur ici — le parent passe souvent un
+    // `absolute …` via className (cf. MapWithSearch), et `.relative` étant
+    // défini après `.absolute` dans Tailwind, il écrasait le positionnement
+    // (barre collée en haut-gauche au lieu de top-right). On laisse le parent
+    // choisir `position` ; le menu déroulant ci-dessous reste ancré car son
+    // conteneur est positionné dans tous les cas.
+    <div ref={wrapperRef} className={className ?? "relative"}>
       <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 shadow-sm">
         <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <input

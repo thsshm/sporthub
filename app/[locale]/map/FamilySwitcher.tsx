@@ -32,7 +32,10 @@ export function FamilySwitcher({ activeSlug, onSelect, className }: Props) {
     <div
       role="tablist"
       aria-label={tMap("filtersTitle")}
-      className={`flex gap-1.5 overflow-x-auto pb-1 ${className ?? ""}`}
+      // shrink-0 : dans la sidebar `flex flex-col`, sans ça la rangée se fait
+      // compresser verticalement (chips écrasées à ~4px de haut). On force aussi
+      // les chips à ne pas rétrécir en hauteur via items-start implicite.
+      className={`flex shrink-0 gap-1.5 overflow-x-auto pb-1 ${className ?? ""}`}
     >
       <button
         type="button"
