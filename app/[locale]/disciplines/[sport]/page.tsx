@@ -58,19 +58,20 @@ const fetchRanking = unstable_cache(
   async (sportSlug: string, limit = 50): Promise<VenueRanking[]> => {
     const sb = getSupabaseStaticClient();
     try {
-      // Rank par courts_count DESC (venues avec le plus de terrains en tête).
-      // courts_count peut être NULL si non renseigné — mis en fin de liste.
+      // Rank par venue.courts_count DESC (colonne dénormalisée sur venue).
+      // courts_count peut être NULL → mis en fin de liste (nullsFirst: false).
+      // Filtre par sport via venue_sport!inner (sport_slug).
       const { data, error } = await sb
         .from("venue")
         .select(
-          `id, slug, name, address, country_code,
+          `id, slug, name, address, country_code, courts_count,
            city:city_id ( name ),
-           venue_sport!inner ( courts_count, sport_slug )`,
+           venue_sport!inner ( sport_slug )`,
         )
         .eq("venue_sport.sport_slug", sportSlug)
         .eq("is_published", true)
         .is("deleted_at", null)
-        .order("venue_sport(courts_count)", { ascending: false, nullsFirst: false })
+        .order("courts_count", { ascending: false, nullsFirst: false })
         .limit(limit);
 
       if (error || !data) return [];
@@ -78,14 +79,14 @@ const fetchRanking = unstable_cache(
         const r = row as {
           id: string; slug: string; name: string;
           address: string | null; country_code: string | null;
+          courts_count: number | null;
           city: { name: string } | null;
-          venue_sport: Array<{ courts_count: number | null }>;
         };
         return {
           id: r.id,
           slug: r.slug,
           name: r.name,
-          courts_count: r.venue_sport[0]?.courts_count ?? null,
+          courts_count: r.courts_count,
           address: r.address,
           city_name: r.city?.name ?? null,
           country_code: r.country_code,
