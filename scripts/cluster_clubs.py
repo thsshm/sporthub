@@ -58,13 +58,23 @@ import logging
 import math
 import os
 import re
+import socket
 import sys
+import time
 import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 from typing import Any
+
+# ─── Résilience HTTP ───────────────────────────────────────────────────────
+# Le run réel fait des dizaines de milliers de requêtes REST séquentielles ;
+# un timeout/5xx transitoire ne doit pas tuer tout le batch (cf. crash run
+# raquette sur socket.timeout). Retry avec backoff linéaire.
+_HTTP_TIMEOUT = 120
+_MAX_RETRIES = 5
+_BACKOFF_BASE = 2.0
 
 # ─── Familles ciblées ─────────────────────────────────────────────────────────
 
@@ -366,16 +376,35 @@ class SupabaseRest:
     ) -> Any:
         url = f"{self.base}/rest/v1{path}"
         data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(
-            url, data=data, method=method, headers=self._headers(prefer=prefer)
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                raw = resp.read()
-                return json.loads(raw) if raw else []
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")
-            raise RuntimeError(f"Supabase {method} {path} → {exc.code}: {detail}") from exc
+        last_exc: Exception | None = None
+        for attempt in range(1, _MAX_RETRIES + 1):
+            req = urllib.request.Request(
+                url, data=data, method=method, headers=self._headers(prefer=prefer)
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=_HTTP_TIMEOUT) as resp:
+                    raw = resp.read()
+                    return json.loads(raw) if raw else []
+            except urllib.error.HTTPError as exc:
+                # 5xx transitoires (502/503/504) → retry ; autres codes → remonte.
+                if exc.code in (502, 503, 504) and attempt < _MAX_RETRIES:
+                    last_exc = exc
+                    time.sleep(_BACKOFF_BASE * attempt)
+                    continue
+                detail = exc.read().decode("utf-8", "replace")
+                raise RuntimeError(
+                    f"Supabase {method} {path} → {exc.code}: {detail}"
+                ) from exc
+            except (socket.timeout, urllib.error.URLError, ConnectionError) as exc:
+                # Timeout / coupure réseau → retry avec backoff.
+                last_exc = exc
+                if attempt < _MAX_RETRIES:
+                    time.sleep(_BACKOFF_BASE * attempt)
+                    continue
+                raise RuntimeError(
+                    f"Supabase {method} {path} → réseau (après {attempt} essais): {exc}"
+                ) from exc
+        raise RuntimeError(f"Supabase {method} {path} → échec inattendu: {last_exc}")
 
     # ── Lecture ─────────────────────────────────────────────────────────────
 
