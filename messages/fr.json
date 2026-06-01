@@ -521,6 +521,7 @@
     "installTitle": "Installer SportHub",
     "installText": "Accès rapide à la carte depuis votre écran d'accueil, même hors-ligne.",
     "installCta": "Installer",
-    "installLater": "Plus tard"
+    "installLater": "Plus tard",
+    "offline": "Mode hors-ligne — données en cache"
   }
 }

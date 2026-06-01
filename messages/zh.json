@@ -521,6 +521,7 @@
     "installTitle": "安装 SportHub",
     "installText": "从主屏幕快速访问地图，即使离线也可使用。",
     "installCta": "安装",
-    "installLater": "稍后"
+    "installLater": "稍后",
+    "offline": "离线模式 — 缓存数据"
   }
 }

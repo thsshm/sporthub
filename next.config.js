@@ -1,6 +1,16 @@
 const createNextIntlPlugin = require("next-intl/plugin");
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
+// Service worker PWA offline (#249 part 2) via Serwist. SW source dans app/sw.ts,
+// compilé vers public/sw.js au build. Désactivé en dev (évite les soucis de
+// cache pendant le développement).
+const withSerwist = require("@serwist/next").default({
+  swSrc: "app/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV === "development",
+  reloadOnOnline: true,
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   /**
@@ -184,4 +194,4 @@ const nextConfig = {
   },
 };
 
-module.exports = withNextIntl(nextConfig);
+module.exports = withSerwist(withNextIntl(nextConfig));
