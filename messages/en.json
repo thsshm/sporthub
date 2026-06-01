@@ -503,5 +503,18 @@
     "noCities": "No cities available yet.",
     "ctaText": "Your city is not listed? Explore the world map.",
     "ctaMap": "Explore the map"
+  },
+  "disciplines": {
+    "metaTitle": "Top {sport} clubs in France — SportHub",
+    "metaDescription": "National ranking of the best {sport} clubs by number of courts. Find where to play.",
+    "breadcrumbDisciplines": "Disciplines",
+    "hero": "Best {sport} clubs",
+    "heroSub": "National ranking — {count} clubs found. Click to see the full profile.",
+    "podiumTitle": "National Top 3",
+    "courtsCount": "{count} court(s)",
+    "rankingTitle": "Full ranking — {sport}",
+    "noVenues": "No clubs found for this sport.",
+    "ctaMap": "See all {sport} spots on the map",
+    "otherDisciplines": "Other disciplines"
   }
 }

@@ -503,5 +503,18 @@
     "noCities": "暂无城市数据。",
     "ctaText": "您的城市没有列出？探索世界地图。",
     "ctaMap": "探索地图"
+  },
+  "disciplines": {
+    "metaTitle": "法国{sport}顶级俱乐部 — SportHub",
+    "metaDescription": "按场地数量排名的最佳{sport}俱乐部。找到练习的地方。",
+    "breadcrumbDisciplines": "运动项目",
+    "hero": "最佳{sport}俱乐部",
+    "heroSub": "全国排名 — 找到{count}家俱乐部。点击查看完整资料。",
+    "podiumTitle": "全国前三名",
+    "courtsCount": "{count}块场地",
+    "rankingTitle": "完整排名 — {sport}",
+    "noVenues": "未找到该运动的俱乐部。",
+    "ctaMap": "在地图上查看所有{sport}场所",
+    "otherDisciplines": "其他运动项目"
   }
 }

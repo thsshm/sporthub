@@ -503,5 +503,18 @@
     "noCities": "Aucune ville disponible pour le moment.",
     "ctaText": "Votre ville n'est pas listée ? Explorez la carte mondiale.",
     "ctaMap": "Explorer la carte"
+  },
+  "disciplines": {
+    "metaTitle": "Top clubs de {sport} en France — SportHub",
+    "metaDescription": "Classement national des meilleurs clubs de {sport} par nombre de terrains. Trouvez où pratiquer.",
+    "breadcrumbDisciplines": "Disciplines",
+    "hero": "Meilleurs clubs de {sport}",
+    "heroSub": "Classement national — {count} clubs trouvés. Cliquez pour voir la fiche complète.",
+    "podiumTitle": "Top 3 national",
+    "courtsCount": "{count} terrain(s)",
+    "rankingTitle": "Classement complet — {sport}",
+    "noVenues": "Aucun club trouvé pour ce sport.",
+    "ctaMap": "Voir tous les spots {sport} sur la carte",
+    "otherDisciplines": "Autres disciplines"
   }
 }
