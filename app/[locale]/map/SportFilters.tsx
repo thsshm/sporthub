@@ -48,8 +48,29 @@ type Props = {
   onAutoUpdateChange: (next: boolean) => void;
   /** Rouvre le picker explore (#132). Si absent, le bouton n'est pas rendu. */
   onReopenPicker?: () => void;
+  /** Compteurs à facettes par option (#279) : nb de lieux du viewport qui
+   * matcheraient, en respectant les autres filtres actifs. Si absent, aucun
+   * compteur n'est affiché (pas de régression hors carte). */
+  familyCounts?: Record<string, number>;
+  criteriaCounts?: Record<string, number>;
+  surfaceCounts?: Record<string, number>;
   className?: string;
 };
+
+/** Petit badge compteur aligné à droite d'une option de filtre (#279). */
+function CountBadge({ counts, k }: { counts?: Record<string, number>; k: string }) {
+  if (!counts) return null;
+  const n = counts[k] ?? 0;
+  return (
+    <span
+      className={`ml-auto shrink-0 text-xs tabular-nums ${
+        n === 0 ? "text-muted-foreground/40" : "text-muted-foreground"
+      }`}
+    >
+      {n.toLocaleString("fr-FR")}
+    </span>
+  );
+}
 
 export function SportFilters({
   selected,
@@ -61,6 +82,9 @@ export function SportFilters({
   autoUpdate,
   onAutoUpdateChange,
   onReopenPicker,
+  familyCounts,
+  criteriaCounts,
+  surfaceCounts,
   className,
 }: Props) {
   const tMap = useTranslations("map");
@@ -198,6 +222,7 @@ export function SportFilters({
                   />
                   <span aria-hidden="true">{f.emoji}</span>
                   <span className="truncate">{name}</span>
+                  <CountBadge counts={familyCounts} k={f.slug} />
                 </label>
               </li>
             );
@@ -223,6 +248,7 @@ export function SportFilters({
                   />
                   <span aria-hidden="true">{c.emoji}</span>
                   <span className="truncate">{name}</span>
+                  <CountBadge counts={criteriaCounts} k={c.key} />
                 </label>
               </li>
             );
@@ -248,6 +274,7 @@ export function SportFilters({
                   />
                   <span aria-hidden="true">{s.emoji}</span>
                   <span className="truncate">{name}</span>
+                  <CountBadge counts={surfaceCounts} k={s.key} />
                 </label>
               </li>
             );
