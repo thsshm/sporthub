@@ -299,7 +299,9 @@
     "share": "分享",
     "shareTitle": "SportHub — 运动场所地图",
     "shareText": "视图中 {count} 个场所",
-    "linkCopied": "链接已复制！"
+    "linkCopied": "链接已复制！",
+    "venueList": "场所列表",
+    "expandSheet": "展开列表"
   },
   "footer": {
     "about": "Sport Hub",

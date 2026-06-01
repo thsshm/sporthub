@@ -299,7 +299,9 @@
     "share": "Share",
     "shareTitle": "SportHub — Sport spots map",
     "shareText": "{count} spots in view",
-    "linkCopied": "Link copied!"
+    "linkCopied": "Link copied!",
+    "venueList": "Venue list",
+    "expandSheet": "Expand the list"
   },
   "footer": {
     "about": "Sport Hub",

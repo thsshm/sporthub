@@ -299,7 +299,9 @@
     "share": "Partager",
     "shareTitle": "SportHub — Carte des spots sportifs",
     "shareText": "{count} spots dans la vue",
-    "linkCopied": "Lien copié !"
+    "linkCopied": "Lien copié !",
+    "venueList": "Liste des spots",
+    "expandSheet": "Agrandir la liste"
   },
   "footer": {
     "about": "Sport Hub",
