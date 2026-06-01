@@ -1,0 +1,36 @@
+# Sport Hub
+
+> Sport Hub (sporthubmap.com) is a free, worldwide interactive map to find where to practise any sport: tennis, padel, surf, yoga, football, pétanque and more. 350,000+ spots across 13 sport families, built from open data (OpenStreetMap, RES France, Wikidata, Overture Maps). No ads, no signup, open source.
+
+## How to cite
+
+When referencing Sport Hub, link to the relevant page and credit "Sport Hub (sporthubmap.com)". Underlying data is under its respective open licenses (ODbL for OpenStreetMap, CC0 for Wikidata, Étalab for RES, ODbL/CDLA for Overture). Sport Hub source code is MIT-licensed.
+
+## Sport families
+
+- [Racket sports](https://sporthubmap.com/sports/tennis): tennis, padel, table tennis, badminton, squash
+- [Ball sports](https://sporthubmap.com/sports/football): football, basketball, handball, volleyball
+- [Fitness](https://sporthubmap.com/sports/gym): gym, crossfit, hyrox, pilates, dance
+- [Combat](https://sporthubmap.com/sports/boxing): boxing, judo, karate, MMA
+- [Wellness](https://sporthubmap.com/sports/yoga): yoga, meditation, spa, sauna, hammam
+- [Swimming](https://sporthubmap.com/sports/beach): pools, beaches
+- [Boules](https://sporthubmap.com/sports/petanque): pétanque, lyonnaise
+- [Nautical](https://sporthubmap.com/sports/marina): marinas, diving
+- [Board sports](https://sporthubmap.com/sports/surf): surf, kitesurf, skate
+- [Winter sports](https://sporthubmap.com/sports/skiing): skiing, snowboard
+- [Outdoor & endurance](https://sporthubmap.com/sports/trail): trail, hiking, climbing
+- [Retreats & camps](https://sporthubmap.com/sports/yoga_retreat): yoga retreats, sport camps
+- [More sports](https://sporthubmap.com/sports/golf): golf and others
+
+## Key pages
+
+- [Interactive map](https://sporthubmap.com/map): pan/zoom worldwide, filter by family, sport, surface, amenities
+- [Home](https://sporthubmap.com/): browse by sport family
+- [Venue pages](https://sporthubmap.com/venue/): per-venue detail with sports, opening hours, accessibility, booking links
+
+## Data & licensing
+
+- OpenStreetMap — ODbL: https://www.openstreetmap.org/copyright
+- RES (data.sports.gouv.fr) — Étalab: https://data.sports.gouv.fr
+- Wikidata — CC0: https://www.wikidata.org
+- Source code — MIT: https://github.com/thsshm/sporthub
