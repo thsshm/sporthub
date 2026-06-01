@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
-import { Crosshair, SlidersHorizontal, X } from "lucide-react";
+import { Crosshair, Share2, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import {
   SportFilters,
@@ -149,6 +149,45 @@ export function MapWithSearch({
   // précise déjà obtenue — priorité : action user > géoloc navigateur > IP.
   const precisePosRef = useRef(false);
 
+  // ── Sync viewport → URL (#251 partage) ────────────────────────────────
+  // À chaque moveend (via onViewportChange de MapClient), on met à jour
+  // ?lat=&lon=&zoom= dans l'URL (history.replaceState, pas pushState → pas de
+  // pollution de l'historique). Cela rend l'URL shareable : ouvrir le lien
+  // rouvre la carte exactement sur le même viewport + les mêmes filtres.
+  const syncViewportToUrl = (lat: number, lon: number, zoom: number) => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("lat", lat.toFixed(5));
+    params.set("lon", lon.toFixed(5));
+    params.set("zoom", zoom.toFixed(1));
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  };
+
+  // ── Partage de la vue carte (#251) ─────────────────────────────────────
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = tMap("shareTitle");
+    const text = tMap("shareText", { count: visibleCount });
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch {
+        // Refusé par l'utilisateur ou non supporté → fallback clipboard
+      }
+    }
+    // Fallback : copier le lien dans le presse-papier
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    } catch {
+      /* clipboard indisponible (contexte non-sécurisé) → silencieux */
+    }
+  };
+
   // Init des familles depuis ?family=X[,Y,…] (slugs validés côté Server).
   // Aucun param → toutes les familles (mode explore complet).
   const router = useRouter();
@@ -221,6 +260,25 @@ export function MapWithSearch({
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
+
+  // Restauration depuis un lien partagé (#251). Si l'URL contient ?lat=&lon=&zoom=
+  // (mis à jour par syncViewportToUrl), on flyTo directement — prioritaire sur la
+  // géoloc IP et la géoloc navigateur. Exécuté au mount uniquement (une fois).
+  const didRestoreSharedRef = useRef(false);
+  useEffect(() => {
+    if (didRestoreSharedRef.current) return;
+    didRestoreSharedRef.current = true;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const lat = parseFloat(params.get("lat") ?? "");
+    const lon = parseFloat(params.get("lon") ?? "");
+    const zoom = parseFloat(params.get("zoom") ?? "");
+    if (Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(zoom)
+        && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+      flyToUser({ lat, lon, zoom, token: Date.now() });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-géolocalisation au 1er chargement (#214). On propose la position du
   // navigateur et on recentre dessus, UNIQUEMENT pour un nouveau visiteur :
@@ -528,6 +586,30 @@ export function MapWithSearch({
         <Crosshair className="h-5 w-5" aria-hidden="true" />
       </button>
 
+      {/* Bouton "Partager" — navigator.share natif sur mobile, copie URL sur
+          desktop. Sync viewport → URL dès qu'on interagit avec la carte, donc
+          l'URL est toujours à jour quand on clique Partager. (#251) */}
+      <button
+        type="button"
+        onClick={handleShare}
+        aria-label={tMap("share")}
+        title={tMap("share")}
+        className="bottom-safe-28 absolute right-4 z-20 flex h-11 w-11 items-center justify-center rounded-md border bg-background/95 text-foreground shadow-md backdrop-blur hover:bg-accent"
+      >
+        <Share2 className="h-5 w-5" aria-hidden="true" />
+      </button>
+
+      {/* Toast "Lien copié" (fallback desktop quand navigator.share absent) */}
+      {shareCopied && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="bottom-safe-44 absolute right-4 z-30 rounded-md bg-background/95 px-3 py-2 text-sm shadow-md backdrop-blur"
+        >
+          {tMap("linkCopied")}
+        </div>
+      )}
+
       {/* Toast erreur géolocalisation */}
       {geolocError && (
         <div
@@ -608,6 +690,7 @@ export function MapWithSearch({
           autoUpdate={autoUpdate}
           onVenuesChange={setVisibleCount}
           onZoomChange={setCurrentZoom}
+          onViewportChange={syncViewportToUrl}
           onVenuesData={handleVenuesData}
           flyTarget={flyTarget}
           initialVenues={effectiveInitialVenues}

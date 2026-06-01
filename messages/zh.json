@@ -295,7 +295,11 @@
       "sand": "沙地"
     },
     "descSingleFamily": "查找练习地点：Sport Hub 互动地图上所有 {family} 场所。",
-    "descGeneric": "探索 Sport Hub 全球运动场所地图：网球、Padel、冲浪、瑜伽、足球、地掷球及 50 多个项目。"
+    "descGeneric": "探索 Sport Hub 全球运动场所地图：网球、Padel、冲浪、瑜伽、足球、地掷球及 50 多个项目。",
+    "share": "分享",
+    "shareTitle": "SportHub — 运动场所地图",
+    "shareText": "视图中 {count} 个场所",
+    "linkCopied": "链接已复制！"
   },
   "footer": {
     "about": "Sport Hub",

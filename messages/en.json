@@ -295,7 +295,11 @@
       "sand": "Sand"
     },
     "descSingleFamily": "Find where to play: all {family} spots geolocated on the Sport Hub interactive map.",
-    "descGeneric": "Explore the Sport Hub world map of sport spots: tennis, padel, surf, yoga, football, pétanque and 50+ disciplines."
+    "descGeneric": "Explore the Sport Hub world map of sport spots: tennis, padel, surf, yoga, football, pétanque and 50+ disciplines.",
+    "share": "Share",
+    "shareTitle": "SportHub — Sport spots map",
+    "shareText": "{count} spots in view",
+    "linkCopied": "Link copied!"
   },
   "footer": {
     "about": "Sport Hub",
