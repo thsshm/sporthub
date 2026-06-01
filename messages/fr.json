@@ -477,5 +477,31 @@
     "description": "La page que tu cherches n’existe pas ou a été déplacée.",
     "backToHome": "Retour à l’accueil",
     "goToMap": "Voir la carte"
+  },
+  "cities": {
+    "metaTitle": "Villes à explorer",
+    "metaDescription": "Trouvez où pratiquer votre sport dans les plus grandes villes — {count} villes indexées sur Sport Hub.",
+    "title": "Explorer par ville",
+    "subtitle": "Les villes avec le plus de spots sportifs indexés. Cliquez pour ouvrir la carte filtrée sur la ville.",
+    "venuesCount": "{count, plural, =0 {aucun spot} one {1 spot} other {{count} spots}}",
+    "notListedTitle": "Votre ville n'est pas listée ?",
+    "notListedCta": "Explorer la carte mondiale",
+    "breadcrumbHome": "Accueil",
+    "breadcrumbCities": "Villes"
+  },
+  "villes": {
+    "metaTitle": "Villes sportives — SportHub",
+    "metaDescription": "Explorez les meilleures villes pour la pratique sportive : tennis, padel, yoga, gym et plus. Trouvez les spots près de chez vous.",
+    "breadcrumb": "Villes",
+    "hero": "Explorez les villes sportives",
+    "heroSub": "Choisissez votre ville et découvrez les spots sportifs autour de vous : tennis, padel, yoga, gym, escalade et bien plus.",
+    "topCitiesTitle": "Villes avec le plus de spots",
+    "topCitiesDesc": "Classées par nombre de spots publiés — cliquez pour explorer la carte.",
+    "spotsCount": "{count} spots",
+    "bySportTitle": "Par sport et par ville",
+    "bySportDesc": "Navigation directe sport × ville pour trouver où pratiquer.",
+    "noCities": "Aucune ville disponible pour le moment.",
+    "ctaText": "Votre ville n'est pas listée ? Explorez la carte mondiale.",
+    "ctaMap": "Explorer la carte"
   }
 }
