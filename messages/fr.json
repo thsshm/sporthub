@@ -229,7 +229,8 @@
   "map": {
     "title": "Carte des spots sportifs",
     "loading": "Chargement de la carte…",
-    "spotsInView": "{count} spots dans la vue",
+    "refreshing": "Chargement…",
+    "spotsInView": "<b>{count}</b> spots dans la vue",
     "searchPlaceholder": "Rechercher une ville…",
     "filtersTitle": "Familles",
     "filtersAll": "tout",

@@ -229,7 +229,8 @@
   "map": {
     "title": "运动场所地图",
     "loading": "地图加载中…",
-    "spotsInView": "视图中 {count} 个场所",
+    "refreshing": "加载中…",
+    "spotsInView": "视图中 <b>{count}</b> 个场所",
     "searchPlaceholder": "搜索城市…",
     "filtersTitle": "家族",
     "filtersAll": "全选",

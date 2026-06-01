@@ -6,11 +6,7 @@ import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import { Crosshair, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
-import {
-  SportFilters,
-  type CriteriaKey,
-  type SurfaceKey,
-} from "@/app/[locale]/map/SportFilters";
+import { SportFilters, type CriteriaKey, type SurfaceKey } from "@/app/[locale]/map/SportFilters";
 import { EmptyStateOverlay } from "@/app/[locale]/map/EmptyStateOverlay";
 import { ViewModeToggle } from "@/app/[locale]/map/ViewModeToggle";
 import { VenueListPanel } from "@/app/[locale]/map/VenueListPanel";
@@ -553,7 +549,10 @@ export function MapWithSearch({
       )}
 
       <div className="bottom-safe-4 pointer-events-none absolute left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
-        <span className="font-semibold">{formatCount(visibleCount)}</span> spots dans la vue
+        {tMap.rich("spotsInView", {
+          count: formatCount(visibleCount),
+          b: (chunks) => <span className="font-semibold">{chunks}</span>,
+        })}
       </div>
 
       {/* Légende couleurs par famille — visible en mode explore (2+ familles

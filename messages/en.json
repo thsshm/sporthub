@@ -229,7 +229,8 @@
   "map": {
     "title": "Map of sport spots",
     "loading": "Loading map…",
-    "spotsInView": "{count} spots in view",
+    "refreshing": "Loading…",
+    "spotsInView": "<b>{count}</b> spots in view",
     "searchPlaceholder": "Search a city…",
     "filtersTitle": "Families",
     "filtersAll": "all",
