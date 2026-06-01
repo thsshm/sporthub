@@ -30,7 +30,7 @@ export const revalidate = 3600;
 const SITE_URL = "https://sporthubmap.com";
 
 /** Sports supportés sur cette page. Extensible. */
-export const RANKED_SPORTS = [
+const RANKED_SPORTS = [
   "tennis",
   "padel",
   "table_tennis",
