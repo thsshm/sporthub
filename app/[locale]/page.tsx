@@ -124,7 +124,13 @@ export default async function HomePage({
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {FAMILIES.map((family) => {
             const count = counts[family.slug] ?? 0;
-            const hasVenues = count > 0;
+            // Seuil "data significative" : sous 10 venues on traite la famille
+            // comme "à venir" pour ne pas afficher "1 spot" qui décrédibilise
+            // (cas Board sports / Winter sports / Retreats qui ont 1 venue
+            // seed chacune). Cf. audit UX V2 du 31/05.
+            const MIN_MEANINGFUL_COUNT = 10;
+            const hasVenues = count >= MIN_MEANINGFUL_COUNT;
+            const displayCount = hasVenues ? count : 0;
             const topSports = family.sports
               .slice(0, 4)
               .map((slug) => SPORTS_BY_SLUG[slug])
@@ -148,13 +154,13 @@ export default async function HomePage({
                       {family.emoji}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-semibold leading-tight group-hover:underline">
+                      <h3 className="truncate font-semibold leading-tight group-hover:underline" title={tFamilies(family.slug)}>
                         {tFamilies(family.slug)}
                       </h3>
                       <p
                         className={`mt-0.5 text-xs ${hasVenues ? "text-muted-foreground" : "text-muted-foreground/60"}`}
                       >
-                        {t("spotsCount", { count })}
+                        {t("spotsCount", { count: displayCount })}
                       </p>
                     </div>
                   </Link>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { MapWithSearch } from "@/app/[locale]/map/MapWithSearch";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { isViewMode, type ViewMode } from "@/lib/map-storage";
@@ -33,14 +34,19 @@ function parseFamilies(raw: string | undefined): string[] {
 // Metadata adaptative selon les query params (#132) :
 //   - 1 famille → "Carte des clubs de {famille}" (intention SEO famille)
 //   - 0 ou multi → titre générique "explorer tous les sports"
-export function generateMetadata({ searchParams }: MapPageProps): Metadata {
+// Localisé via next-intl pour rester cohérent avec /en/map et /zh/map (#108).
+export async function generateMetadata({ params, searchParams }: MapPageProps): Promise<Metadata> {
+  const { locale } = await params;
+  const tMap = await getTranslations({ locale, namespace: "map" });
+  const tFamilies = await getTranslations({ locale, namespace: "families" });
   const families = parseFamilies(searchParams.family);
   const single = families.length === 1 ? FAMILIES_BY_SLUG[families[0]] : null;
+  const familyLabel = single ? tFamilies(single.slug) : null;
   return {
-    title: single ? `Carte des clubs de ${single.name_fr}` : "Carte des spots sportifs",
-    description: single
-      ? `Trouvez où pratiquer : tous les spots ${single.name_fr.toLowerCase()} géolocalisés sur la carte interactive SportHub.`
-      : "Explorez la carte mondiale des spots sportifs SportHub : tennis, padel, surf, yoga, foot, pétanque et plus de 50 disciplines.",
+    title: familyLabel ? tMap("titleSingleFamily", { family: familyLabel }) : tMap("title"),
+    description: familyLabel
+      ? tMap("descSingleFamily", { family: familyLabel.toLowerCase() })
+      : tMap("descGeneric"),
     alternates: {
       canonical: mapHreflang.canonical,
       languages: mapHreflang.languages,
@@ -106,6 +112,9 @@ type MapPageProps = {
   //   ?city=slug      → recentrage sur une ville par slug (liens home, résolu DB)
   // Lecture côté Server pour éviter "useSearchParams should be wrapped in
   // Suspense" qui casserait le prerender ISR.
+  // `params` est typé Promise (Next.js 15 pattern, cf. /favoris) pour
+  // permettre l'await de la locale dans generateMetadata async.
+  params: Promise<{ locale: string }>;
   searchParams: { family?: string; view?: string; q?: string; city?: string };
 };
 

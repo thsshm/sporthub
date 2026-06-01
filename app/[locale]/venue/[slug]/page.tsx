@@ -191,8 +191,8 @@ export default async function VenuePage({ params }: Props) {
           </section>
         </div>
 
-        {/* Sidebar : réservation + review + infos */}
-        <aside className="space-y-4">
+        {/* Sidebar : réservation + review + infos — sticky desktop (#layout) */}
+        <aside className="space-y-4 lg:sticky lg:top-[calc(4rem+1rem)] lg:self-start">
           <VenueBookingLinks bookingLinks={venue.booking_links} />
           <VenueReviewBadge venue={venue} />
           <VenueInfoCard venue={venue} locale={safeLocale} />

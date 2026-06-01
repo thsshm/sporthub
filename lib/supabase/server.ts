@@ -99,6 +99,29 @@ export function getSupabaseEdgeClient(): SupabaseClient<Database> {
 }
 
 /**
+ * Client Edge anon — `createClient` de @supabase/supabase-js (pas de @supabase/ssr,
+ * cf. getSupabaseEdgeClient ci-dessus) mais avec la clé PUBLIQUE `anon` au lieu
+ * de la `service_role`.
+ *
+ * Destiné aux Route Handlers Edge PUBLICS en lecture seule (/api/venues,
+ * /api/venues/clubs) qui appellent des RPC `SECURITY DEFINER` (migration 0015).
+ * Ces RPC filtrent en interne `is_published = true AND deleted_at IS NULL`, donc
+ * aucune donnée privée ne fuit, ET le coût d'évaluation RLS par ligne (cause du
+ * statement_timeout sur les régions peu denses) disparaît côté définisseur.
+ *
+ * On retire ainsi la `service_role` (god-mode) du chemin public — cf. #225.
+ * La clé anon est de toute façon publique (préfixe NEXT_PUBLIC_), donc aucun
+ * secret supplémentaire n'est exposé. RLS reste active sur les SELECT directs
+ * éventuels via ce client (on n'en fait pas : on passe uniquement par RPC).
+ */
+export function getSupabaseAnonEdgeClient(): SupabaseClient<Database> {
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54321",
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "build-placeholder",
+  );
+}
+
+/**
  * Client admin (service_role key, bypass RLS).
  * Réservé aux Route Handlers admin + scripts serveur.
  * Ne jamais exposer côté client.

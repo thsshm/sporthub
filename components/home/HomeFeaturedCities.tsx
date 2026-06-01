@@ -145,7 +145,7 @@ export async function HomeFeaturedCities() {
                 <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
                 {city.country_code}
               </span>
-              <span className="mt-1 truncate text-base font-semibold group-hover:underline">
+              <span className="mt-1 truncate text-base font-semibold group-hover:underline" title={city.name}>
                 {city.name}
               </span>
               <span className="mt-1 text-xs text-muted-foreground">

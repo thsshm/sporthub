@@ -142,6 +142,9 @@ type Props = {
   onVenuesChange?: (count: number) => void;
   /** Callback pour reporter le zoom courant (overlay empty state intelligent, #125). */
   onZoomChange?: (zoom: number) => void;
+  /** Callback pour reporter le viewport courant (lat/lon/zoom) après chaque
+   * moveend — utilisé par MapWithSearch pour sync l'URL (#251 partage). */
+  onViewportChange?: (lat: number, lon: number, zoom: number) => void;
   /** Callback pour reporter la liste des venues + centre courant — utilisé par
    * VenueListPanel (#123) pour partager la source data sans re-fetch. */
   onVenuesData?: (venues: VenuePin[], center: { lat: number; lon: number }) => void;
@@ -177,6 +180,7 @@ export default function MapClient({
   totalFamilies,
   onVenuesChange,
   onZoomChange,
+  onViewportChange,
   onVenuesData,
   flyTarget,
   presetVenues,
@@ -497,6 +501,7 @@ export default function MapClient({
     const c = map.getCenter();
     setCenter({ lat: c.lat, lon: c.lng });
     saveViewport({ lat: c.lat, lon: c.lng, zoom: newZoom });
+    onViewportChange?.(c.lat, c.lng, newZoom);
   };
 
   // Débounce 200ms (#114) sur moveend/zoomend : MapLibre émet l'event en
@@ -745,11 +750,11 @@ export default function MapClient({
             </Marker>
           ))}
 
-        {loading && (
-          <div className="pointer-events-none absolute right-4 top-20 z-10 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
-            {tMap("refreshing")}
-          </div>
-        )}
+      {loading && (
+        <div className="pointer-events-none absolute right-4 top-20 z-10 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
+          {tMap("fetching")}
+        </div>
+      )}
 
         {selected &&
           (() => {
