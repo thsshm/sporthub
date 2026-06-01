@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- SportHub V2 — Migration 0015 : RPC publiques en SECURITY DEFINER (#225)
+-- SportHub V2 — Migration 0018 : RPC publiques en SECURITY DEFINER (#225)
 -- ════════════════════════════════════════════════════════════════════════
 -- Contexte sécu :
 --   Les routes publiques /api/venues (modes 'pois' + 'aggregates') et
