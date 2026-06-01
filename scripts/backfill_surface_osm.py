@@ -177,23 +177,40 @@ def run_backfill(args: argparse.Namespace) -> int:
         print("❌ Définir NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (.env.local)", file=sys.stderr)
         return 1
     sb = create_client(url, key)
+    # Timeout PostgREST large : on pagine ~370k venues (plusieurs centaines de
+    # requêtes), une page peut être lente sous charge → 120s évite les
+    # ReadTimeout (défaut httpx court). Cf. backfill_courts_count.py (#274).
+    try:
+        sb.postgrest.session.timeout = 120
+    except Exception:
+        pass
 
     print(f"▶ Backfill venue_sport.surface depuis enrichments "
           f"({'DRY-RUN' if args.dry_run else 'LIVE'}{', FORCE' if args.force else ''})")
 
-    page, page_size = 0, 1000
-    seen = updated = no_surface = already = 0
+    # KEYSET pagination (WHERE id > dernier_id) plutôt qu'OFFSET : sur ~370k
+    # venues, un OFFSET élevé fait scanner+jeter N lignes par page → statement
+    # timeout Postgres (57014) en milieu de table. Le keyset reste O(page_size)
+    # quel que soit l'avancement (index PK sur id). On extrait la surface au vol
+    # et on n'accumule que les venue_id (les enrichments ne tiennent pas tous en
+    # RAM). Cf. backfill_courts_count.py (#274).
+    page_size = 1000
+    last_id = ""
+    seen = no_surface = 0
     dist: dict[str, int] = {}
+    by_surface: dict[str, list[str]] = {}
 
     while True:
-        rows = (
+        q = (
             sb.table("venue")
             .select("id, enrichments")
             .is_("deleted_at", "null")
-            .range(page * page_size, page * page_size + page_size - 1)
-            .execute()
-            .data
+            .order("id")
+            .limit(page_size)
         )
+        if last_id:
+            q = q.gt("id", last_id)
+        rows = q.execute().data or []
         if not rows:
             break
         for v in rows:
@@ -203,30 +220,37 @@ def run_backfill(args: argparse.Namespace) -> int:
                 no_surface += 1
                 continue
             dist[surface] = dist.get(surface, 0) + 1
-            if args.dry_run:
-                continue
-            # Cible : les venue_sport de ce venue, surface NULL (sauf --force).
-            q = sb.table("venue_sport").update({"surface": surface}).eq("venue_id", v["id"])
-            if not args.force:
-                q = q.is_("surface", "null")
-            res = q.execute()
-            n = len(res.data or [])
-            if n:
-                updated += n
-            else:
-                already += 1
+            by_surface.setdefault(surface, []).append(v["id"])
+        last_id = rows[-1]["id"]
+        if seen % 20000 < page_size:
+            print(f"    … {seen:,} venues scannées", flush=True)
         if args.limit and seen >= args.limit:
             break
-        page += 1
 
     print(f"\n  Venues scannés     : {seen:,}")
     print(f"  Avec surface OSM   : {sum(dist.values()):,}  {dict(sorted(dist.items()))}")
     print(f"  Sans surface       : {no_surface:,}")
+
     if args.dry_run:
         pct = 100 * sum(dist.values()) / seen if seen else 0
         print(f"\n  🔎 DRY-RUN — {pct:.1f}% des venues ont une surface mappable. Rien écrit.")
-    else:
-        print(f"  venue_sport mis à jour : {updated:,}  (déjà remplis/none : {already:,})")
+        print("✅ Terminé.")
+        return 0
+
+    # Écriture par LOTS : un UPDATE par (surface, chunk de 200 venue_id) au lieu
+    # d'un par venue → quelques centaines de requêtes au total, bien sous la
+    # limite de ~20 000 streams d'une connexion HTTP/2 (au-delà PostgREST coupe :
+    # httpx.RemoteProtocolError). Idempotent : ne touche que surface NULL.
+    updated = 0
+    for surface, ids in by_surface.items():
+        for i in range(0, len(ids), 200):
+            chunk = ids[i:i + 200]
+            q = sb.table("venue_sport").update({"surface": surface}).in_("venue_id", chunk)
+            if not args.force:
+                q = q.is_("surface", "null")
+            res = q.execute()
+            updated += len(res.data or [])
+    print(f"  venue_sport mis à jour : {updated:,}")
     print("✅ Terminé.")
     return 0
 
