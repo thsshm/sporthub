@@ -18,6 +18,8 @@ import { Search, Star } from "lucide-react";
 import type { VenuePin, ClubPin } from "@/lib/supabase/types";
 import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
 import ClubMarker from "@/components/map/ClubMarker";
+import VenueTilesLayer from "./VenueTilesLayer";
+import { publicEnv } from "@/lib/env";
 import { saveViewport } from "@/lib/map-storage";
 import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
 import { VenuePopupEnrichments } from "@/components/map/VenuePopupEnrichments";
@@ -205,6 +207,11 @@ export default function MapClient({
 }: Props) {
   const tMap = useTranslations("map");
   const mapRef = useRef<MapRef | null>(null);
+  // Vector tiles (#226) : quand NEXT_PUBLIC_TILES_URL est défini, on rend les
+  // venues via tuiles PMTiles (coût O(1)) au lieu de fetch /api/venues +
+  // Supercluster. Inactif sur les pages presetVenues (sport) qui passent leurs
+  // propres venues. Flag absent → comportement carte inchangé.
+  const useTiles = Boolean(publicEnv.tilesUrl) && !presetVenues;
   const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(
     () => initialVenues ?? [],
   );
@@ -285,7 +292,9 @@ export default function MapClient({
   // Fetch clubs debounced quand isClubMode est actif et bbox/filtres changent.
   // Quand isClubMode passe à false, on vide les clubs (pas de pins orphelins).
   useEffect(() => {
-    if (!isClubMode || !bounds || presetVenues) {
+    // En mode tuiles vectorielles (#226), pas de fetch clubs : le rendu vient
+    // des tuiles. On vide pour ne pas laisser de pins clubs orphelins.
+    if (!isClubMode || !bounds || presetVenues || useTiles) {
       setClubs([]);
       return;
     }
@@ -324,7 +333,7 @@ export default function MapClient({
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, [isClubMode, bounds, selectedFamilies, totalFamilies, presetVenues]);
+  }, [isClubMode, bounds, selectedFamilies, totalFamilies, presetVenues, useTiles]);
 
   // Clés normalisées pour comparer "ce qui changerait le résultat".
   // On les sépare pour distinguer "filtres ont changé" vs "uniquement bbox".
@@ -373,6 +382,9 @@ export default function MapClient({
       onVenuesChange?.(presetVenues.length);
       return;
     }
+    // Mode tuiles vectorielles (#226) : le rendu vient des tuiles, pas de
+    // bbox-aware fetch /api/venues. /api/venues reste pour la liste + recherche.
+    if (useTiles) return;
     if (!bounds) return;
     const currentKey = `${boundsKey}|${filtersKey}|z${zoomBucket}`;
     if (currentKey === lastFetchedKeyRef.current) return;
@@ -458,6 +470,7 @@ export default function MapClient({
     selectedSurfaces,
     autoUpdate,
     forceFetchToken,
+    useTiles,
   ]);
 
   // Bouton "Rechercher dans cette zone" visible quand autoUpdate=false ET
@@ -590,9 +603,20 @@ export default function MapClient({
     >
       <NavigationControl position="top-right" />
 
+      {/* Vector tiles (#226) — quand NEXT_PUBLIC_TILES_URL est défini, le rendu
+          des venues vient des tuiles PMTiles (coût O(1)), et les blocs markers
+          ci-dessous sont court-circuités via !useTiles. */}
+      {useTiles && (
+        <VenueTilesLayer
+          url={publicEnv.tilesUrl}
+          selectedFamilies={selectedFamilies}
+          totalFamilies={totalFamilies}
+        />
+      )}
+
       {/* Mode agrégats (#114) — bulles de densité (zoom < 10). Fade-out
           coordonné avec le mode POI au swap 9↔10 via opacity CSS. */}
-      {!emptyFilter && !presetVenues &&
+      {!useTiles && !emptyFilter && !presetVenues &&
         aggregates.map((cell) => {
           const size = Math.max(28, Math.min(72, 18 + Math.log2(cell.count + 1) * 7));
           const handleClick = (e: { originalEvent: { stopPropagation: () => void } }) => {
@@ -651,7 +675,7 @@ export default function MapClient({
       {/* Mode POI individuels (zoom ≥ 10, ou presetVenues, ou rétro-compat).
           Fade-in coordonné avec les agrégats au swap zoom 9↔10.
           Masqués en mode clubs pour éviter le double affichage. */}
-      {!emptyFilter && !isClubMode &&
+      {!useTiles && !emptyFilter && !isClubMode &&
         clusters.map((feature) => {
           const [lon, lat] = feature.geometry.coordinates;
           // Fade quand on quitte le mode POI (ex: dézoom 10→9). En presetVenues
@@ -746,7 +770,7 @@ export default function MapClient({
           Click → zoom +3 pour révéler les pois individuels.
           Note : ClubMarker appelle e.stopPropagation() → le onClick du Marker
           react-map-gl ne se déclenche pas. On passe uniquement onClick à ClubMarker. */}
-      {isClubMode && !emptyFilter &&
+      {!useTiles && isClubMode && !emptyFilter &&
         clubs.map((club) => (
           <Marker
             key={`club-${club.id}`}

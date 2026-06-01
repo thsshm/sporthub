@@ -31,6 +31,9 @@ export const publicEnv = {
   supabaseUrl: requireEnv("NEXT_PUBLIC_SUPABASE_URL"),
   supabaseAnonKey: requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
   maptilerKey: optionalEnv("NEXT_PUBLIC_MAPTILER_KEY"),
+  // Vector tiles (#226). URL publique du .pmtiles (Supabase Storage/CDN).
+  // Vide → rendu carte classique (/api/venues). Renseigné → rendu pmtiles://.
+  tilesUrl: optionalEnv("NEXT_PUBLIC_TILES_URL"),
   posthogKey: optionalEnv("NEXT_PUBLIC_POSTHOG_KEY"),
   posthogHost: optionalEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com"),
   sentryDsn: optionalEnv("NEXT_PUBLIC_SENTRY_DSN"),
