@@ -521,6 +521,7 @@
     "installTitle": "Install SportHub",
     "installText": "Quick access to the map from your home screen, even offline.",
     "installCta": "Install",
-    "installLater": "Later"
+    "installLater": "Later",
+    "offline": "Offline mode — cached data"
   }
 }

@@ -46,3 +46,8 @@ coverage
 supabase/.branches
 supabase/.temp
 .claude
+
+# Service worker généré par Serwist au build (#249) — artefact, jamais commité
+/public/sw.js
+/public/sw.js.map
+/public/swe-worker-*.js

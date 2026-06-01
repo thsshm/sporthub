@@ -23,5 +23,6 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "//": "app/sw.ts est compilé par Serwist (env WebWorker), pas par le tsc principal (env DOM) — l'exclure évite d'ajouter la lib `webworker` globalement (qui polluerait les types DOM du reste du code). Cf. #249.",
+  "exclude": ["node_modules", "app/sw.ts"]
 }

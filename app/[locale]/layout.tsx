@@ -6,6 +6,8 @@ import { Nav } from "@/components/layout/Nav";
 import { Footer } from "@/components/layout/Footer";
 import { FavoritesSyncOnLogin } from "@/components/FavoritesSyncOnLogin";
 import { InstallPwaButton } from "@/components/InstallPwaButton";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { routing, type Locale } from "@/i18n/routing";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
@@ -79,9 +81,13 @@ export default async function LocaleLayout({
     <html lang={locale}>
       <body className="flex min-h-screen flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>
+          {/* Enregistre le service worker offline (#249, prod only). */}
+          <RegisterServiceWorker />
           {/* Provider analytics PostHog. No-op total sans
               NEXT_PUBLIC_POSTHOG_KEY (pass-through). Issue #96. */}
           <PostHogProvider>
+            {/* Bandeau hors-ligne (#249) — au-dessus de la nav. */}
+            <OfflineBanner />
             <Nav />
             <main className="flex-1">{children}</main>
             <Footer />
