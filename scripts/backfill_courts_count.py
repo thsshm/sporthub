@@ -16,7 +16,10 @@ On groupe PAR FAMILLE (family_slug) en plus de l'adresse : un complexe multispor
 à une adresse unique ne doit pas compter ses terrains de foot comme des courts
 de tennis. La granularité « courts » est par discipline/famille.
 
-Idempotent : relançable (upsert ON CONFLICT id). Dry-run par défaut.
+Dry-run par défaut (analyse + distribution). L'ÉCRITURE réelle se fait via la
+migration SQL 0020_backfill_courts_count.sql (UPDATE de masse côté serveur) —
+268k updates via l'API REST timeout en boucle. --apply ne fait donc qu'orienter
+vers la migration.
 
 Usage :
     pip install supabase python-dotenv          # ou via le venv du projet
@@ -175,14 +178,17 @@ def run(args: argparse.Namespace) -> int:
         print("\n  ✅ DRY-RUN terminé (aucune écriture). Relancer avec --apply.")
         return 0
 
-    # APPLY : upsert par lots de 500 (id + courts_count seulement).
-    print(f"\n  🚀 Écriture de {len(changes):,} courts_count…")
-    updated = 0
-    for batch in chunked(list(changes.items()), 500):
-        rows = [{"id": vid, "courts_count": n} for vid, n in batch]
-        sb.table("venue").upsert(rows, on_conflict="id").execute()
-        updated += len(rows)
-    print(f"  ✅ {updated:,} venues mises à jour.")
+    # APPLY désactivé : l'écriture de masse (~268k lignes) via l'API REST
+    # PostgREST timeout en boucle (statement_timeout), et upsert({id,courts_count})
+    # viole la contrainte NOT NULL sur slug (PostgREST le traite en INSERT).
+    # → Le backfill réel se fait en SQL côté serveur via la migration
+    #   supabase/migrations/0020_backfill_courts_count.sql (UPDATE … FROM … en
+    #   une passe). Ce script reste utile pour le DRY-RUN (analyse + distribution).
+    print(
+        "\n  ⚠ --apply désactivé : l'écriture de masse passe par la migration SQL.\n"
+        "    Appliquer : ./scripts/db-push.sh (0020_backfill_courts_count.sql).\n"
+        f"    (dry-run ci-dessus : {len(changes):,} courts_count à dériver.)"
+    )
     return 0
 
 
