@@ -255,24 +255,41 @@ def _is_valid_sport(slug: str | None) -> bool:
     return bool(slug) and slug in _VALID_SPORTS
 
 
-def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: int | None):
-    """Itère sur la table spots (granularité fine : 1 spot = 1 venue, ~522k au max)."""
-    sql = """
+def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: int | None,
+                            family: str | None = None):
+    """Itère sur la table spots (granularité fine : 1 spot = 1 venue, ~522k au max).
+
+    `family` : si fourni, restreint à cette `sport_family` ET relâche l'exigence
+    de pays ISO-2. Les datasets non-OSM (glisse/kite, etc.) ont un `country` en
+    texte libre ("Pologne", "Californie…, USA") ou nul ; le filtre
+    `LENGTH(country)=2` les jetait silencieusement (569 glisse en V1 → 4 importés).
+    En mode ciblé, `country_code` et `city_id` retombent proprement sur NULL
+    (cf. insert plus bas — `country_code` est nullable, FK ON DELETE SET NULL),
+    donc l'import reste sûr. L'import complet (family=None) garde l'exigence ISO-2.
+    """
+    where = [
+        "s.lat IS NOT NULL AND s.lon IS NOT NULL",
+        "s.name IS NOT NULL AND s.name != ''",
+        "s.sport_family IS NOT NULL",
+    ]
+    params: list = []
+    if family:
+        where.append("s.sport_family = ?")
+        params.append(family)
+    else:
+        where.append("LENGTH(s.country) = 2")  # ISO 3166-1 alpha-2 → linkage city_id
+    sql = f"""
         SELECT s.id, s.public_id, s.sport_family, s.sport_type, s.sports,
                s.name, s.lat, s.lon, s.surface, s.access, s.operator,
                s.courts_count, s.lit, s.covered, s.wheelchair, s.fee,
                s.description, s.website, s.phone, s.email,
                s.address, s.city, s.country, s.postal_code, s.google_place_id
         FROM spots s
-        WHERE s.lat IS NOT NULL AND s.lon IS NOT NULL
-          AND s.name IS NOT NULL AND s.name != ''
-          AND s.sport_family IS NOT NULL
-          AND LENGTH(s.country) = 2   -- ISO 3166-1 alpha-2 obligatoire pour pouvoir
-                                       -- linker city_id (build_cities filtre déjà sur len=2)
+        WHERE {' AND '.join(where)}
     """
     if limit:
-        sql += f" LIMIT {limit}"
-    for r in conn.execute(sql):
+        sql += f" LIMIT {int(limit)}"
+    for r in conn.execute(sql, params):
         country = (r["country"] or "").upper()
         country_code = country if len(country) == 2 else None
         city_id = city_index.get((country, slugify(r["city"] or ""))) if country else None
@@ -324,16 +341,19 @@ def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: i
         yield venue, sports, features
 
 
-def import_venues(conn: sqlite3.Connection, city_index: dict, mode: str, limit: int | None):
+def import_venues(conn: sqlite3.Connection, city_index: dict, mode: str, limit: int | None,
+                  family: str | None = None):
     """Insère les venues + venue_sport + venue_amenity."""
-    print(f"\n🏟  Import venues (mode={mode}, limit={limit or 'all'})")
+    print(f"\n🏟  Import venues (mode={mode}, limit={limit or 'all'}, family={family or 'all'})")
     if mode == "clubs-only":
+        if family:
+            print("  ⚠ --family ignoré en mode clubs-only (la table clubs n'a pas de filtre famille ciblé ici)")
         yielder = yield_venues_from_clubs(conn, city_index, limit)
     elif mode == "spots-only":
-        yielder = yield_venues_from_spots(conn, city_index, limit)
+        yielder = yield_venues_from_spots(conn, city_index, limit, family)
     else:
         print(f"  ⚠ mode '{mode}' pas encore implémenté — fallback spots-only")
-        yielder = yield_venues_from_spots(conn, city_index, limit)
+        yielder = yield_venues_from_spots(conn, city_index, limit, family)
 
     # Cache slug → id pour pouvoir lier venue_sport
     venue_ids_by_extid = {}
@@ -403,6 +423,10 @@ def main() -> int:
                         choices=["clubs-only", "spots-only", "mixed"])
     parser.add_argument("--limit", type=int, default=None,
                         help="Limite nb venues (utile pour tests)")
+    parser.add_argument("--family", default=None,
+                        help="Ré-import ciblé d'une seule sport_family (ex: glisse). "
+                             "Relâche le filtre pays ISO-2 — récupère les datasets "
+                             "non-OSM (country texte libre/nul) perdus par l'import complet.")
     args = parser.parse_args()
 
     db_path = Path(V1_DB).expanduser().resolve()
@@ -423,7 +447,7 @@ def main() -> int:
 
     # Step 3: venues + venue_sport + venue_amenity
     print("\n🏟  Étape 3/3 : venues + sports + amenities")
-    import_venues(conn, city_index, args.mode, args.limit)
+    import_venues(conn, city_index, args.mode, args.limit, args.family)
 
     print("\n🎉 Import terminé. Vérifie dans Supabase Studio.")
     print("   Prochaine étape : appliquer migration 0003_postgis.sql")
