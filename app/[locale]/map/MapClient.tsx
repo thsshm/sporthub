@@ -16,6 +16,7 @@ import Supercluster from "supercluster";
 import type { ClusterFeature, PointFeature } from "supercluster";
 import { Search, Star } from "lucide-react";
 import type { VenuePin, ClubPin } from "@/lib/supabase/types";
+import type { FacetCounts } from "@/lib/facets";
 import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
 import ClubMarker from "@/components/map/ClubMarker";
 import { saveViewport } from "@/lib/map-storage";
@@ -161,6 +162,10 @@ type Props = {
   /** Callback pour reporter la liste des venues + centre courant — utilisé par
    * VenueListPanel (#123) pour partager la source data sans re-fetch. */
   onVenuesData?: (venues: VenuePin[], center: { lat: number; lon: number }) => void;
+  /** Callback pour reporter les compteurs à facettes du viewport — alimente les
+   * compteurs par filtre du panneau gauche (#279). null = pas de données
+   * (mode agrégats / erreur). */
+  onFacetsChange?: (facets: FacetCounts | null) => void;
   /** Quand set, MapClient appelle map.flyTo() à chaque changement de token. */
   flyTarget?: FlyTarget | null;
   /** Mode "venues fixes" : si fourni, MapClient utilise ces venues directement
@@ -195,6 +200,7 @@ export default function MapClient({
   onZoomChange,
   onViewportChange,
   onVenuesData,
+  onFacetsChange,
   flyTarget,
   presetVenues,
   selectedSport,
@@ -458,6 +464,66 @@ export default function MapClient({
     selectedSurfaces,
     autoUpdate,
     forceFetchToken,
+  ]);
+
+  // Fetch des compteurs à facettes (#279) — effect séparé du fetch venues pour
+  // ne pas alourdir ce dernier. Même clé bbox+filtres, debounce identique.
+  // Actif uniquement en mode POI (zoom ≥ seuil) : à bas zoom les facettes
+  // seraient énormes et le panneau de filtres n'est pas le focus. Skip aussi
+  // en presetVenues (pages /sports sans panneau filtres). Respecte autoUpdate
+  // comme le fetch venues.
+  const lastFetchedFacetsKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (presetVenues || !onFacetsChange) return;
+    if (!bounds || isAggregateMode) {
+      if (isAggregateMode) onFacetsChange(null);
+      return;
+    }
+    if (!autoUpdate) return;
+    const currentKey = `facets|${boundsKey}|${filtersKey}`;
+    if (currentKey === lastFetchedFacetsKeyRef.current) return;
+    const handle = setTimeout(async () => {
+      const params = new URLSearchParams({ bbox: bounds.join(",") });
+      if (
+        selectedFamilies &&
+        totalFamilies &&
+        selectedFamilies.size > 0 &&
+        selectedFamilies.size < totalFamilies
+      ) {
+        params.set("families", Array.from(selectedFamilies).join(","));
+      }
+      if (selectedCriteria && selectedCriteria.size > 0) {
+        params.set("feat", Array.from(selectedCriteria).join(","));
+      }
+      if (selectedSurfaces && selectedSurfaces.size > 0) {
+        params.set("surface", Array.from(selectedSurfaces).join(","));
+      }
+      try {
+        const res = await fetch(`/api/venues/facets?${params}`);
+        if (!res.ok) {
+          onFacetsChange(null);
+          return;
+        }
+        const data = (await res.json()) as FacetCounts;
+        onFacetsChange(data);
+        lastFetchedFacetsKeyRef.current = currentKey;
+      } catch {
+        onFacetsChange(null);
+      }
+    }, 50);
+    return () => clearTimeout(handle);
+  }, [
+    boundsKey,
+    filtersKey,
+    bounds,
+    isAggregateMode,
+    selectedFamilies,
+    totalFamilies,
+    selectedCriteria,
+    selectedSurfaces,
+    autoUpdate,
+    presetVenues,
+    onFacetsChange,
   ]);
 
   // Bouton "Rechercher dans cette zone" visible quand autoUpdate=false ET
