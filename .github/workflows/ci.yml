@@ -53,3 +53,6 @@ jobs:
 
       - name: Unit tests (Vitest)
         run: pnpm test
+
+      - name: Python scripts self-test
+        run: python3 scripts/backfill_courts_count.py --self-test
