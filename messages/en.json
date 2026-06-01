@@ -477,5 +477,31 @@
     "description": "The page you’re looking for doesn’t exist or has been moved.",
     "backToHome": "Back to home",
     "goToMap": "Open the map"
+  },
+  "cities": {
+    "metaTitle": "Cities to explore",
+    "metaDescription": "Find where to play your sport in major cities — {count} cities indexed on Sport Hub.",
+    "title": "Explore by city",
+    "subtitle": "The cities with the most indexed sport spots. Click to open the map filtered on the city.",
+    "venuesCount": "{count, plural, =0 {no spot} one {1 spot} other {{count} spots}}",
+    "notListedTitle": "Your city isn't listed?",
+    "notListedCta": "Explore the world map",
+    "breadcrumbHome": "Home",
+    "breadcrumbCities": "Cities"
+  },
+  "villes": {
+    "metaTitle": "Sports cities — SportHub",
+    "metaDescription": "Explore the best cities for sport: tennis, padel, yoga, gym and more. Find spots near you.",
+    "breadcrumb": "Cities",
+    "hero": "Explore sports cities",
+    "heroSub": "Choose your city and discover sport spots around you: tennis, padel, yoga, gym, climbing and much more.",
+    "topCitiesTitle": "Cities with the most spots",
+    "topCitiesDesc": "Ranked by number of published spots — click to explore the map.",
+    "spotsCount": "{count} spots",
+    "bySportTitle": "By sport and city",
+    "bySportDesc": "Direct sport × city navigation to find where to play.",
+    "noCities": "No cities available yet.",
+    "ctaText": "Your city is not listed? Explore the world map.",
+    "ctaMap": "Explore the map"
   }
 }

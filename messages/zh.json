@@ -477,5 +477,31 @@
     "description": "您查找的页面不存在或已被移动。",
     "backToHome": "返回首页",
     "goToMap": "打开地图"
+  },
+  "cities": {
+    "metaTitle": "探索城市",
+    "metaDescription": "在各大城市寻找运动场所 — Sport Hub 已收录 {count} 个城市。",
+    "title": "按城市探索",
+    "subtitle": "收录运动场所最多的城市。点击打开按城市筛选的地图。",
+    "venuesCount": "{count, plural, =0 {无场所} other {{count} 个场所}}",
+    "notListedTitle": "没有你的城市?",
+    "notListedCta": "探索世界地图",
+    "breadcrumbHome": "首页",
+    "breadcrumbCities": "城市"
+  },
+  "villes": {
+    "metaTitle": "体育城市 — SportHub",
+    "metaDescription": "探索最佳运动城市：网球、帕德尔、瑜伽、健身房等。在您附近找到运动场所。",
+    "breadcrumb": "城市",
+    "hero": "探索体育城市",
+    "heroSub": "选择您的城市，发现周围的运动场所：网球、帕德尔、瑜伽、健身房、攀岩等。",
+    "topCitiesTitle": "场所最多的城市",
+    "topCitiesDesc": "按已发布场所数量排名 — 点击探索地图。",
+    "spotsCount": "{count} 个场所",
+    "bySportTitle": "按运动和城市",
+    "bySportDesc": "直接按运动×城市导航，找到练习的地方。",
+    "noCities": "暂无城市数据。",
+    "ctaText": "您的城市没有列出？探索世界地图。",
+    "ctaMap": "探索地图"
   }
 }
