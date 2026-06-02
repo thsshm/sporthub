@@ -534,6 +534,12 @@
       "listLabel": "Liste des retraites & camps",
       "stagesPlaceholder": "Stages à venir — bientôt disponible",
       "stagesSoon": "Dates, tarifs et disponibilités des prochains stages seront affichés ici.",
+      "stagesTitle": "Stages à venir",
+      "stagesNone": "Aucun stage programmé pour le moment",
+      "from": "À partir de",
+      "book": "Réserver",
+      "lodging": "Hébergement inclus",
+      "meals": "Repas inclus",
       "filterLabel": "Filtrer par type de retraite",
       "filterAll": "Toutes",
       "types": {
