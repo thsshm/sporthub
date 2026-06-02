@@ -1,5 +1,5 @@
 /**
- * Données statiques des 13 familles SportHub.
+ * Données statiques des 14 familles SportHub.
  * Source de vérité pour l'UI — évite de dépendre de Supabase pour le rendu initial.
  * Doit rester en sync avec la table `sport` seedée dans 0001_initial_schema.sql.
  *
@@ -108,6 +108,16 @@ export const FAMILIES: Family[] = [
     sports: ["trail", "long_trail", "trailrun", "running", "cycling", "mtb"],
   },
   {
+    // Famille ajoutée au palier 2 de #312 : l'escalade/bloc (627 spots V1 sous
+    // 'autre') n'avait pas de famille dédiée et tombait dans 'plus'.
+    slug: "escalade",
+    name_fr: "Escalade",
+    name_en: "Climbing",
+    emoji: "🧗",
+    color: "#ea580c",
+    sports: ["climbing_indoor"],
+  },
+  {
     slug: "retraites",
     name_fr: "Retraites & camps",
     name_en: "Retreats & camps",
@@ -121,7 +131,7 @@ export const FAMILIES: Family[] = [
     name_en: "More sports",
     emoji: "⛳",
     color: "#6b7280",
-    sports: ["golf", "equestrian", "climbing_indoor", "archery", "paragliding"],
+    sports: ["golf", "equestrian", "archery", "paragliding"],
   },
 ];
 

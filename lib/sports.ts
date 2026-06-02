@@ -72,11 +72,12 @@ export const SPORTS: SportDef[] = [
   { slug: "running", name_fr: "Course", name_en: "Running", family_slug: "hike", emoji: "👟", color: "#16a34a", position: 4 },
   { slug: "cycling", name_fr: "Vélo", name_en: "Cycling", family_slug: "hike", emoji: "🚴", color: "#16a34a", position: 5 },
   { slug: "mtb", name_fr: "VTT", name_en: "MTB", family_slug: "hike", emoji: "🚵", color: "#16a34a", position: 6 },
+  // Escalade (famille ajoutée palier 2 #312 ; climbing_indoor déplacé depuis 'plus')
+  { slug: "climbing_indoor", name_fr: "Escalade", name_en: "Climbing", family_slug: "escalade", emoji: "🧗", color: "#ea580c", position: 1 },
   // Plus
   { slug: "golf", name_fr: "Golf", name_en: "Golf", family_slug: "plus", emoji: "⛳", color: "#6b7280", position: 1 },
   { slug: "equestrian", name_fr: "Équitation", name_en: "Equestrian", family_slug: "plus", emoji: "🐎", color: "#6b7280", position: 2 },
-  { slug: "climbing_indoor", name_fr: "Escalade", name_en: "Climbing", family_slug: "plus", emoji: "🧗", color: "#6b7280", position: 3 },
-  { slug: "archery", name_fr: "Tir à l'arc", name_en: "Archery", family_slug: "plus", emoji: "🏹", color: "#6b7280", position: 4 },
+  { slug: "archery", name_fr: "Tir à l'arc", name_en: "Archery", family_slug: "plus", emoji: "🏹", color: "#6b7280", position: 3 },
   { slug: "paragliding", name_fr: "Parapente", name_en: "Paragliding", family_slug: "plus", emoji: "🪂", color: "#6b7280", position: 5 },
   // Retraites
   { slug: "yoga_retreat", name_fr: "Retraite yoga", name_en: "Yoga retreat", family_slug: "retraites", emoji: "🧘", color: "#be185d", position: 1 },
