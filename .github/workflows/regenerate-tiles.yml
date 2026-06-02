@@ -1,0 +1,90 @@
+name: Regenerate venue tiles
+
+# Pipeline de régénération des tuiles vectorielles PMTiles (#226, dernière tâche).
+#
+# Pourquoi GitHub Actions et pas un cron Vercel : la génération passe par
+# tippecanoe (binaire C++) qui ne peut pas tourner dans une fonction serverless
+# Vercel. Un runner GitHub peut le builder et exécuter un job lourd (export DB →
+# GeoJSONL → tippecanoe → upload Storage).
+#
+# Déclenchement :
+#   - nightly (cron 04:00 UTC) — la donnée bouge peu, 1×/jour suffit
+#   - manuel (workflow_dispatch) — pour régénérer à la demande après un import
+#
+# Secrets requis (Repo → Settings → Secrets and variables → Actions) :
+#   SUPABASE_URL                 (ou NEXT_PUBLIC_SUPABASE_URL)
+#   SUPABASE_SERVICE_ROLE_KEY    (lecture venues + upload Storage)
+#
+# Sortie : venues.pmtiles régénéré et uploadé (upsert) dans le bucket public
+# 'tiles'. L'URL publique est stable → NEXT_PUBLIC_TILES_URL n'a pas à changer,
+# le CDN sert la nouvelle version au prochain cache-miss.
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # tous les jours à 04:00 UTC
+  workflow_dispatch: {} # bouton "Run workflow" manuel
+
+# Une seule régénération à la fois (évite deux uploads concurrents du même objet).
+concurrency:
+  group: regenerate-tiles
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache tippecanoe build
+        id: cache-tippecanoe
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/tippecanoe
+          # tippecanoe évolue peu ; on épingle le tag pour un cache stable.
+          key: tippecanoe-2.79.0-${{ runner.os }}
+
+      - name: Build tippecanoe (si pas en cache)
+        if: steps.cache-tippecanoe.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libsqlite3-dev zlib1g-dev
+          git clone --depth 1 --branch 2.79.0 https://github.com/felt/tippecanoe.git /tmp/tippecanoe
+          make -C /tmp/tippecanoe -j"$(nproc)"
+          sudo make -C /tmp/tippecanoe install
+          tippecanoe --version
+
+      - name: Install Python deps
+        run: pip install --quiet supabase python-dotenv
+
+      - name: Generate venues.pmtiles (Postgres → GeoJSONL → tippecanoe)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/generate_venue_tiles.py
+
+      - name: Upload venues.pmtiles → Supabase Storage (bucket 'tiles', upsert)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/upload_venue_tiles.py
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Régénération des tuiles PMTiles"
+            if [ -f venues.pmtiles ]; then
+              echo "- ✅ \`venues.pmtiles\` généré ($(du -h venues.pmtiles | cut -f1))"
+            else
+              echo "- ❌ \`venues.pmtiles\` absent — étape génération échouée"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
