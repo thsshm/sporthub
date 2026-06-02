@@ -533,7 +533,16 @@
       "mapLabel": "静修与营地地图",
       "listLabel": "静修与营地列表",
       "stagesPlaceholder": "即将推出的营期",
-      "stagesSoon": "即将显示最新营期的日期、价格和报名信息。"
+      "stagesSoon": "即将显示最新营期的日期、价格和报名信息。",
+      "filterLabel": "按类型筛选",
+      "filterAll": "全部",
+      "types": {
+        "yoga_retreat": "瑜伽营",
+        "surf_camp": "冲浪营",
+        "wellness_retreat": "养生",
+        "fitness_bootcamp": "健身训练营",
+        "tennis_camp": "网球营"
+      }
     }
   }
 }

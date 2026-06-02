@@ -61,30 +61,45 @@ type VenueRow = {
   address: string | null;
   courts_count: number | null;
   country_code: string | null;
+  retreat_type: string | null;
   city?: { name?: string; country_code?: string } | null;
   venue_sport?: { sport_slug: string }[];
 };
 
-async function fetchRetraites(page: number) {
+/** Types de retraite (cf. migration 0022). Sert aux chips de filtre. */
+const RETREAT_TYPES = [
+  "yoga_retreat",
+  "surf_camp",
+  "wellness_retreat",
+  "fitness_bootcamp",
+  "tennis_camp",
+] as const;
+
+async function fetchRetraites(page: number, type: string | null) {
   const sb = getSupabaseServerClient();
   const offset = (page - 1) * PAGE_SIZE;
 
-  const { data, error, count } = await sb
+  let query = sb
     .from("venue")
     .select(
       `
       id, slug, name, lat, lon, family_slug, primary_sport_slug, address,
-      courts_count, country_code,
+      courts_count, country_code, retreat_type,
       city:city_id ( name, country_code ),
       venue_sport ( sport_slug )
     `,
-      { count: "estimated" },
+      { count: "estimated" }
     )
     .eq("is_published", true)
     .is("deleted_at", null)
-    .not("retreat_type", "is", null)
-    .order("id")
-    .range(offset, offset + PAGE_SIZE - 1);
+    .not("retreat_type", "is", null);
+
+  // Filtre optionnel par type de retraite (chips). Validé contre la liste connue.
+  if (type && (RETREAT_TYPES as readonly string[]).includes(type)) {
+    query = query.eq("retreat_type", type);
+  }
+
+  const { data, error, count } = await query.order("id").range(offset, offset + PAGE_SIZE - 1);
 
   if (error) throw error;
   return { venues: (data ?? []) as VenueRow[], total: count ?? 0 };
@@ -94,7 +109,7 @@ async function fetchRetraites(page: number) {
 
 type Props = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; type?: string }>;
 };
 
 export default async function FamilleRetraitesPage({ params, searchParams }: Props) {
@@ -103,12 +118,16 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
 
   const sp = await searchParams;
   const page = Math.max(1, parseInt(sp.page ?? "1", 10));
+  const activeType =
+    sp.type && (RETREAT_TYPES as readonly string[]).includes(sp.type) ? sp.type : null;
+  // Suffixe query-string pour préserver le filtre type dans la pagination.
+  const typeQS = activeType ? `&type=${activeType}` : "";
 
   const t = await getTranslations("famille");
   const tSport = await getTranslations("sport");
   const family = FAMILIES_BY_SLUG[FAMILY_SLUG];
 
-  const { venues, total } = await fetchRetraites(page);
+  const { venues, total } = await fetchRetraites(page, activeType);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // Venues pour la carte (pin minimal VenuePin)
@@ -132,18 +151,14 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
     venues.map((v) => ({
       name: v.name,
       url: `/venue/${v.slug}`,
-    })),
+    }))
   );
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* JSON-LD */}
-      <div
-        dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumb) }}
-      />
-      <div
-        dangerouslySetInnerHTML={{ __html: jsonLdHtml(itemList) }}
-      />
+      <div dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumb) }} />
+      <div dangerouslySetInnerHTML={{ __html: jsonLdHtml(itemList) }} />
 
       {/* En-tête */}
       <header className="mb-8">
@@ -156,18 +171,42 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
             {family?.emoji ?? "🌿"}
           </span>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {t("retraites.title")}
-            </h1>
+            <h1 className="text-3xl font-bold tracking-tight">{t("retraites.title")}</h1>
             <p className="mt-1 text-muted-foreground">
               {tSport("venuesIndexed", { count: total })}
             </p>
           </div>
         </div>
-        <p className="mt-4 max-w-2xl text-muted-foreground">
-          {t("retraites.lead")}
-        </p>
+        <p className="mt-4 max-w-2xl text-muted-foreground">{t("retraites.lead")}</p>
       </header>
+
+      {/* Chips de filtre par type de retraite (#266). Lien serveur ?type= —
+          fonctionne sans JS, conserve le SEO. "Tous" = pas de param. */}
+      <nav className="mb-8 flex flex-wrap gap-2" aria-label={t("retraites.filterLabel")}>
+        <Link
+          href="/famille/retraites"
+          className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+            activeType === null
+              ? "border-transparent bg-primary text-primary-foreground"
+              : "hover:bg-accent"
+          }`}
+        >
+          {t("retraites.filterAll")}
+        </Link>
+        {RETREAT_TYPES.map((rt) => (
+          <Link
+            key={rt}
+            href={`/famille/retraites?type=${rt}`}
+            className={`rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+              activeType === rt
+                ? "border-transparent bg-primary text-primary-foreground"
+                : "hover:bg-accent"
+            }`}
+          >
+            {t(`retraites.types.${rt}`)}
+          </Link>
+        ))}
+      </nav>
 
       {/* Carte */}
       {initialVenues.length > 0 && (
@@ -186,9 +225,7 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
 
       {/* Grille venues */}
       {venues.length === 0 ? (
-        <p className="py-12 text-center text-muted-foreground">
-          {tSport("emptyMessage")}
-        </p>
+        <p className="py-12 text-center text-muted-foreground">{tSport("emptyMessage")}</p>
       ) : (
         <section aria-label={t("retraites.listLabel")}>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -211,7 +248,7 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
                       ? (v.city as { name?: string }).name
                       : undefined,
                   sport_slugs: (v.venue_sport ?? []).map(
-                    (vs: { sport_slug: string }) => vs.sport_slug,
+                    (vs: { sport_slug: string }) => vs.sport_slug
                   ),
                 }}
               />
@@ -220,13 +257,10 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <nav
-              className="mt-10 flex items-center justify-center gap-4"
-              aria-label="Pagination"
-            >
+            <nav className="mt-10 flex items-center justify-center gap-4" aria-label="Pagination">
               {page > 1 && (
                 <Link
-                  href={`/famille/retraites?page=${page - 1}`}
+                  href={`/famille/retraites?page=${page - 1}${typeQS}`}
                   className="rounded-md border px-4 py-2 text-sm hover:bg-accent"
                 >
                   {tSport("previous")}
@@ -237,7 +271,7 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
               </span>
               {page < totalPages && (
                 <Link
-                  href={`/famille/retraites?page=${page + 1}`}
+                  href={`/famille/retraites?page=${page + 1}${typeQS}`}
                   className="rounded-md border px-4 py-2 text-sm hover:bg-accent"
                 >
                   {tSport("next")}
