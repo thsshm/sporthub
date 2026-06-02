@@ -385,8 +385,7 @@ export function MapWithSearch({
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
   // Compteurs à facettes par filtre (#279), alimentés par MapClient via
-  // /api/venues/facets. null = pas de données (mode agrégats / erreur) → aucun
-  // compteur affiché dans le panneau.
+  // /api/venues/facets. null = pas de données (mode agrégats / erreur / timeout).
   const [facets, setFacets] = useState<FacetCounts | null>(null);
   const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
   const [geolocError, setGeolocError] = useState<string | null>(null);
@@ -469,6 +468,19 @@ export function MapWithSearch({
     [initialView.restored, initialVenues]
   );
 
+  // Fallback client-side pour les compteurs famille (#279) : quand
+  // /api/venues/facets timeout (facets = null), on calcule depuis venuesSnapshot
+  // (les POI déjà chargés, ≤ 2000). Immédiat, sans requête DB supplémentaire.
+  // Critères + surfaces restent undefined tant que la perf DB n'est pas réglée.
+  const familyCounts = useMemo(() => {
+    if (facets?.family) return facets.family;
+    const counts: Record<string, number> = {};
+    for (const v of venuesSnapshot.venues) {
+      if (v.family_slug) counts[v.family_slug] = (counts[v.family_slug] ?? 0) + 1;
+    }
+    return Object.keys(counts).length > 0 ? counts : undefined;
+  }, [facets, venuesSnapshot.venues]);
+
   // Bouton "Ma position" — demande la géolocalisation navigateur puis flyTo.
   const handleMyLocation = () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -540,7 +552,7 @@ export function MapWithSearch({
         autoUpdate={autoUpdate}
         onAutoUpdateChange={setAutoUpdate}
         onReopenPicker={() => setPickerOpen(true)}
-        familyCounts={facets?.family}
+        familyCounts={familyCounts}
         criteriaCounts={facets?.criteria}
         surfaceCounts={facets?.surface}
         className="absolute left-4 top-4 z-20 hidden max-h-[calc(100%-2rem)] w-56 overflow-auto md:flex"
@@ -591,7 +603,7 @@ export function MapWithSearch({
                   setMobileFiltersOpen(false);
                   setPickerOpen(true);
                 }}
-                familyCounts={facets?.family}
+                familyCounts={familyCounts}
                 criteriaCounts={facets?.criteria}
                 surfaceCounts={facets?.surface}
                 className="border-0 p-0 shadow-none"
