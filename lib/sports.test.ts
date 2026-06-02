@@ -70,9 +70,9 @@ describe("SPORTS_BY_FAMILY", () => {
     ).toBe(true);
   });
 
-  it("couvre les 13 familles", () => {
+  it("couvre les 14 familles", () => {
     const families = Object.keys(SPORTS_BY_FAMILY);
-    expect(families.length).toBe(13);
+    expect(families.length).toBe(14);
   });
 });
 

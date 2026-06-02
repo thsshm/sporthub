@@ -7,8 +7,8 @@ import {
 } from "@/lib/families";
 
 describe("FAMILIES — invariants sur le référentiel", () => {
-  it("contient exactement 13 familles (cf. CLAUDE.md)", () => {
-    expect(FAMILIES).toHaveLength(13);
+  it("contient exactement 14 familles (13 V1 + escalade, cf. CLAUDE.md)", () => {
+    expect(FAMILIES).toHaveLength(14);
   });
 
   it("a tous les slugs uniques", () => {
@@ -16,7 +16,7 @@ describe("FAMILIES — invariants sur le référentiel", () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it("inclut les 13 familles canon de la V1", () => {
+  it("inclut les 13 familles canon V1 + escalade (palier 2 #312)", () => {
     const expected = [
       "raquette",
       "ballon",
@@ -29,6 +29,7 @@ describe("FAMILIES — invariants sur le référentiel", () => {
       "glisse",
       "snow",
       "hike",
+      "escalade",
       "retraites",
       "plus",
     ];
