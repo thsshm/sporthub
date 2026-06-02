@@ -533,7 +533,16 @@
       "mapLabel": "Map of retreats & camps",
       "listLabel": "List of retreats & camps",
       "stagesPlaceholder": "Upcoming stages — coming soon",
-      "stagesSoon": "Dates, pricing and availability for upcoming stages will be displayed here."
+      "stagesSoon": "Dates, pricing and availability for upcoming stages will be displayed here.",
+      "filterLabel": "Filter by retreat type",
+      "filterAll": "All",
+      "types": {
+        "yoga_retreat": "Yoga retreat",
+        "surf_camp": "Surf camp",
+        "wellness_retreat": "Wellness",
+        "fitness_bootcamp": "Fitness bootcamp",
+        "tennis_camp": "Tennis camp"
+      }
     }
   }
 }

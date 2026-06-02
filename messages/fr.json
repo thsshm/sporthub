@@ -533,7 +533,16 @@
       "mapLabel": "Carte des retraites & camps",
       "listLabel": "Liste des retraites & camps",
       "stagesPlaceholder": "Stages à venir — bientôt disponible",
-      "stagesSoon": "Dates, tarifs et disponibilités des prochains stages seront affichés ici."
+      "stagesSoon": "Dates, tarifs et disponibilités des prochains stages seront affichés ici.",
+      "filterLabel": "Filtrer par type de retraite",
+      "filterAll": "Toutes",
+      "types": {
+        "yoga_retreat": "Retraite yoga",
+        "surf_camp": "Surf camp",
+        "wellness_retreat": "Bien-être",
+        "fitness_bootcamp": "Bootcamp fitness",
+        "tennis_camp": "Tennis camp"
+      }
     }
   }
 }
