@@ -567,8 +567,11 @@ export default function MapClient({
   // Supercluster index
   const supercluster = useMemo(() => {
     const sc = new Supercluster<PointProps, ClusterProps>({
-      radius: 60,
-      maxZoom: 16,
+      // radius 40px (vs 60) : clustering plus granulaire → plus de pins
+      // individuels visibles, clusters plus petits (retour utilisateur #320).
+      radius: 40,
+      // maxZoom 15 (vs 16) : on dé-clusterise un cran plus tôt.
+      maxZoom: 15,
       // Agrège le nombre de venues par famille dans chaque cluster, pour
       // colorer la bulle par famille dominante (séparation visuelle par
       // activité même quand les pins sont regroupés). Cf. retour utilisateur.
