@@ -1,0 +1,74 @@
+name: Cluster clubs
+
+# Peuple la table `club` + `venue.club_id` en exécutant le clustering V1
+# (scripts/cluster_clubs.py) sur un runner GitHub plutôt que sur une machine
+# locale (#311). Avantages : tourne machine éteinte, logs consultables,
+# re-déclenchable en 1 clic, idempotent (reprend sans dupliquer).
+#
+# Déclenchement : manuel uniquement (workflow_dispatch). Pas de cron : le
+# clustering ne doit tourner qu'après un import/refresh de venues, à la demande.
+#
+# Secrets requis (Repo → Settings → Secrets and variables → Actions) :
+#   SUPABASE_URL                 (ou NEXT_PUBLIC_SUPABASE_URL)
+#   SUPABASE_SERVICE_ROLE_KEY    (écriture club + venue.club_id)
+#
+# Sécurité : dry_run=true par défaut → aucune écriture tant qu'on ne coche pas
+# explicitement l'écriture réelle.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run (lecture seule, aucune écriture en DB)"
+        type: boolean
+        default: true
+      family:
+        description: "Famille unique (vide = toutes les familles club)"
+        type: string
+        default: ""
+
+# Un seul clustering à la fois (évite deux runs concurrents qui écrivent en
+# même temps dans `club` / `venue.club_id`).
+concurrency:
+  group: cluster-clubs
+  cancel-in-progress: false
+
+jobs:
+  cluster:
+    runs-on: ubuntu-latest
+    # Le run réel (REST séquentiel sur ~7 familles) peut être long ; on reste
+    # sous le plafond GitHub de 6h.
+    timeout-minutes: 350
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run cluster_clubs.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Inputs passés en variables d'env (et NON interpolés dans le shell)
+          # pour éviter toute injection de commande.
+          DRY_RUN: ${{ inputs.dry_run }}
+          FAMILY: ${{ inputs.family }}
+        run: |
+          ARGS=""
+          if [ "$DRY_RUN" = "false" ]; then ARGS="$ARGS --no-dry-run"; fi
+          if [ -n "$FAMILY" ]; then ARGS="$ARGS --family $FAMILY"; fi
+          echo "Lancement : python3 scripts/cluster_clubs.py $ARGS"
+          python3 scripts/cluster_clubs.py $ARGS
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Clustering clubs"
+            echo "- Mode : ${{ inputs.dry_run == true && 'DRY-RUN (aucune écriture)' || 'ÉCRITURE RÉELLE' }}"
+            echo "- Famille : ${{ inputs.family != '' && inputs.family || 'toutes' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
