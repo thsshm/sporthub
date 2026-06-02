@@ -21,9 +21,19 @@ function optionalEnv(key: string, defaultValue = ""): string {
   return process.env[key] ?? defaultValue;
 }
 
-// Côté serveur uniquement — ne pas importer dans des Client Components
+// Côté serveur uniquement.
+//
+// IMPORTANT : getter LAZY (et non `requireEnv(...)` au niveau module). Sinon,
+// dès qu'un Client Component importe `publicEnv` depuis ce fichier, le module
+// `lib/env` est évalué dans le bundle navigateur et `requireEnv` throw
+// (SUPABASE_SERVICE_ROLE_KEY n'existe pas côté client) → crash client-side de
+// la page (cf. #322, /map cassé après l'import de publicEnv dans MapClient).
+// Avec un getter, la validation ne s'exécute qu'au moment où du code SERVEUR
+// lit réellement `serverEnv.supabaseServiceRoleKey`.
 export const serverEnv = {
-  supabaseServiceRoleKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
+  get supabaseServiceRoleKey(): string {
+    return requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+  },
 } as const;
 
 // Côté client + serveur (prefixe NEXT_PUBLIC_)
