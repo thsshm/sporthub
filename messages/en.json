@@ -232,6 +232,7 @@
     "loading": "Loading map…",
     "fetching": "Loading…",
     "spotsInView": "{count} spots in view",
+    "clubsInView": "{count} clubs in view",
     "searchPlaceholder": "Search a city…",
     "filtersTitle": "Families",
     "filtersAll": "all",
