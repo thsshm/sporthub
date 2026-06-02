@@ -69,3 +69,17 @@ describe("checkMigrations", () => {
     expect(r.errors).toEqual([]);
   });
 });
+
+// Garde-fou sur le VRAI dossier supabase/migrations/ (pas un fixture). Les
+// tests ci-dessus prouvent que la logique détecte les collisions ; celui-ci
+// fait échouer `pnpm test` si une collision a réellement atterri sur la
+// branche — exactement le cas vécu (double 0028 et double 0029 introduits par
+// des PR concurrentes mergées en parallèle). checkMigrations() sans argument
+// vise le dossier réel (MIGRATIONS_DIR).
+describe("supabase/migrations réel", () => {
+  it("ne contient aucune collision ni format invalide", () => {
+    const r = checkMigrations();
+    expect(r.errors).toEqual([]);
+    expect(r.count).toBeGreaterThan(0);
+  });
+});

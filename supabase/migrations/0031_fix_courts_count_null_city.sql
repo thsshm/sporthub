@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- SportHub V2 — Migration 0028 : corrige l'over-count courts_count (city_id NULL)
+-- SportHub V2 — Migration 0031 : corrige l'over-count courts_count (city_id NULL)
 -- ════════════════════════════════════════════════════════════════════════
 -- Issue #274 (suite). Le backfill 0023 dérive courts_count en groupant par
 -- (city_id, family_slug, adresse normalisée). Bug : quand city_id IS NULL,
