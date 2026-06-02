@@ -255,17 +255,34 @@ def _is_valid_sport(slug: str | None) -> bool:
     return bool(slug) and slug in _VALID_SPORTS
 
 
+# Override sport_type → family_slug. Certaines familles V1 sont noyées sous
+# sport_family='autre' et seulement identifiables par sport_type : les spots de
+# neige (skiing/ski/cross_country_skiing/snowshoes) et de ski nautique
+# (water_ski/cable_skiing/ski_nautique) étaient taggés 'autre' → invisibles sous
+# 'snow'/'nautique'. On les ré-aiguille vers la bonne famille à l'import.
+SPORT_TYPE_FAMILY_OVERRIDE = {
+    "skiing": "snow",
+    "ski": "snow",
+    "cross_country_skiing": "snow",
+    "snowshoes": "snow",
+    "water_ski": "nautique",
+    "cable_skiing": "nautique",
+    "ski_nautique": "nautique",
+}
+
+
 def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: int | None,
-                            family: str | None = None):
+                            family: str | None = None, sport_types: list | None = None):
     """Itère sur la table spots (granularité fine : 1 spot = 1 venue, ~522k au max).
 
-    `family` : si fourni, restreint à cette `sport_family` ET relâche l'exigence
-    de pays ISO-2. Les datasets non-OSM (glisse/kite, etc.) ont un `country` en
-    texte libre ("Pologne", "Californie…, USA") ou nul ; le filtre
-    `LENGTH(country)=2` les jetait silencieusement (569 glisse en V1 → 4 importés).
-    En mode ciblé, `country_code` et `city_id` retombent proprement sur NULL
-    (cf. insert plus bas — `country_code` est nullable, FK ON DELETE SET NULL),
-    donc l'import reste sûr. L'import complet (family=None) garde l'exigence ISO-2.
+    `family` / `sport_types` : si l'un est fourni, on est en **mode ciblé** —
+    restriction à cette `sport_family` et/ou à ces `sport_type`, ET relâchement
+    de l'exigence de pays ISO-2. Les datasets non-OSM (glisse/kite, neige…) ont
+    un `country` en texte libre ("Pologne", "Californie…, USA") ou nul ; le filtre
+    `LENGTH(country)=2` les jetait silencieusement (569 glisse → 4 ; snow → 0).
+    En mode ciblé, `country_code`/`city_id` retombent proprement sur NULL (colonne
+    nullable, FK ON DELETE SET NULL), donc l'import reste sûr. L'import complet
+    (aucun ciblage) garde l'exigence ISO-2 → zéro régression.
     """
     where = [
         "s.lat IS NOT NULL AND s.lon IS NOT NULL",
@@ -273,10 +290,15 @@ def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: i
         "s.sport_family IS NOT NULL",
     ]
     params: list = []
+    targeted = bool(family or sport_types)
     if family:
         where.append("s.sport_family = ?")
         params.append(family)
-    else:
+    if sport_types:
+        placeholders = ",".join("?" for _ in sport_types)
+        where.append(f"s.sport_type IN ({placeholders})")
+        params.extend(sport_types)
+    if not targeted:
         where.append("LENGTH(s.country) = 2")  # ISO 3166-1 alpha-2 → linkage city_id
     sql = f"""
         SELECT s.id, s.public_id, s.sport_family, s.sport_type, s.sports,
@@ -321,7 +343,7 @@ def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: i
             "website_url": r["website"],
             "phone": r["phone"],
             "email": r["email"],
-            "family_slug": r["sport_family"],
+            "family_slug": SPORT_TYPE_FAMILY_OVERRIDE.get(r["sport_type"], r["sport_family"]),
             "primary_sport_slug": primary_sport_slug,
             "courts_count": r["courts_count"],
             "is_indoor": bool(r["covered"]) if r["covered"] is not None else None,
@@ -342,18 +364,19 @@ def yield_venues_from_spots(conn: sqlite3.Connection, city_index: dict, limit: i
 
 
 def import_venues(conn: sqlite3.Connection, city_index: dict, mode: str, limit: int | None,
-                  family: str | None = None):
+                  family: str | None = None, sport_types: list | None = None):
     """Insère les venues + venue_sport + venue_amenity."""
-    print(f"\n🏟  Import venues (mode={mode}, limit={limit or 'all'}, family={family or 'all'})")
+    print(f"\n🏟  Import venues (mode={mode}, limit={limit or 'all'}, "
+          f"family={family or 'all'}, sport_types={sport_types or 'all'})")
     if mode == "clubs-only":
-        if family:
-            print("  ⚠ --family ignoré en mode clubs-only (la table clubs n'a pas de filtre famille ciblé ici)")
+        if family or sport_types:
+            print("  ⚠ --family/--sport-types ignorés en mode clubs-only (table clubs sans ce ciblage)")
         yielder = yield_venues_from_clubs(conn, city_index, limit)
     elif mode == "spots-only":
-        yielder = yield_venues_from_spots(conn, city_index, limit, family)
+        yielder = yield_venues_from_spots(conn, city_index, limit, family, sport_types)
     else:
         print(f"  ⚠ mode '{mode}' pas encore implémenté — fallback spots-only")
-        yielder = yield_venues_from_spots(conn, city_index, limit, family)
+        yielder = yield_venues_from_spots(conn, city_index, limit, family, sport_types)
 
     # Cache slug → id pour pouvoir lier venue_sport
     venue_ids_by_extid = {}
@@ -427,7 +450,13 @@ def main() -> int:
                         help="Ré-import ciblé d'une seule sport_family (ex: glisse). "
                              "Relâche le filtre pays ISO-2 — récupère les datasets "
                              "non-OSM (country texte libre/nul) perdus par l'import complet.")
+    parser.add_argument("--sport-types", default=None,
+                        help="CSV de sport_type à ré-importer (ex: skiing,ski,water_ski). "
+                             "Ciblage + filtre pays relâché ; l'override SPORT_TYPE_FAMILY "
+                             "ré-aiguille vers la bonne famille (neige→snow, ski nautique→nautique).")
     args = parser.parse_args()
+    sport_types = ([s.strip() for s in args.sport_types.split(",") if s.strip()]
+                   if args.sport_types else None)
 
     db_path = Path(V1_DB).expanduser().resolve()
     if not db_path.exists():
@@ -447,7 +476,7 @@ def main() -> int:
 
     # Step 3: venues + venue_sport + venue_amenity
     print("\n🏟  Étape 3/3 : venues + sports + amenities")
-    import_venues(conn, city_index, args.mode, args.limit, args.family)
+    import_venues(conn, city_index, args.mode, args.limit, args.family, sport_types)
 
     print("\n🎉 Import terminé. Vérifie dans Supabase Studio.")
     print("   Prochaine étape : appliquer migration 0003_postgis.sql")
