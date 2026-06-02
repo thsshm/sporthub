@@ -30,6 +30,7 @@ import {
 } from "@/lib/map-storage";
 import type { FlyTarget } from "@/app/[locale]/map/MapClient";
 import type { VenuePin } from "@/lib/supabase/types";
+import type { FacetCounts } from "@/lib/facets";
 
 /** Breakpoint en dessous duquel "split" retombe en "map" (le panneau liste
  * passerait sinon par-dessus la carte sur étroit). Matche le min desktop V1. */
@@ -383,6 +384,10 @@ export function MapWithSearch({
   const [autoUpdate, setAutoUpdateState] = useState<boolean>(() => loadAutoUpdate(true));
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
+  // Compteurs à facettes par filtre (#279), alimentés par MapClient via
+  // /api/venues/facets. null = pas de données (mode agrégats / erreur) → aucun
+  // compteur affiché dans le panneau.
+  const [facets, setFacets] = useState<FacetCounts | null>(null);
   const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
   const [geolocError, setGeolocError] = useState<string | null>(null);
 
@@ -535,6 +540,9 @@ export function MapWithSearch({
         autoUpdate={autoUpdate}
         onAutoUpdateChange={setAutoUpdate}
         onReopenPicker={() => setPickerOpen(true)}
+        familyCounts={facets?.family}
+        criteriaCounts={facets?.criteria}
+        surfaceCounts={facets?.surface}
         className="absolute left-4 top-4 z-20 hidden max-h-[calc(100%-2rem)] w-56 overflow-auto md:flex"
       />
 
@@ -583,6 +591,9 @@ export function MapWithSearch({
                   setMobileFiltersOpen(false);
                   setPickerOpen(true);
                 }}
+                familyCounts={facets?.family}
+                criteriaCounts={facets?.criteria}
+                surfaceCounts={facets?.surface}
                 className="border-0 p-0 shadow-none"
               />
             </div>
@@ -712,6 +723,7 @@ export function MapWithSearch({
           onZoomChange={setCurrentZoom}
           onViewportChange={syncViewportToUrl}
           onVenuesData={handleVenuesData}
+          onFacetsChange={setFacets}
           flyTarget={flyTarget}
           initialVenues={effectiveInitialVenues}
         />
