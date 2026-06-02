@@ -523,5 +523,16 @@
     "installCta": "安装",
     "installLater": "稍后",
     "offline": "离线模式 — 缓存数据"
+  },
+  "famille": {
+    "retraites": {
+      "title": "静修与营地",
+      "description": "全球瑜伽静修、冲浪营、健康营地地图与列表 — Sport Hub。",
+      "lead": "探索全球各地的瑜伽静修、冲浪营、健康疗养和运动营地。",
+      "mapLabel": "静修与营地地图",
+      "listLabel": "静修与营地列表",
+      "stagesPlaceholder": "即将推出的营期",
+      "stagesSoon": "即将显示最新营期的日期、价格和报名信息。"
+    }
   }
 }

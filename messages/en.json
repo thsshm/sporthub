@@ -523,5 +523,16 @@
     "installCta": "Install",
     "installLater": "Later",
     "offline": "Offline mode — cached data"
+  },
+  "famille": {
+    "retraites": {
+      "title": "Retreats & camps",
+      "description": "Map and list of sports retreats, camps and wellness stays worldwide — Sport Hub.",
+      "lead": "Discover yoga retreats, surf camps, wellness stages and sports getaways around the world.",
+      "mapLabel": "Map of retreats & camps",
+      "listLabel": "List of retreats & camps",
+      "stagesPlaceholder": "Upcoming stages — coming soon",
+      "stagesSoon": "Dates, pricing and availability for upcoming stages will be displayed here."
+    }
   }
 }
