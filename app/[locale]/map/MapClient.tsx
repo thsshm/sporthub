@@ -168,6 +168,10 @@ type Props = {
    * compteurs par filtre du panneau gauche (#279). null = pas de données
    * (mode agrégats / erreur). */
   onFacetsChange?: (facets: FacetCounts | null) => void;
+  /** Callback pour reporter le nombre de clubs affichés dans le viewport
+   * (mode club, zoom 10-15). 0 hors mode club. Alimente le compteur sidebar
+   * "N clubs" (palier 4, #311). */
+  onClubsChange?: (count: number) => void;
   /** Quand set, MapClient appelle map.flyTo() à chaque changement de token. */
   flyTarget?: FlyTarget | null;
   /** Mode "venues fixes" : si fourni, MapClient utilise ces venues directement
@@ -203,6 +207,7 @@ export default function MapClient({
   onViewportChange,
   onVenuesData,
   onFacetsChange,
+  onClubsChange,
   flyTarget,
   presetVenues,
   selectedSport,
@@ -269,6 +274,12 @@ export default function MapClient({
   useEffect(() => {
     setFavorites(loadFavorites());
   }, []);
+
+  // Reporte le nombre de clubs visibles au parent (compteur sidebar "N clubs",
+  // palier 4 #311). En mode pois, `clubs` est vide → reporte 0.
+  useEffect(() => {
+    onClubsChange?.(clubs.length);
+  }, [clubs, onClubsChange]);
 
   // Reporte le count initial (SSR pre-fetch) au parent pour l'overlay UI.
   useEffect(() => {

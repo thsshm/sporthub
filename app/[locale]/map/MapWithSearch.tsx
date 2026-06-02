@@ -388,6 +388,9 @@ export function MapWithSearch({
   // /api/venues/facets. null = pas de données (mode agrégats / erreur / timeout).
   const [facets, setFacets] = useState<FacetCounts | null>(null);
   const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
+  // Nombre de clubs affichés dans le viewport (mode club zoom 10-15). 0 sinon.
+  // Alimente le compteur "N clubs" de l'overlay (palier 4, #311).
+  const [clubsCount, setClubsCount] = useState(0);
   const [geolocError, setGeolocError] = useState<string | null>(null);
 
   // Mode d'affichage carte / liste / split (#123).
@@ -664,7 +667,9 @@ export function MapWithSearch({
       )}
 
       <div className="bottom-safe-4 pointer-events-none absolute left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
-        {tMap("spotsInView", { count: formatCount(visibleCount) })}
+        {clubsCount > 0
+          ? tMap("clubsInView", { count: formatCount(clubsCount) })
+          : tMap("spotsInView", { count: formatCount(visibleCount) })}
       </div>
 
       {/* Légende couleurs par famille — visible en mode explore (2+ familles
@@ -732,6 +737,7 @@ export function MapWithSearch({
           selectedSurfaces={selectedSurfaces}
           autoUpdate={autoUpdate}
           onVenuesChange={setVisibleCount}
+          onClubsChange={setClubsCount}
           onZoomChange={setCurrentZoom}
           onViewportChange={syncViewportToUrl}
           onVenuesData={handleVenuesData}
