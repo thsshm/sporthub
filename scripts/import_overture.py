@@ -2,7 +2,8 @@
 """
 import_overture.py — Import Overture Maps « places » → Supabase.
 
-Familles couvertes : Fitness + Bien-être (#110), Snow + Retraites (#97).
+Familles couvertes : Fitness + Bien-être (#110), Snow + Retraites (#97),
+                     Raquette + Ballon (#227, ingestion V2-native).
 
 Issue #110 (phase 3, area:data). Top #2 ROI du DASHBOARD V1 : la V2 (fetch bbox
 + PostGIS + clustering MapLibre) lève la contrainte de poids qui bloquait
@@ -130,6 +131,35 @@ CATEGORY_MAP: dict[str, tuple[str, str]] = {
     # source dédiée (retraites yoga/surf : retreatguru, bookyogaretreats…) — cf.
     # note PR : hors-scope Overture.
     "health_retreats": ("retraites", "wellness_retreat"),
+    # ── Raquette (#227 : ingestion V2-native, réduit la dépendance SQLite V1) ──
+    # Vérifié en live (France) : tennis_court 6849, badminton_court 375,
+    # squash_court 192, table_tennis_club 139, racquetball_court 76,
+    # tennis_stadium 215, paddle_tennis_club 2. Les pièges « court » substring
+    # (courthouse 2176, food_court 225) sont écartés par construction (exact).
+    "tennis_court": ("raquette", "tennis"),
+    "tennis_stadium": ("raquette", "tennis"),
+    "paddle_tennis_club": ("raquette", "padel"),
+    "badminton_court": ("raquette", "badminton"),
+    "squash_court": ("raquette", "squash"),
+    "racquetball_court": ("raquette", "squash"),  # racquetball ≈ squash (pas de slug dédié)
+    "table_tennis_club": ("raquette", "table_tennis"),
+    # ── Ballon (#227) ──
+    # Vérifié en live (France) : soccer_field 3512, basketball_court 446,
+    # rugby_pitch 413, volleyball_court 236, soccer/football_stadium ≈1700.
+    # On EXCLUT sports_club_and_league (39740) et stadium_arena (12598) :
+    # trop génériques (sport indéterminé) → pollueraient la famille.
+    "soccer_field": ("ballon", "football"),
+    "soccer_stadium": ("ballon", "football"),
+    "soccer_club": ("ballon", "football"),
+    "football_stadium": ("ballon", "football"),
+    "football_club": ("ballon", "football"),
+    "basketball_court": ("ballon", "basketball"),
+    "basketball_stadium": ("ballon", "basketball"),
+    "volleyball_court": ("ballon", "volleyball"),
+    "volleyball_club": ("ballon", "volleyball"),
+    "beach_volleyball_court": ("ballon", "volleyball"),
+    "rugby_pitch": ("ballon", "rugby"),
+    "rugby_stadium": ("ballon", "rugby"),
 }
 
 FAMILY_CATEGORIES: dict[str, list[str]] = {
@@ -137,6 +167,8 @@ FAMILY_CATEGORIES: dict[str, list[str]] = {
     "yoga": [c for c, (f, _) in CATEGORY_MAP.items() if f == "yoga"],
     "snow": [c for c, (f, _) in CATEGORY_MAP.items() if f == "snow"],
     "retraites": [c for c, (f, _) in CATEGORY_MAP.items() if f == "retraites"],
+    "raquette": [c for c, (f, _) in CATEGORY_MAP.items() if f == "raquette"],
+    "ballon": [c for c, (f, _) in CATEGORY_MAP.items() if f == "ballon"],
 }
 FAMILY_CATEGORIES["all"] = list(CATEGORY_MAP.keys())
 
@@ -417,8 +449,11 @@ def _flush(sb, batch: list[dict]) -> int:
 def main(argv: Iterable[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         description="Import Overture Maps places → Supabase (#110 fitness/yoga, #97 snow/retraites)")
-    p.add_argument("--family", choices=["fitness", "yoga", "snow", "retraites", "all"],
-                   default="fitness")
+    p.add_argument(
+        "--family",
+        choices=["fitness", "yoga", "snow", "retraites", "raquette", "ballon", "all"],
+        default="fitness",
+    )
     p.add_argument("--country", choices=["FR", "WW"], default="FR")
     p.add_argument("--limit", type=int, default=None, help="Cap le nb de POI (test)")
     p.add_argument("--published", choices=["true", "false"], default="false",
