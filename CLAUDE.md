@@ -39,7 +39,7 @@ aura dépassé V1 sur les métriques clés (parité SEO + features).
     - **Code applicatif < 500 lignes** (hors `messages/*.json` i18n × 3 locales et hors tests vitest).
     - **Cap dur 800 lignes au total**. Au-delà, split obligatoire.
     - Le compteur GitHub `+X / -Y` inclut tout, donc une PR à 900 lignes dont 300 i18n + 150 tests reste OK (450 applicatif). Une PR à 700 lignes de pure logique applicative ne l'est pas — splitter en 2 issues distinctes.
-11. **CI verte obligatoire avant merge.** Pas de squash-merge avec `Typecheck + lint` rouge, même si le bug semble "trivial à fixer". Une PR cassée mergée bloque tout le pipeline descendant — cf. incident `getOpenStatus` du 2026-05-29 où le bug a coûté ~3h de friction sur toutes les PRs sœurs.
+11. **CI verte obligatoire avant merge — désormais APPLIQUÉE par un ruleset GitHub sur `main`** (plus seulement une discipline). Le ruleset « main protection » impose : PR obligatoire (push direct sur `main` bloqué), check `Typecheck + lint` vert, **branche à jour avec `main` avant merge** (`strict`), historique linéaire, force-push/suppression interdits. Bypass réservé au rôle **admin** (urgences). Le mode `strict` force le 2ᵉ PR à se rebaser sur le 1ᵉʳ et à re-passer le gate `check:migrations` → c'est le garde-fou contre les **collisions de numéro de migration entre PRs concurrentes** (vécues sur `0011/0014/0023/0028/0029`). Une PR cassée mergée bloquait tout le pipeline descendant — cf. incident `getOpenStatus` du 2026-05-29 (~3h de friction). NB : la *merge queue* GitHub serait l'outil idéal mais n'est **pas disponible sur un repo de compte perso** (org-only) ; `strict` en est le substitut.
 
 ## Mapping famille interne ↔ display name (legacy V1, à conserver)
 
@@ -127,7 +127,7 @@ country (référentiel)        sport (référentiel)         amenity (référent
 
 - ❌ Modifier les fichiers de V1 (dans le repo `sporthub-legacy` ou `data-pipeline/`)
 - ❌ Créer des migrations DB sans incrémenter le numéro (`0004_…sql` après `0003_…sql`)
-- ❌ Pousser sur `main` directement — toujours via PR
+- ❌ Pousser sur `main` directement — toujours via PR (désormais **bloqué techniquement** par le ruleset « main protection »)
 - ❌ Ajouter des dépendances > 500 KB bundle sans justification
 - ❌ Activer du cache Next.js agressif (`revalidate=3600+`) sans valider l'impact sur l'admin
 - ❌ Désactiver Row Level Security pour "aller plus vite"
@@ -157,7 +157,10 @@ gh pr create --fill --body "Closes #42"
 
 # 6. Vercel poste auto une preview URL → la tester
 # 7. Demander review à Gautier
-# 8. Merge "Squash and merge" → Vercel deploy production auto
+# 8. CI "Typecheck + lint" verte + branche à jour avec main (ruleset strict).
+#    Si main a bougé depuis : rebaser/mettre à jour la branche, laisser la CI
+#    repasser, PUIS merger. "Squash and merge" → Vercel deploy production auto.
+#    (Push direct sur main bloqué ; bypass possible seulement en rôle admin.)
 ```
 
 ## Objectifs MVP par phase
