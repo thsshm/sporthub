@@ -335,7 +335,22 @@ async function fetchVenues(
       .is("deleted_at", null);
 
     if (filters.fams && filters.fams.length > 0) {
-      q = q.in("family_slug", filters.fams);
+      // 'retraites' est un tag transverse (retreat_type IS NOT NULL) — aucune
+      // venue n'a family_slug='retraites'. On construit un OR composite.
+      const retraitesSelected = filters.fams.includes("retraites");
+      const otherFams = filters.fams.filter((f) => f !== "retraites");
+      if (retraitesSelected && otherFams.length > 0) {
+        // Ex : families=glisse,retraites → family_slug IN (glisse) OR retreat_type IS NOT NULL
+        q = q.or(
+          `family_slug.in.(${otherFams.join(",")}),retreat_type.not.is.null`,
+        );
+      } else if (retraitesSelected) {
+        // Uniquement retraites : retreat_type IS NOT NULL
+        q = q.not("retreat_type", "is", null);
+      } else {
+        // Pas de retraites dans la sélection : filtre family_slug classique
+        q = q.in("family_slug", otherFams);
+      }
     }
     if (filters.sport) {
       q = q.eq("primary_sport_slug", filters.sport);
