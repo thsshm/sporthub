@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- SportHub V2 — Migration 0023 : câble le filtre famille 'retraites' (#295)
+-- SportHub V2 — Migration 0024 : câble le filtre famille 'retraites' (#295)
 -- ════════════════════════════════════════════════════════════════════════
 -- Palier 2 de l'issue #288. Le palier 1 (0022) a posé la colonne
 -- venue.retreat_type (tag transverse, 393 venues). Rien ne la lisait encore.
