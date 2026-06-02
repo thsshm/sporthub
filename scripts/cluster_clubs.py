@@ -386,12 +386,18 @@ class SupabaseRest:
                     raw = resp.read()
                     return json.loads(raw) if raw else []
             except urllib.error.HTTPError as exc:
-                # 5xx transitoires (502/503/504) → retry ; autres codes → remonte.
-                if exc.code in (502, 503, 504) and attempt < _MAX_RETRIES:
+                detail = exc.read().decode("utf-8", "replace")
+                # Retry sur 5xx transitoires (502/503/504) ET sur le
+                # statement_timeout Postgres (HTTP 500 / code 57014), qui
+                # survient sur les requêtes de chargement quand la DB est
+                # sous charge. Les autres codes remontent immédiatement.
+                transient = exc.code in (502, 503, 504) or (
+                    exc.code == 500 and "57014" in detail
+                )
+                if transient and attempt < _MAX_RETRIES:
                     last_exc = exc
                     time.sleep(_BACKOFF_BASE * attempt)
                     continue
-                detail = exc.read().decode("utf-8", "replace")
                 raise RuntimeError(
                     f"Supabase {method} {path} → {exc.code}: {detail}"
                 ) from exc
@@ -412,7 +418,7 @@ class SupabaseRest:
         self,
         family_slug: str,
         limit: int | None = None,
-        page_size: int = 1000,
+        page_size: int = 250,
     ) -> list[dict[str, Any]]:
         """Récupère les venues d'une famille (pagination keyset par id).
 
