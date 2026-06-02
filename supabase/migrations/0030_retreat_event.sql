@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- SportHub V2 — Migration 0029 : table retreat_event (modèle de données stages)
+-- SportHub V2 — Migration 0030 : table retreat_event (modèle de données stages)
 -- ════════════════════════════════════════════════════════════════════════
 -- Issue #266. La famille « retraites » (/famille/retraites) affiche déjà les
 -- venues + un panneau placeholder « Stages à venir ». Il manquait le MODÈLE de
