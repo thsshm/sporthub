@@ -5,12 +5,16 @@ name: CI
 #
 # - Pull request : typecheck + lint sur la branche
 # - Push main    : pareil + cache pnpm partagé
+# - Merge group  : la merge queue re-teste chaque PR rebasée sur le résultat des
+#   précédentes ; sans ce trigger, le check requis ne tournerait jamais sur le
+#   groupe et les PR resteraient bloquées dans la file.
 
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+  merge_group:
 
 # Annule les jobs en cours quand un nouveau commit arrive sur la même PR.
 concurrency:
