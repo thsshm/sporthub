@@ -523,5 +523,16 @@
     "installCta": "Installer",
     "installLater": "Plus tard",
     "offline": "Mode hors-ligne — données en cache"
+  },
+  "famille": {
+    "retraites": {
+      "title": "Retraites & camps",
+      "description": "Carte et liste des retraites sportives, stages et camps de bien-être partout dans le monde — Sport Hub.",
+      "lead": "Découvrez des retraites de yoga, camps de surf, stages de bien-être et autres séjours sportifs à travers le monde.",
+      "mapLabel": "Carte des retraites & camps",
+      "listLabel": "Liste des retraites & camps",
+      "stagesPlaceholder": "Stages à venir — bientôt disponible",
+      "stagesSoon": "Dates, tarifs et disponibilités des prochains stages seront affichés ici."
+    }
   }
 }
