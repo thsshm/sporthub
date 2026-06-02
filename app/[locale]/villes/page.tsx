@@ -35,6 +35,61 @@ type CityRow = {
   count: number;
 };
 
+/**
+ * Fallback statique si la RPC top_cities_by_venue_count est indisponible ou
+ * trop lente (cf. timeout 57014 observé en prod, migration 0029). Mêmes villes
+ * que la section home (HomeFeaturedCities) → page jamais blanche. Le count est
+ * recalculé exact par ville (pas d'estimée pg_stat, cf. piège #255).
+ */
+const FALLBACK_CITIES: Array<Pick<CityRow, "slug" | "name" | "country_code">> = [
+  { slug: "paris", name: "Paris", country_code: "FR" },
+  { slug: "lyon", name: "Lyon", country_code: "FR" },
+  { slug: "marseille", name: "Marseille", country_code: "FR" },
+  { slug: "bordeaux", name: "Bordeaux", country_code: "FR" },
+  { slug: "nantes", name: "Nantes", country_code: "FR" },
+  { slug: "toulouse", name: "Toulouse", country_code: "FR" },
+];
+
+async function fetchFallbackCities(
+  sb: ReturnType<typeof getSupabaseStaticClient>
+): Promise<CityRow[]> {
+  let cities: Array<Pick<CityRow, "id" | "slug" | "name" | "country_code">> = [];
+  try {
+    const { data } = await sb
+      .from("city")
+      .select("id, slug, name, country_code")
+      .in(
+        "slug",
+        FALLBACK_CITIES.map((c) => c.slug)
+      )
+      .eq("country_code", "FR");
+    cities = data ?? [];
+  } catch {
+    return [];
+  }
+
+  const enriched = await Promise.all(
+    cities.map(async (c) => {
+      let count = 0;
+      try {
+        const res = await sb
+          .from("venue")
+          .select("id", { count: "exact", head: true })
+          .eq("city_id", c.id)
+          .eq("is_published", true)
+          .is("deleted_at", null);
+        count = res.count ?? 0;
+      } catch {
+        count = 0;
+      }
+      return { ...c, count } satisfies CityRow;
+    })
+  );
+  return enriched.sort(
+    (a, b) => b.count - a.count || a.name.localeCompare(b.name)
+  );
+}
+
 const fetchTopCities = unstable_cache(
   async (): Promise<CityRow[]> => {
     const sb = getSupabaseStaticClient();
@@ -42,17 +97,20 @@ const fetchTopCities = unstable_cache(
       const { data, error } = await sb.rpc("top_cities_by_venue_count", {
         max_results: MAX_CITIES,
       });
-      if (error || !data) return [];
-      return data.map((c) => ({
-        id: c.id,
-        slug: c.slug,
-        name: c.name,
-        country_code: c.country_code,
-        count: Number(c.count) || 0,
-      }));
+      if (!error && data && data.length > 0) {
+        return data.map((c) => ({
+          id: c.id,
+          slug: c.slug,
+          name: c.name,
+          country_code: c.country_code,
+          count: Number(c.count) || 0,
+        }));
+      }
     } catch {
-      return [];
+      /* RPC indisponible/timeout → fallback ci-dessous */
     }
+    // Repli : la page ne doit jamais être blanche (cf. /villes vide en prod).
+    return fetchFallbackCities(sb);
   },
   ["villes-top-cities"],
   { revalidate: 3600, tags: ["cities"] }

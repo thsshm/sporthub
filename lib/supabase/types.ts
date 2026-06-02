@@ -689,6 +689,10 @@ export type Database = {
           count: number;
         }[];
       };
+      refresh_top_cities_mv: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
     };
     Enums: {
       [_ in never]: never;
