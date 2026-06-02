@@ -160,6 +160,40 @@ CATEGORY_MAP: dict[str, tuple[str, str]] = {
     "beach_volleyball_court": ("ballon", "volleyball"),
     "rugby_pitch": ("ballon", "rugby"),
     "rugby_stadium": ("ballon", "rugby"),
+    # ── Combat (#227) — vérifié FR : martial_arts_club 14966, boxing_class
+    # 1383, karate_club 76, boxing_gym 61, kickboxing_club 36. ──
+    "martial_arts_club": ("combat", "mma"),  # générique → mma (arts martiaux mixtes)
+    "karate_club": ("combat", "karate"),
+    "boxing_class": ("combat", "boxing"),
+    "boxing_gym": ("combat", "boxing"),
+    "kickboxing_club": ("combat", "boxing"),
+    # ── Baignade (#227) — vérifié FR : beach 12709, swimming_pool 8433,
+    # swimming_instructor 865. Pièges « pool » substring (pool_billiards 839,
+    # pool_hall 238, pool_cleaning 3461, hot_tubs_and_pools) écartés (exact). ──
+    "beach": ("baignade", "beach"),
+    "swimming_pool": ("baignade", "pool"),
+    "swimming_instructor": ("baignade", "pool"),
+    # ── Glisse (#227) — vérifié FR : surfing 420, kiteboarding 158. Retail
+    # (surf_shop 833, skate_shop) et skate_park (pas de slug skate) exclus. ──
+    "surfing": ("glisse", "surf"),
+    "kiteboarding": ("glisse", "kitesurf"),
+    # ── Nautique (#227) — vérifié FR : marina 1359, sailing_club 96. ──
+    "marina": ("nautique", "marina"),
+    "sailing_club": ("nautique", "marina"),
+    # ── Hike / plein air (#227) — vérifié FR : hiking_trail 3461,
+    # mountain_bike_trails 345. ──
+    "hiking_trail": ("hike", "trail"),
+    "mountain_bike_trails": ("hike", "mtb"),
+    # ── Plus (#227) — vérifié FR : equestrian_facility 6772, golf_course 3007,
+    # horse_riding 2412, golf_club 128, rock_climbing_gym 114. Exclus : golf_
+    # instructor/equipment/cart_dealer, miniature_golf_course, horse_boarding. ──
+    "golf_course": ("plus", "golf"),
+    "golf_club": ("plus", "golf"),
+    "equestrian_facility": ("plus", "equestrian"),
+    "horse_riding": ("plus", "equestrian"),
+    "rock_climbing_gym": ("plus", "climbing_indoor"),
+    # ── Boules : aucune couverture Overture (pétanque/bocce absents) → source
+    # dédiée nécessaire (OSM sport=boules), hors scope Overture. ──
 }
 
 FAMILY_CATEGORIES: dict[str, list[str]] = {
@@ -169,6 +203,12 @@ FAMILY_CATEGORIES: dict[str, list[str]] = {
     "retraites": [c for c, (f, _) in CATEGORY_MAP.items() if f == "retraites"],
     "raquette": [c for c, (f, _) in CATEGORY_MAP.items() if f == "raquette"],
     "ballon": [c for c, (f, _) in CATEGORY_MAP.items() if f == "ballon"],
+    "combat": [c for c, (f, _) in CATEGORY_MAP.items() if f == "combat"],
+    "baignade": [c for c, (f, _) in CATEGORY_MAP.items() if f == "baignade"],
+    "glisse": [c for c, (f, _) in CATEGORY_MAP.items() if f == "glisse"],
+    "nautique": [c for c, (f, _) in CATEGORY_MAP.items() if f == "nautique"],
+    "hike": [c for c, (f, _) in CATEGORY_MAP.items() if f == "hike"],
+    "plus": [c for c, (f, _) in CATEGORY_MAP.items() if f == "plus"],
 }
 FAMILY_CATEGORIES["all"] = list(CATEGORY_MAP.keys())
 
@@ -451,7 +491,10 @@ def main(argv: Iterable[str] | None = None) -> int:
         description="Import Overture Maps places → Supabase (#110 fitness/yoga, #97 snow/retraites)")
     p.add_argument(
         "--family",
-        choices=["fitness", "yoga", "snow", "retraites", "raquette", "ballon", "all"],
+        choices=[
+            "fitness", "yoga", "snow", "retraites", "raquette", "ballon",
+            "combat", "baignade", "glisse", "nautique", "hike", "plus", "all",
+        ],
         default="fitness",
     )
     p.add_argument("--country", choices=["FR", "WW"], default="FR")
