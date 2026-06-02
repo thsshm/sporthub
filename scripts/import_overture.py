@@ -72,6 +72,43 @@ except ImportError:
     print("❌ pip install --break-system-packages duckdb", file=sys.stderr)
     sys.exit(1)
 
+import time as _time
+
+# Retry sur erreurs transitoires côté prod (statement_timeout Postgres 57014 +
+# erreurs réseau httpx) — l'import charge ~370k venues existants pour la dédup
+# et la prod peut être lente/sous charge. httpx/postgrest sont des deps de
+# supabase (présents en mode live ; le dry-run n'atteint pas _safe).
+try:
+    import httpx as _httpx
+    from postgrest.exceptions import APIError as _APIError
+    _TRANSIENT = (_httpx.RemoteProtocolError, _httpx.ReadError, _httpx.ReadTimeout,
+                  _httpx.ConnectError, _httpx.ConnectTimeout, _httpx.WriteError,
+                  _httpx.PoolTimeout)
+except ImportError:
+    _APIError = Exception
+    _TRANSIENT = ()
+
+
+def _safe(build, tries=7):
+    """Exécute build() avec retry exponentiel sur 57014 + erreurs httpx."""
+    last = None
+    for i in range(tries):
+        try:
+            return build()
+        except _APIError as e:
+            last = e
+            if getattr(e, "code", "") != "57014":
+                raise
+            w = min(2 ** i, 30)
+            print(f"  ⚠ 57014 timeout → retry {i+1}/{tries} dans {w}s", file=sys.stderr, flush=True)
+            _time.sleep(w)
+        except _TRANSIENT as e:
+            last = e
+            w = min(2 ** i, 30)
+            print(f"  ⚠ {type(e).__name__} → retry {i+1}/{tries} dans {w}s", file=sys.stderr, flush=True)
+            _time.sleep(w)
+    raise last
+
 # ─── Constantes ──────────────────────────────────────────────────────────
 
 # Dernière release vérifiée. Lister les releases dispo :
@@ -423,18 +460,28 @@ def _import_live(venues: list[dict], country: str) -> int:
         print("❌ Définir NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (.env.local)", file=sys.stderr)
         return 1
     sb = create_client(url, key)
+    # Timeout PostgREST 120s (httpx court par défaut → ReadError sur page lente).
+    # Cf. backfill_courts_count.py (#274).
+    try:
+        sb.postgrest.session.timeout = 120
+    except Exception:
+        pass
 
-    # Charge les venues existants (du pays si FR) pour la dédup. On ne charge
-    # que id/name/lat/lon + claim_status (les claimed gagnent toujours).
+    # Charge les venues existants (du pays si FR) pour la dédup. KEYSET
+    # pagination (id > last_id) au lieu d'OFFSET : sur ~370k venues l'OFFSET
+    # profond cause des statement-timeout Postgres (57014). Cf. #274 / #223.
     print("  ⏳ Chargement des venues existants pour la dédup…")
     index = ExistingIndex()
     existing_extids: set[str] = set()
-    page, page_size = 0, 1000
+    last_id, page_size, loaded = "", 1000, 0
     while True:
-        q = sb.table("venue").select("name, lat, lon, external_id").is_("deleted_at", "null")
+        q = (sb.table("venue").select("id, name, lat, lon, external_id")
+             .is_("deleted_at", "null").order("id").limit(page_size))
         if country == "FR":
             q = q.eq("country_code", "FR")
-        chunk = q.range(page * page_size, page * page_size + page_size - 1).execute().data
+        if last_id:
+            q = q.gt("id", last_id)
+        chunk = _safe(lambda q=q: q.execute()).data or []
         if not chunk:
             break
         for e in chunk:
@@ -442,21 +489,35 @@ def _import_live(venues: list[dict], country: str) -> int:
                 index.add(e["name"] or "", e["lat"], e["lon"])
             if e.get("external_id"):
                 existing_extids.add(e["external_id"])
-        page += 1
+        last_id = chunk[-1]["id"]
+        loaded += len(chunk)
+        if loaded % 20000 < page_size:
+            print(f"    … {loaded:,} existants chargés", flush=True)
     print(f"  ✓ {sum(len(v) for v in index.grid.values()):,} venues existants indexés")
 
-    inserted = skipped_dup = skipped_extid = 0
+    inserted = skipped_dup = skipped_extid = skipped_slug = 0
+    seen_slugs: set[str] = set()
     batch: list[dict] = []
     for v in venues:
         if v["external_id"] in existing_extids:
             skipped_extid += 1
             continue
+        # Dédup intra-run par slug : deux POI Overture peuvent générer le même
+        # slug (ex. deux « La Pierre Saint-Martin ») → l'upsert on_conflict=slug
+        # casse (APIError 21000 : "ON CONFLICT DO UPDATE cannot affect row a
+        # second time") si le lot contient 2× le même slug. On garde la 1re.
+        if v["slug"] in seen_slugs:
+            skipped_slug += 1
+            continue
         if index.is_duplicate(v["name"], v["lat"], v["lon"]):
             skipped_dup += 1
             continue
+        seen_slugs.add(v["slug"])
         sport_slug = v.pop("_sport_slug")
         batch.append({**v, "_sport_slug": sport_slug})
-        if len(batch) >= 500:
+        # Lots de 100 (pas 500) : l'upsert venue avec returning=representation +
+        # trigger geom PostGIS dépasse le statement_timeout serveur au-delà.
+        if len(batch) >= 100:
             inserted += _flush(sb, batch)
             batch = []
     if batch:
@@ -465,6 +526,7 @@ def _import_live(venues: list[dict], country: str) -> int:
     print(
         f"\n✅ Import terminé : {inserted:,} insérés · "
         f"{skipped_dup:,} skip (dédup proximité) · "
+        f"{skipped_slug:,} skip (slug dupliqué intra-run) · "
         f"{skipped_extid:,} skip (external_id déjà présent)"
     )
     return 0
@@ -473,16 +535,16 @@ def _import_live(venues: list[dict], country: str) -> int:
 def _flush(sb, batch: list[dict]) -> int:
     """Upsert un lot de venues + leur venue_sport. Retourne le nb upserté."""
     sport_by_extid = {v["external_id"]: v.pop("_sport_slug") for v in batch}
-    res = sb.table("venue").upsert(
+    res = _safe(lambda: sb.table("venue").upsert(
         batch, on_conflict="slug", returning="representation"
-    ).execute()
+    ).execute())
     vs_rows = []
     for v in res.data:
         sport = sport_by_extid.get(v["external_id"])
         if sport:
             vs_rows.append({"venue_id": v["id"], "sport_slug": sport, "is_primary": True})
     if vs_rows:
-        sb.table("venue_sport").upsert(vs_rows, on_conflict="venue_id,sport_slug").execute()
+        _safe(lambda: sb.table("venue_sport").upsert(vs_rows, on_conflict="venue_id,sport_slug").execute())
     return len(res.data)
 
 
