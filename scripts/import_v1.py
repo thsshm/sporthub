@@ -41,28 +41,10 @@ import unicodedata
 from pathlib import Path
 from typing import Iterator
 
-try:
-    from supabase import create_client, Client
-except ImportError:
-    print("❌ pip install --break-system-packages supabase python-dotenv slugify")
-    sys.exit(1)
-
-from dotenv import load_dotenv
-
-# Convention Next.js : .env.local pour les secrets (priorité), .env en fallback
-load_dotenv(Path(__file__).resolve().parent.parent / ".env.local")
-load_dotenv()  # charge aussi .env si présent (sans override)
-
-# NEXT_PUBLIC_SUPABASE_URL côté .env.local Next.js, SUPABASE_URL en CI/scripts
-SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-V1_DB = os.getenv("V1_SQLITE_PATH", "../data-pipeline/data/sportpin.sqlite")
-
-if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    print("❌ Définir NEXT_PUBLIC_SUPABASE_URL (ou SUPABASE_URL) et SUPABASE_SERVICE_ROLE_KEY dans .env.local")
-    sys.exit(1)
-
-sb: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+# Imports lourds (supabase, dotenv) + lecture de l'environnement : déplacés dans
+# main(), APRÈS le check --self-test, pour que `--self-test` tourne en CI sans le
+# package supabase/dotenv ni creds (même pattern que backfill_courts_count.py).
+sb = None
 
 # ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -437,10 +419,55 @@ def import_venues(conn: sqlite3.Connection, city_index: dict, mode: str, limit: 
     print(f"\n✅ {total:,} venues importés (+ venue_sport + venue_amenity)")
 
 
+# ─── Self-test (logique pure, sans DB ni Supabase) ───────────────────────
+
+
+def self_test() -> int:
+    """Tests des helpers purs. Tournent en CI sans creds (appelé par --self-test)."""
+
+    # slugify : ASCII, minuscules, tirets, accents supprimés
+    assert slugify("Parc des Sports") == "parc-des-sports", slugify("Parc des Sports")
+    assert slugify("Allée Châtelet") == "allee-chatelet"
+    assert slugify("  --foo--  ") == "foo"
+    assert slugify("") == "untitled"
+    assert slugify("!!!") == "untitled"
+
+    # venue_slug : stable, max 120 chars, parties optionnelles
+    assert venue_slug("Tennis Club", "Paris", "FR") == "tennis-club-paris-fr"
+    assert venue_slug("Spot", None, None) == "spot"
+    assert venue_slug("Spot", "Lyon", None) == "spot-lyon"
+    assert len(venue_slug("x" * 200, "y" * 200, "z" * 200)) <= 120
+
+    # safe_json : None/vide → None, valide → parsé, invalide → None sans crash
+    assert safe_json(None) is None
+    assert safe_json("") is None
+    assert safe_json('{"a": 1}') == {"a": 1}
+    assert safe_json("[1,2,3]") == [1, 2, 3]
+    assert safe_json("not json {{") is None  # silencieux, pas de crash
+
+    # chunked : batching correct, dernier batch partiel inclus, vide → rien
+    assert list(chunked([1, 2, 3, 4, 5], 2)) == [[1, 2], [3, 4], [5]]
+    assert list(chunked([1, 2], 10)) == [[1, 2]]
+    assert list(chunked([], 3)) == []
+    # exactement n éléments → un seul batch plein (pas de batch vide en plus)
+    assert list(chunked([1, 2, 3], 3)) == [[1, 2, 3]]
+
+    # SPORT_TYPE_FAMILY_OVERRIDE : les override neige/nautique sont en place
+    # (régressions #277/#283 : skiing→snow, water_ski→nautique)
+    assert SPORT_TYPE_FAMILY_OVERRIDE["skiing"] == "snow"
+    assert SPORT_TYPE_FAMILY_OVERRIDE["ski"] == "snow"
+    assert SPORT_TYPE_FAMILY_OVERRIDE["water_ski"] == "nautique"
+    assert SPORT_TYPE_FAMILY_OVERRIDE["cable_skiing"] == "nautique"
+
+    print("✓ import_v1 self-test OK")
+    return 0
+
+
 # ─── Main ────────────────────────────────────────────────────────────────
 
 
 def main() -> int:
+    global sb
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", default="clubs-only",
                         choices=["clubs-only", "spots-only", "mixed"])
@@ -454,11 +481,35 @@ def main() -> int:
                         help="CSV de sport_type à ré-importer (ex: skiing,ski,water_ski). "
                              "Ciblage + filtre pays relâché ; l'override SPORT_TYPE_FAMILY "
                              "ré-aiguille vers la bonne famille (neige→snow, ski nautique→nautique).")
+    parser.add_argument("--self-test", action="store_true",
+                        help="Teste la logique pure (CI, sans creds ni SQLite)")
     args = parser.parse_args()
+
+    if args.self_test:
+        return self_test()
+
+    # Imports lourds + chargement env ICI (lazy) → --self-test reste CI-safe.
+    try:
+        from supabase import create_client
+    except ImportError:
+        print("❌ pip install --break-system-packages supabase python-dotenv slugify")
+        return 1
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env.local")
+    load_dotenv()  # charge aussi .env si présent (sans override)
+    supabase_url = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    v1_db = os.getenv("V1_SQLITE_PATH", "../data-pipeline/data/sportpin.sqlite")
+    if not supabase_url or not supabase_key:
+        print("❌ Définir NEXT_PUBLIC_SUPABASE_URL (ou SUPABASE_URL) et SUPABASE_SERVICE_ROLE_KEY dans .env.local")
+        return 1
+    sb = create_client(supabase_url, supabase_key)
+
     sport_types = ([s.strip() for s in args.sport_types.split(",") if s.strip()]
                    if args.sport_types else None)
 
-    db_path = Path(V1_DB).expanduser().resolve()
+    db_path = Path(v1_db).expanduser().resolve()
     if not db_path.exists():
         print(f"❌ SQLite introuvable : {db_path}")
         return 1
