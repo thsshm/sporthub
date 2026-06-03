@@ -49,9 +49,16 @@ def normalize_address(addr: str | None) -> str | None:
 # Clé de groupe : (city_id, family_slug, adresse normalisée). Exposée pour les tests.
 def group_key(venue: dict) -> tuple | None:
     addr = normalize_address(venue.get("address"))
-    if addr is None:
+    city_id = venue.get("city_id")
+    # Sans city_id, l'adresse seule n'est PAS un identifiant fiable : des adresses
+    # génériques ("le bourg", "centre village") existent à l'identique dans des
+    # centaines de communes distinctes. Les grouper revient à fusionner des lieux
+    # sans rapport → sur-comptage (incident : 137 venues "le bourg" comptées comme
+    # un club de 137 courts). On ne groupe donc PAS les venues sans ville ; elles
+    # restent ungroupables (cf. migration 0031 qui a remis leur courts_count à NULL).
+    if addr is None or city_id is None:
         return None
-    return (venue.get("city_id"), venue.get("family_slug"), addr)
+    return (city_id, venue.get("family_slug"), addr)
 
 
 def compute_courts_counts(venues: list[dict]) -> dict[str, int]:
@@ -201,6 +208,9 @@ def self_test() -> int:
     assert normalize_address("Allée Châtelet") == "allee chatelet"
     assert group_key({"address": None, "city_id": "c1", "family_slug": "r"}) is None
     assert group_key({"address": "X", "city_id": "c1", "family_slug": "r"}) == ("c1", "r", "x")
+    # Régression : sans city_id, une venue est ungroupable (sinon des adresses
+    # génériques de communes distinctes fusionnent → sur-comptage, incident #274).
+    assert group_key({"address": "le bourg", "city_id": None, "family_slug": "r"}) is None
     venues = [
         {"id": "a", "address": "1 rue X", "city_id": "c1", "family_slug": "raquette"},
         {"id": "b", "address": "1 rue X", "city_id": "c1", "family_slug": "raquette"},
@@ -208,11 +218,16 @@ def self_test() -> int:
         {"id": "d", "address": "1 rue X", "city_id": "c1", "family_slug": "ballon"},
         {"id": "e", "address": "1 rue X", "city_id": "c2", "family_slug": "raquette"},
         {"id": "f", "address": None, "city_id": "c1", "family_slug": "raquette"},
+        # g & h : même adresse générique, ville inconnue, communes DIFFÉRENTES.
+        # Ne doivent PAS être groupés (le bug d'origine les comptait comme 2).
+        {"id": "g", "address": "le bourg", "city_id": None, "family_slug": "raquette"},
+        {"id": "h", "address": "le bourg", "city_id": None, "family_slug": "raquette"},
     ]
     out = compute_courts_counts(venues)
     assert out["a"] == out["b"] == out["c"] == 3, out
     assert out["d"] == 1 and out["e"] == 1, out
     assert "f" not in out, out
+    assert "g" not in out and "h" not in out, out
     print("✓ backfill_courts_count self-test OK")
     return 0
 

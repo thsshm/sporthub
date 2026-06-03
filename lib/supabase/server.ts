@@ -3,6 +3,11 @@
  * Lit les cookies via next/headers pour maintenir la session utilisateur.
  * Utilise la clé anon par défaut — passer serviceRoleKey pour les opérations admin.
  */
+// Manie la service_role key (bypass RLS) : verrou structurel #325 — le build
+// échoue si un Client Component importe ce module, donc la clé ne peut jamais
+// fuiter dans un chunk navigateur. `server-only` autorise server + edge runtime.
+import "server-only";
+
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";

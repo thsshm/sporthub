@@ -14,12 +14,16 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json-summary"],
       include: ["lib/**/*.ts"],
-      exclude: ["lib/**/*.test.ts", "lib/supabase/**", "lib/env.ts"],
+      exclude: ["lib/**/*.test.ts", "lib/supabase/**", "lib/env.ts", "lib/env.server.ts"],
     },
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
+      // `server-only` throw à l'import hors condition `react-server` (garde-fou
+      // build Next.js). En tests `node`, on l'alias vers un no-op pour pouvoir
+      // tester `lib/env.server.ts` (#325).
+      "server-only": path.resolve(__dirname, "test/server-only-stub.ts"),
     },
   },
 });
