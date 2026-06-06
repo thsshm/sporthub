@@ -58,9 +58,13 @@ const fetchRanking = unstable_cache(
   async (sportSlug: string, limit = 50): Promise<VenueRanking[]> => {
     const sb = getSupabaseStaticClient();
     try {
-      // Rank par venue.courts_count DESC (colonne dénormalisée sur venue).
-      // courts_count peut être NULL → mis en fin de liste (nullsFirst: false).
-      // Filtre par sport via venue_sport!inner (sport_slug).
+      // #331 — on ordonne par `id` (PK indexée), PAS par `courts_count`.
+      // Trier le gros set joint (ex. tennis = 40k+ venues après venue_sport!
+      // inner) par `courts_count` — colonne non indexée ET NULL partout en prod
+      // tant que le backfill (0023/0031) n'a pas tourné — fait un sort full-scan
+      // qui dépasse le statement_timeout (57014) → la requête échoue → la page
+      // s'affichait VIDE ("0 clubs"). Ordonner par la PK est immédiat (cf.
+      // /sports/[sport] qui marche avec le même filtre).
       const { data, error } = await sb
         .from("venue")
         .select(
@@ -71,11 +75,11 @@ const fetchRanking = unstable_cache(
         .eq("venue_sport.sport_slug", sportSlug)
         .eq("is_published", true)
         .is("deleted_at", null)
-        .order("courts_count", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true })
         .limit(limit);
 
       if (error || !data) return [];
-      return (data as unknown[]).map((row) => {
+      const rows = (data as unknown[]).map((row) => {
         const r = row as {
           id: string; slug: string; name: string;
           address: string | null; country_code: string | null;
@@ -92,6 +96,12 @@ const fetchRanking = unstable_cache(
           country_code: r.country_code,
         };
       });
+      // Tri par nombre de courts DESC (NULL en dernier) sur le lot récupéré —
+      // sans coût DB. Devient un vrai classement dès que courts_count est peuplé
+      // (backfill 0023/0031) ; aujourd'hui (courts NULL partout) = ordre PK.
+      return rows.sort(
+        (a, b) => (b.courts_count ?? -1) - (a.courts_count ?? -1),
+      );
     } catch {
       return [];
     }
@@ -119,9 +129,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const tSports = await getTranslations({ locale, namespace: "sports" });
   const sportName = tSports.has(sportSlug) ? tSports(sportSlug) : sport.name_fr;
   const hreflang = buildHreflangAlternates(`/disciplines/${sportSlug}`);
+
+  // #331 : tant que le ranking ne ramène rien (la requête ORDER BY courts_count
+  // sur le set joint peut timeout côté DB → 0 club), la page est du thin content.
+  // On la met en `noindex` pour ne pas faire indexer des pages vides par Google
+  // ni envoyer « 0 clubs » aux LLMs (AEO). `follow` reste actif pour le crawl
+  // interne. Auto-correcteur : dès que le ranking se remplit, la page redevient
+  // indexable sans intervention. Même appel (mêmes args) que la page → cache
+  // partagé, pas de requête supplémentaire.
+  const isEmpty = (await fetchRanking(sportSlug, 50)).length === 0;
+
   return {
     title: t("metaTitle", { sport: sportName }),
     description: t("metaDescription", { sport: sportName }),
+    robots: isEmpty ? { index: false, follow: true } : undefined,
     alternates: {
       canonical: hreflang.canonical,
       languages: hreflang.languages,

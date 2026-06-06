@@ -11,6 +11,8 @@ import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { routing, type Locale } from "@/i18n/routing";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
+import { getTotalSpots } from "@/lib/home-stats";
+import { formatCount } from "@/lib/utils";
 import "../globals.css";
 
 export const viewport: Viewport = {
@@ -33,13 +35,16 @@ export async function generateMetadata({
   // hreflang root : same path "/" pour les 3 locales. Les pages enfants
   // surchargent pour leur chemin propre (#108).
   const hreflang = buildHreflangAlternates("/");
+  // Total réel (même source cachée que le H1 de la home) plutôt qu'un nombre
+  // hardcodé qui devient faux quand la base bouge (#334).
+  const totalSpots = await getTotalSpots();
   return {
     title: {
       default: `${t("heroTitle")} — ${t("heroSubtitle")}`,
       template: `%s · ${t("heroTitle")}`,
     },
     description: t.has("heroDescription")
-      ? t("heroDescription", { count: 350000 })
+      ? t("heroDescription", { count: formatCount(totalSpots) })
       : undefined,
     metadataBase: new URL("https://sporthubmap.com"),
     alternates: {

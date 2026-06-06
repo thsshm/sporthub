@@ -14,12 +14,11 @@
  * Toutes les sections sont des Server Components dans `components/home/*`.
  * Aucun "use client" — fetch direct Supabase via getSupabaseServerClient.
  */
-import { unstable_cache } from "next/cache";
 import { MapPin } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/routing";
-import { getSupabaseStaticClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
+import { getFamilyCounts } from "@/lib/home-stats";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { formatCount } from "@/lib/utils";
 import { HomeFAQ } from "@/components/home/HomeFAQ";
@@ -29,43 +28,6 @@ import { HomePopularSearches } from "@/components/home/HomePopularSearches";
 import { HomeTopSpots } from "@/components/home/HomeTopSpots";
 
 export const revalidate = 300; // 5 min : ISR — Vercel CDN cache + revalidation background
-
-/**
- * Counts de venues par famille — mis en cache dans le data cache Next.js
- * (unstable_cache) ET dans le CDN Vercel (revalidate=300 sur la page).
- *
- * N'utilise PAS cookies() → la home reste statique/ISR côté Vercel.
- * Cf. issue #191 : getSupabaseServerClient() appelait cookies(), ce qui
- * forçait cache-control: private, no-store sur toute la home.
- */
-const fetchFamilyCounts = unstable_cache(
-  async (): Promise<Record<string, number>> => {
-    const sb = getSupabaseStaticClient();
-  // count=planned (estimation via Postgres stats) au lieu de count=exact :
-  // sur 200k+ venues (fitness), exact timeout (statement timeout >3s) →
-  // la home affichait 0 pour fitness. planned est instantané, précision
-  // ±1% suffisante pour un affichage UI.
-  const entries = await Promise.all(
-    FAMILIES.map(async (f) => {
-      try {
-        const { count } = await sb
-          .from("venue")
-          .select("id", { count: "planned", head: true })
-          .eq("family_slug", f.slug)
-          .eq("is_published", true)
-          .is("deleted_at", null);
-        return [f.slug, count ?? 0] as const;
-      } catch {
-        // Si une famille fail, on ne fait pas tout planter
-        return [f.slug, 0] as const;
-      }
-    }),
-  );
-  return Object.fromEntries(entries);
-  },
-  ["home-family-counts"],
-  { revalidate: 300, tags: ["home"] },
-);
 
 export default async function HomePage({
   params,
@@ -78,7 +40,7 @@ export default async function HomePage({
   const tFamilies = await getTranslations("families");
   const tSports = await getTranslations("sports");
 
-  const counts = await fetchFamilyCounts();
+  const counts = await getFamilyCounts();
   const totalVenues = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
