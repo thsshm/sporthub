@@ -49,6 +49,9 @@ jobs:
       - name: Migrations gate (numérotation séquentielle + zéro doublon)
         run: node scripts/check-migrations.mjs
 
+      - name: i18n gate (couverture familles/sports + parité locales)
+        run: node scripts/check-i18n.mjs
+
       - name: TypeScript check
         run: pnpm exec tsc --noEmit
 
