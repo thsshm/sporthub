@@ -48,10 +48,16 @@ const resolveContext = cache(async (sport: string, country: string, city: string
     .maybeSingle();
   if (!cityRow) return null;
 
-  // count=planned évite les timeouts sur les sports volumineux
+  // count=exact ICI (pas "planned") : la query est bornée par city_id, donc
+  // l'index composite (primary_sport_slug, city_id) de la migration 0005 rend
+  // le COUNT(*) trivial (≤ quelques milliers de lignes même pour une ville
+  // dense). "planned" renvoyait une ESTIMATION du planner (ex : 6 pour
+  // padel/paris) qui divergeait du vrai nombre de lignes rendues (1) → titre,
+  // H1, meta et compteur carte mentaient au crawler/LLM (#335). NB : la page
+  // mondiale /sports/[sport] (non bornée par ville) garde "planned" elle.
   const { count } = await sb
     .from("venue")
-    .select("id", { count: "planned", head: true })
+    .select("id", { count: "exact", head: true })
     .eq("primary_sport_slug", sport)
     .eq("city_id", (cityRow as { id: string }).id)
     .eq("is_published", true)
