@@ -5,13 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import {
-  Map,
-  Marker,
-  NavigationControl,
-  Popup,
-  type MapRef,
-} from "react-map-gl/maplibre";
+import { Map, Marker, NavigationControl, Popup, type MapRef } from "react-map-gl/maplibre";
 import Supercluster from "supercluster";
 import type { ClusterFeature, PointFeature } from "supercluster";
 import { Search, Star } from "lucide-react";
@@ -24,12 +18,7 @@ import { publicEnv } from "@/lib/env";
 import { saveViewport } from "@/lib/map-storage";
 import { useDebouncedCallback } from "@/lib/hooks/use-debounced-callback";
 import { VenuePopupEnrichments } from "@/components/map/VenuePopupEnrichments";
-import {
-  appleMapsUrl,
-  googleMapsUrl,
-  wazeUrl,
-  whatsappShareUrl,
-} from "@/lib/utils";
+import { appleMapsUrl, googleMapsUrl, wazeUrl, whatsappShareUrl } from "@/lib/utils";
 
 const FAVORITES_KEY = "sporthub-favorites";
 
@@ -129,9 +118,7 @@ const MAP_STYLE = {
         '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
     },
   },
-  layers: [
-    { id: "basemap-layer", type: "raster" as const, source: "basemap" },
-  ],
+  layers: [{ id: "basemap-layer", type: "raster" as const, source: "basemap" }],
 };
 
 // Idem pour le style CSS du <Map> : référence stable.
@@ -223,9 +210,7 @@ export default function MapClient({
   // Supercluster. Inactif sur les pages presetVenues (sport) qui passent leurs
   // propres venues. Flag absent → comportement carte inchangé.
   const useTiles = Boolean(publicEnv.tilesUrl) && !presetVenues;
-  const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(
-    () => initialVenues ?? [],
-  );
+  const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(() => initialVenues ?? []);
   // Cellules d'agrégat retournées quand zoom < 10 (#114). Vide en mode POI.
   // En mode presetVenues, jamais utilisé (la page passe les venues directement).
   const [aggregates, setAggregates] = useState<AggregateCell[]>([]);
@@ -243,6 +228,10 @@ export default function MapClient({
   const [loading, setLoading] = useState(false);
   // Clubs fetchés depuis /api/venues/clubs (zoom 10-15, familles compatibles).
   const [clubs, setClubs] = useState<ClubPin[]>([]);
+  // Club sélectionné (clic sur un ClubMarker) → popup listant ses courts
+  // (palier 4, #311). `clubVenues` = courts du club, lazy-fetchés.
+  const [selectedClub, setSelectedClub] = useState<ClubPin | null>(null);
+  const [clubVenues, setClubVenues] = useState<VenuePin[]>([]);
   // Clé "filtres + bounds" du dernier fetch réussi. Permet de détecter si
   // l'utilisateur a pané/zoomé depuis (afficher "Rechercher dans cette zone").
   const lastFetchedKeyRef = useRef<string | null>(null);
@@ -274,6 +263,28 @@ export default function MapClient({
   useEffect(() => {
     setFavorites(loadFavorites());
   }, []);
+
+  // Lazy-fetch des courts du club sélectionné (popup vue club, #311).
+  // Vide la liste tant qu'aucun club n'est ouvert.
+  useEffect(() => {
+    if (!selectedClub) {
+      setClubVenues([]);
+      return;
+    }
+    let cancelled = false;
+    setClubVenues([]);
+    fetch(`/api/venues/clubs/${selectedClub.id}`)
+      .then((res) => (res.ok ? res.json() : { venues: [] }))
+      .then((data: { venues?: VenuePin[] }) => {
+        if (!cancelled) setClubVenues(data.venues ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setClubVenues([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedClub]);
 
   // Reporte le nombre de clubs visibles au parent (compteur sidebar "N clubs",
   // palier 4 #311). En mode pois, `clubs` est vide → reporte 0.
@@ -316,8 +327,10 @@ export default function MapClient({
       return;
     }
     const famKey =
-      selectedFamilies && totalFamilies &&
-      selectedFamilies.size > 0 && selectedFamilies.size < totalFamilies
+      selectedFamilies &&
+      totalFamilies &&
+      selectedFamilies.size > 0 &&
+      selectedFamilies.size < totalFamilies
         ? Array.from(selectedFamilies).sort().join(",")
         : "";
     const currentKey = `clubs|${bounds.join(",")}|${famKey}`;
@@ -328,9 +341,7 @@ export default function MapClient({
       if (famKey) {
         // Filtrer uniquement les familles compatibles (exclure les incompatibles)
         const compatFamilies = selectedFamilies
-          ? Array.from(selectedFamilies).filter(
-              (f) => !CLUB_INCOMPATIBLE_FAMILIES.has(f),
-            )
+          ? Array.from(selectedFamilies).filter((f) => !CLUB_INCOMPATIBLE_FAMILIES.has(f))
           : [];
         if (compatFamilies.length > 0) {
           params.set("families", compatFamilies.join(","));
@@ -407,15 +418,14 @@ export default function MapClient({
     if (currentKey === lastFetchedKeyRef.current) return;
     // Détecte si l'effect tourne suite à un user-click "Rechercher dans cette
     // zone" (forceFetchToken a bougé). Si oui, on bypass le gate autoUpdate.
-    const userForcedFetch =
-      forceFetchToken !== prevForceFetchTokenRef.current;
+    const userForcedFetch = forceFetchToken !== prevForceFetchTokenRef.current;
     prevForceFetchTokenRef.current = forceFetchToken;
     // Si autoUpdate=off ET pas un force user ET que SEUL le bbox/zoom a bougé
     // (filtres identiques au dernier fetch), on n'auto-fetch pas. L'user
     // déclenchera via "Rechercher dans cette zone".
     if (!autoUpdate && !userForcedFetch) {
       const last = lastFetchedKeyRef.current;
-      const lastFiltersKey = last ? last.split("|")[1] ?? null : null;
+      const lastFiltersKey = last ? (last.split("|")[1] ?? null) : null;
       if (lastFiltersKey !== null && lastFiltersKey === filtersKey) {
         return;
       }
@@ -587,7 +597,7 @@ export default function MapClient({
         type: "Feature" as const,
         geometry: { type: "Point" as const, coordinates: [v.lon, v.lat] },
         properties: { venue: v },
-      })),
+      }))
     );
     return sc;
   }, [venues]);
@@ -618,10 +628,7 @@ export default function MapClient({
   // appel naïf déclencherait un fetch. On regroupe en un seul update final.
   // NB : on ne s'abonne PAS à `move` (continu pendant drag) — seulement aux
   // events "end" (cf. spec issue #114).
-  const debouncedUpdateViewport = useDebouncedCallback(
-    updateViewport,
-    MOVE_DEBOUNCE_MS,
-  );
+  const debouncedUpdateViewport = useDebouncedCallback(updateViewport, MOVE_DEBOUNCE_MS);
 
   // Reporte au parent (#123 VenueListPanel) la liste de venues + le centre
   // courant à chaque update — sans re-fetch propre côté liste.
@@ -650,8 +657,7 @@ export default function MapClient({
   };
 
   // Empty filter (l'user a tout décoché) — pas la peine de fetch
-  const emptyFilter =
-    selectedFamilies !== undefined && selectedFamilies.size === 0;
+  const emptyFilter = selectedFamilies !== undefined && selectedFamilies.size === 0;
 
   return (
     <div className="relative h-full w-full">
@@ -668,338 +674,395 @@ export default function MapClient({
         </button>
       )}
 
-    <Map
-      ref={mapRef}
-      initialViewState={{
-        latitude: initialLat,
-        longitude: initialLon,
-        zoom: initialZoom,
-      }}
-      style={MAP_CONTAINER_STYLE}
-      mapStyle={MAP_STYLE}
-      onLoad={handleLoad}
-      onMoveEnd={debouncedUpdateViewport}
-      onZoomEnd={debouncedUpdateViewport}
-    >
-      <NavigationControl position="top-right" />
+      <Map
+        ref={mapRef}
+        initialViewState={{
+          latitude: initialLat,
+          longitude: initialLon,
+          zoom: initialZoom,
+        }}
+        style={MAP_CONTAINER_STYLE}
+        mapStyle={MAP_STYLE}
+        onLoad={handleLoad}
+        onMoveEnd={debouncedUpdateViewport}
+        onZoomEnd={debouncedUpdateViewport}
+      >
+        <NavigationControl position="top-right" />
 
-      {/* Vector tiles (#226) — quand NEXT_PUBLIC_TILES_URL est défini, le rendu
+        {/* Vector tiles (#226) — quand NEXT_PUBLIC_TILES_URL est défini, le rendu
           des venues vient des tuiles PMTiles (coût O(1)), et les blocs markers
           ci-dessous sont court-circuités via !useTiles. */}
-      {useTiles && (
-        <VenueTilesLayer
-          url={publicEnv.tilesUrl}
-          selectedFamilies={selectedFamilies}
-          totalFamilies={totalFamilies}
-        />
-      )}
+        {useTiles && (
+          <VenueTilesLayer
+            url={publicEnv.tilesUrl}
+            selectedFamilies={selectedFamilies}
+            totalFamilies={totalFamilies}
+          />
+        )}
 
-      {/* Mode agrégats (#114) — bulles de densité (zoom < 10). Fade-out
+        {/* Mode agrégats (#114) — bulles de densité (zoom < 10). Fade-out
           coordonné avec le mode POI au swap 9↔10 via opacity CSS. */}
-      {!useTiles && !emptyFilter && !presetVenues &&
-        aggregates.map((cell) => {
-          const size = Math.max(28, Math.min(72, 18 + Math.log2(cell.count + 1) * 7));
-          const handleClick = (e: { originalEvent: { stopPropagation: () => void } }) => {
-            e.originalEvent.stopPropagation();
-            const map = mapRef.current?.getMap();
-            if (!map) return;
-            // Zoome de +N levels sur la zone cliquée — pratique pour passer
-            // d'un agrégat continental à une vue régionale, ou région→POI.
-            const targetZoom = Math.min(
-              22,
-              Math.max(zoomBucket + AGGREGATE_CLICK_ZOOM_BOOST, ZOOM_POI_THRESHOLD),
-            );
-            map.flyTo({
-              center: [cell.lon, cell.lat],
-              zoom: targetZoom,
-              duration: 600,
-              essential: true,
-            });
-          };
-          // Clé : country_code si disponible (zoom<6, stable), sinon coords
-          // arrondies (zoom 6-9, cellule degré-alignée — coords toujours
-          // équivalentes pour une même cellule).
-          const key = cell.country_code
-            ? `agg-c-${cell.country_code}`
-            : `agg-g-${cell.lat.toFixed(2)}-${cell.lon.toFixed(2)}`;
-          return (
-            <Marker
-              key={key}
-              latitude={cell.lat}
-              longitude={cell.lon}
-              anchor="center"
-              onClick={handleClick}
-            >
-              <button
-                type="button"
-                aria-label={`${cell.count} spots — zoomer`}
-                className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary/85 font-semibold text-white shadow-md transition-all hover:scale-110"
-                style={{
-                  width: size,
-                  height: size,
-                  fontSize: size > 48 ? 14 : 12,
-                  // Fade-out lors du swap zoom 9→10 : si on est passé en POI
-                  // mode mais que setAggregates n'a pas encore vidé (race brève
-                  // entre les setState), on cache visuellement.
-                  opacity: isAggregateMode ? 1 : 0,
-                  transition: `opacity ${FADE_TRANSITION_MS}ms ease-out, transform 150ms`,
-                  pointerEvents: isAggregateMode ? "auto" : "none",
-                }}
-              >
-                {cell.count.toLocaleString("fr-FR")}
-              </button>
-            </Marker>
-          );
-        })}
-
-      {/* Mode POI individuels (zoom ≥ 10, ou presetVenues, ou rétro-compat).
-          Fade-in coordonné avec les agrégats au swap zoom 9↔10.
-          Masqués en mode clubs pour éviter le double affichage. */}
-      {!useTiles && !emptyFilter && !isClubMode &&
-        clusters.map((feature) => {
-          const [lon, lat] = feature.geometry.coordinates;
-          // Fade quand on quitte le mode POI (ex: dézoom 10→9). En presetVenues
-          // on reste toujours opaque (pas de tier zoom à respecter).
-          const poiOpacity = presetVenues || !isAggregateMode ? 1 : 0;
-
-          // Cluster bubble (count)
-          if ("cluster" in feature.properties && feature.properties.cluster) {
-            const cf = feature as ClusterFeature<ClusterProps>;
-            const count = cf.properties.point_count;
-            const size = Math.min(60, 20 + Math.log2(count) * 8);
-            // Famille dominante du cluster → couleur de la bulle (séparation
-            // visuelle par activité). Fallback gris si pas d'info famille.
-            const fams = cf.properties.fams ?? {};
-            let domFam: string | null = null;
-            let domCount = -1;
-            for (const slug in fams) {
-              if (fams[slug] > domCount) {
-                domCount = fams[slug];
-                domFam = slug;
-              }
-            }
-            const clusterColor = domFam ? getFamilyColor(domFam) : "#374151";
+        {!useTiles &&
+          !emptyFilter &&
+          !presetVenues &&
+          aggregates.map((cell) => {
+            const size = Math.max(28, Math.min(72, 18 + Math.log2(cell.count + 1) * 7));
+            const handleClick = (e: { originalEvent: { stopPropagation: () => void } }) => {
+              e.originalEvent.stopPropagation();
+              const map = mapRef.current?.getMap();
+              if (!map) return;
+              // Zoome de +N levels sur la zone cliquée — pratique pour passer
+              // d'un agrégat continental à une vue régionale, ou région→POI.
+              const targetZoom = Math.min(
+                22,
+                Math.max(zoomBucket + AGGREGATE_CLICK_ZOOM_BOOST, ZOOM_POI_THRESHOLD)
+              );
+              map.flyTo({
+                center: [cell.lon, cell.lat],
+                zoom: targetZoom,
+                duration: 600,
+                essential: true,
+              });
+            };
+            // Clé : country_code si disponible (zoom<6, stable), sinon coords
+            // arrondies (zoom 6-9, cellule degré-alignée — coords toujours
+            // équivalentes pour une même cellule).
+            const key = cell.country_code
+              ? `agg-c-${cell.country_code}`
+              : `agg-g-${cell.lat.toFixed(2)}-${cell.lon.toFixed(2)}`;
             return (
               <Marker
-                key={`cluster-${cf.id}`}
+                key={key}
+                latitude={cell.lat}
+                longitude={cell.lon}
+                anchor="center"
+                onClick={handleClick}
+              >
+                <button
+                  type="button"
+                  aria-label={`${cell.count} spots — zoomer`}
+                  className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary/85 font-semibold text-white shadow-md transition-all hover:scale-110"
+                  style={{
+                    width: size,
+                    height: size,
+                    fontSize: size > 48 ? 14 : 12,
+                    // Fade-out lors du swap zoom 9→10 : si on est passé en POI
+                    // mode mais que setAggregates n'a pas encore vidé (race brève
+                    // entre les setState), on cache visuellement.
+                    opacity: isAggregateMode ? 1 : 0,
+                    transition: `opacity ${FADE_TRANSITION_MS}ms ease-out, transform 150ms`,
+                    pointerEvents: isAggregateMode ? "auto" : "none",
+                  }}
+                >
+                  {cell.count.toLocaleString("fr-FR")}
+                </button>
+              </Marker>
+            );
+          })}
+
+        {/* Mode POI individuels (zoom ≥ 10, ou presetVenues, ou rétro-compat).
+          Fade-in coordonné avec les agrégats au swap zoom 9↔10.
+          Masqués en mode clubs pour éviter le double affichage. */}
+        {!useTiles &&
+          !emptyFilter &&
+          !isClubMode &&
+          clusters.map((feature) => {
+            const [lon, lat] = feature.geometry.coordinates;
+            // Fade quand on quitte le mode POI (ex: dézoom 10→9). En presetVenues
+            // on reste toujours opaque (pas de tier zoom à respecter).
+            const poiOpacity = presetVenues || !isAggregateMode ? 1 : 0;
+
+            // Cluster bubble (count)
+            if ("cluster" in feature.properties && feature.properties.cluster) {
+              const cf = feature as ClusterFeature<ClusterProps>;
+              const count = cf.properties.point_count;
+              const size = Math.min(60, 20 + Math.log2(count) * 8);
+              // Famille dominante du cluster → couleur de la bulle (séparation
+              // visuelle par activité). Fallback gris si pas d'info famille.
+              const fams = cf.properties.fams ?? {};
+              let domFam: string | null = null;
+              let domCount = -1;
+              for (const slug in fams) {
+                if (fams[slug] > domCount) {
+                  domCount = fams[slug];
+                  domFam = slug;
+                }
+              }
+              const clusterColor = domFam ? getFamilyColor(domFam) : "#374151";
+              return (
+                <Marker
+                  key={`cluster-${cf.id}`}
+                  latitude={lat}
+                  longitude={lon}
+                  anchor="center"
+                  onClick={(e) => {
+                    e.originalEvent.stopPropagation();
+                    const expansionZoom = Math.min(
+                      supercluster.getClusterExpansionZoom(Number(cf.id)),
+                      18
+                    );
+                    mapRef.current?.getMap().flyTo({
+                      center: [lon, lat],
+                      zoom: expansionZoom,
+                      duration: 500,
+                    });
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-label={`${count} spots — zoomer`}
+                    className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white font-semibold text-white shadow-md transition-all hover:scale-110"
+                    style={{
+                      width: size,
+                      height: size,
+                      fontSize: size > 36 ? 14 : 12,
+                      backgroundColor: clusterColor,
+                      opacity: poiOpacity,
+                      transition: `opacity ${FADE_TRANSITION_MS}ms ease-in, transform 150ms`,
+                    }}
+                  >
+                    {count}
+                  </button>
+                </Marker>
+              );
+            }
+
+            // Pin individuel
+            const pf = feature as PointFeature<PointProps>;
+            const v = pf.properties.venue;
+            return (
+              <Marker
+                key={v.id}
                 latitude={lat}
                 longitude={lon}
                 anchor="center"
                 onClick={(e) => {
                   e.originalEvent.stopPropagation();
-                  const expansionZoom = Math.min(
-                    supercluster.getClusterExpansionZoom(Number(cf.id)),
-                    18,
-                  );
-                  mapRef.current?.getMap().flyTo({
-                    center: [lon, lat],
-                    zoom: expansionZoom,
-                    duration: 500,
-                  });
+                  setSelected(v);
                 }}
               >
                 <button
                   type="button"
-                  aria-label={`${count} spots — zoomer`}
-                  className="flex cursor-pointer items-center justify-center rounded-full border-2 border-white font-semibold text-white shadow-md transition-all hover:scale-110"
+                  aria-label={v.name}
+                  title={v.name}
+                  className="block h-3 w-3 cursor-pointer rounded-full border-2 border-white shadow-md transition-all hover:scale-150"
                   style={{
-                    width: size,
-                    height: size,
-                    fontSize: size > 36 ? 14 : 12,
-                    backgroundColor: clusterColor,
+                    backgroundColor: getFamilyColor(v.family_slug),
                     opacity: poiOpacity,
                     transition: `opacity ${FADE_TRANSITION_MS}ms ease-in, transform 150ms`,
                   }}
-                >
-                  {count}
-                </button>
+                />
               </Marker>
             );
-          }
+          })}
 
-          // Pin individuel
-          const pf = feature as PointFeature<PointProps>;
-          const v = pf.properties.venue;
-          return (
-            <Marker
-              key={v.id}
-              latitude={lat}
-              longitude={lon}
-              anchor="center"
-              onClick={(e) => {
-                e.originalEvent.stopPropagation();
-                setSelected(v);
-              }}
-            >
-              <button
-                type="button"
-                aria-label={v.name}
-                title={v.name}
-                className="block h-3 w-3 cursor-pointer rounded-full border-2 border-white shadow-md transition-all hover:scale-150"
-                style={{
-                  backgroundColor: getFamilyColor(v.family_slug),
-                  opacity: poiOpacity,
-                  transition: `opacity ${FADE_TRANSITION_MS}ms ease-in, transform 150ms`,
-                }}
-              />
-            </Marker>
-          );
-        })}
-
-      {/* Mode clubs : zoom 10-15, familles compatibles. 1 pin/établissement.
+        {/* Mode clubs : zoom 10-15, familles compatibles. 1 pin/établissement.
           Click → zoom +3 pour révéler les pois individuels.
           Note : ClubMarker appelle e.stopPropagation() → le onClick du Marker
           react-map-gl ne se déclenche pas. On passe uniquement onClick à ClubMarker. */}
-      {!useTiles && isClubMode && !emptyFilter &&
-        clubs.map((club) => (
-          <Marker
-            key={`club-${club.id}`}
-            latitude={club.lat}
-            longitude={club.lon}
-            anchor="center"
-          >
-            <ClubMarker
-              club={club}
-              onClick={() => {
-                mapRef.current?.getMap().flyTo({
-                  center: [club.lon, club.lat],
-                  zoom: Math.min(zoom + 3, 18),
-                  duration: 600,
-                });
-              }}
-            />
-          </Marker>
-        ))}
+        {!useTiles &&
+          isClubMode &&
+          !emptyFilter &&
+          clubs.map((club) => (
+            <Marker
+              key={`club-${club.id}`}
+              latitude={club.lat}
+              longitude={club.lon}
+              anchor="center"
+            >
+              <ClubMarker
+                club={club}
+                onClick={() => {
+                  // Ouvre la popup club (liste des courts) + recentre en douceur
+                  // sans sauter au zoom POI : on garde la vue club ouverte.
+                  setSelected(null);
+                  setSelectedClub(club);
+                  mapRef.current?.getMap().easeTo({
+                    center: [club.lon, club.lat],
+                    duration: 400,
+                  });
+                }}
+              />
+            </Marker>
+          ))}
 
-      {loading && (
-        <div className="pointer-events-none absolute right-4 top-20 z-10 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
-          {tMap("fetching")}
-        </div>
-      )}
-
-      {selected && (() => {
-        // Famille pour le chip + CTA stylés (couleur de marque par famille).
-        // Cf. #126 — popup pin enrichie : chip family + CTA "Voir la fiche".
-        const family = FAMILIES.find((f) => f.slug === selected.family_slug);
-        const familyColor = family?.color ?? "#6b7280";
-        const familyLabel = family?.name_fr ?? selected.family_slug;
-        const isFav = favorites.has(selected.slug);
-        return (
+        {/* Popup club (palier 4, #311) : nom + nombre de courts + liste des courts
+          du club, chacun linkable vers sa fiche /venue/[slug]. */}
+        {selectedClub && (
           <Popup
-            latitude={selected.lat}
-            longitude={selected.lon}
+            latitude={selectedClub.lat}
+            longitude={selectedClub.lon}
             anchor="bottom"
-            onClose={() => setSelected(null)}
+            onClose={() => setSelectedClub(null)}
             closeButton
             closeOnClick={false}
-            offset={12}
-            maxWidth="320px"
+            offset={24}
+            maxWidth="300px"
           >
-            <div className="min-w-[260px] max-w-[300px] space-y-2.5 p-1 text-sm">
-              {/* Enrichissements Wikimedia/Wikipedia (#107) — lazy-fetch.
-                  Ne rend rien si le venue n'est pas enrichi. */}
-              <VenuePopupEnrichments slug={selected.slug} />
-
-              {/* Header : chip famille (gauche) + étoile favori (droite) */}
-              <div className="flex items-start justify-between gap-2">
+            <div className="min-w-[220px] max-w-[280px] space-y-2 p-1 text-sm">
+              <div className="flex items-center gap-1.5">
                 <span
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-white"
-                  style={{ backgroundColor: familyColor }}
+                  aria-hidden="true"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full text-white"
+                  style={{ backgroundColor: getFamilyColor(selectedClub.family_slug) }}
                 >
-                  <span aria-hidden="true">{getFamilyEmoji(selected.family_slug)}</span>
-                  {familyLabel}
+                  {getFamilyEmoji(selectedClub.family_slug)}
                 </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFavorites((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(selected.slug)) next.delete(selected.slug);
-                      else next.add(selected.slug);
-                      persistFavorites(next);
-                      return next;
-                    })
-                  }
-                  aria-label={isFav ? "Retirer des favoris" : "Ajouter aux favoris"}
-                  aria-pressed={isFav}
-                  className="-mt-0.5 -mr-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-yellow-500"
-                >
-                  <Star
-                    className="h-5 w-5"
-                    fill={isFav ? "currentColor" : "none"}
-                    color={isFav ? "#eab308" : "currentColor"}
-                  />
-                </button>
+                <span className="font-semibold leading-tight">{selectedClub.name}</span>
               </div>
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {tMap("clubCourts", { count: selectedClub.courts_count })}
+              </p>
+              {clubVenues.length === 0 ? (
+                <p className="text-xs text-muted-foreground">{tMap("clubCourtsLoading")}</p>
+              ) : (
+                <ul className="max-h-48 space-y-0.5 overflow-y-auto">
+                  {clubVenues.map((v) => (
+                    <li key={v.id}>
+                      <Link
+                        href={`/venue/${v.slug}`}
+                        className="block rounded px-1.5 py-1 hover:bg-gray-100"
+                      >
+                        {v.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Popup>
+        )}
 
-              {/* Titre venue + sport primaire si présent */}
-              <div className="space-y-0.5">
-                <h3 className="text-[15px] font-semibold leading-tight text-gray-900">
-                  {selected.name}
-                </h3>
-                {selected.primary_sport_slug && (
-                  <p className="text-xs capitalize text-gray-500">
-                    {selected.primary_sport_slug.replaceAll("_", " ")}
-                  </p>
-                )}
-              </div>
+        {loading && (
+          <div className="pointer-events-none absolute right-4 top-20 z-10 rounded bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
+            {tMap("fetching")}
+          </div>
+        )}
 
-              {/* TODO #126 : afficher count courts ("🎾 12 courts") quand l'API
+        {selected &&
+          (() => {
+            // Famille pour le chip + CTA stylés (couleur de marque par famille).
+            // Cf. #126 — popup pin enrichie : chip family + CTA "Voir la fiche".
+            const family = FAMILIES.find((f) => f.slug === selected.family_slug);
+            const familyColor = family?.color ?? "#6b7280";
+            const familyLabel = family?.name_fr ?? selected.family_slug;
+            const isFav = favorites.has(selected.slug);
+            return (
+              <Popup
+                latitude={selected.lat}
+                longitude={selected.lon}
+                anchor="bottom"
+                onClose={() => setSelected(null)}
+                closeButton
+                closeOnClick={false}
+                offset={12}
+                maxWidth="320px"
+              >
+                <div className="min-w-[260px] max-w-[300px] space-y-2.5 p-1 text-sm">
+                  {/* Enrichissements Wikimedia/Wikipedia (#107) — lazy-fetch.
+                  Ne rend rien si le venue n'est pas enrichi. */}
+                  <VenuePopupEnrichments slug={selected.slug} />
+
+                  {/* Header : chip famille (gauche) + étoile favori (droite) */}
+                  <div className="flex items-start justify-between gap-2">
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-white"
+                      style={{ backgroundColor: familyColor }}
+                    >
+                      <span aria-hidden="true">{getFamilyEmoji(selected.family_slug)}</span>
+                      {familyLabel}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFavorites((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(selected.slug)) next.delete(selected.slug);
+                          else next.add(selected.slug);
+                          persistFavorites(next);
+                          return next;
+                        })
+                      }
+                      aria-label={isFav ? "Retirer des favoris" : "Ajouter aux favoris"}
+                      aria-pressed={isFav}
+                      className="-mr-0.5 -mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-yellow-500"
+                    >
+                      <Star
+                        className="h-5 w-5"
+                        fill={isFav ? "currentColor" : "none"}
+                        color={isFav ? "#eab308" : "currentColor"}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Titre venue + sport primaire si présent */}
+                  <div className="space-y-0.5">
+                    <h3 className="text-[15px] font-semibold leading-tight text-gray-900">
+                      {selected.name}
+                    </h3>
+                    {selected.primary_sport_slug && (
+                      <p className="text-xs capitalize text-gray-500">
+                        {selected.primary_sport_slug.replaceAll("_", " ")}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* TODO #126 : afficher count courts ("🎾 12 courts") quand l'API
                   /api/venues exposera `courts_count` dans le payload VenuePin.
                   Dépendant de #113 (refacto payload) ou ajout direct au RPC. */}
 
-              {/* Actions Itinéraire / Partager — tap targets ≥ 36px hauteur */}
-              <div className="flex flex-wrap gap-1">
-                <a
-                  href={googleMapsUrl(selected.lat, selected.lon, selected.name)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                >
-                  <span aria-hidden="true">📍</span> Google
-                </a>
-                <a
-                  href={appleMapsUrl(selected.lat, selected.lon, selected.name)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                >
-                  <span aria-hidden="true">🗺️</span> Apple
-                </a>
-                <a
-                  href={wazeUrl(selected.lat, selected.lon)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                >
-                  <span aria-hidden="true">🚗</span> Waze
-                </a>
-                <a
-                  href={whatsappShareUrl(
-                    selected.name,
-                    `https://sporthubmap.com/venue/${selected.slug}`,
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                >
-                  <span aria-hidden="true">💬</span> WhatsApp
-                </a>
-              </div>
+                  {/* Actions Itinéraire / Partager — tap targets ≥ 36px hauteur */}
+                  <div className="flex flex-wrap gap-1">
+                    <a
+                      href={googleMapsUrl(selected.lat, selected.lon, selected.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                    >
+                      <span aria-hidden="true">📍</span> Google
+                    </a>
+                    <a
+                      href={appleMapsUrl(selected.lat, selected.lon, selected.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                    >
+                      <span aria-hidden="true">🗺️</span> Apple
+                    </a>
+                    <a
+                      href={wazeUrl(selected.lat, selected.lon)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                    >
+                      <span aria-hidden="true">🚗</span> Waze
+                    </a>
+                    <a
+                      href={whatsappShareUrl(
+                        selected.name,
+                        `https://sporthubmap.com/venue/${selected.slug}`
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-[36px] items-center gap-1 rounded border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                    >
+                      <span aria-hidden="true">💬</span> WhatsApp
+                    </a>
+                  </div>
 
-              {/* CTA "Voir la fiche complète" — full width, couleur famille */}
-              <Link
-                href={`/venue/${selected.slug}`}
-                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
-                style={{ backgroundColor: familyColor }}
-              >
-                Voir la fiche complète <span aria-hidden="true">→</span>
-              </Link>
-            </div>
-          </Popup>
-        );
-      })()}
-    </Map>
+                  {/* CTA "Voir la fiche complète" — full width, couleur famille */}
+                  <Link
+                    href={`/venue/${selected.slug}`}
+                    className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
+                    style={{ backgroundColor: familyColor }}
+                  >
+                    Voir la fiche complète <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              </Popup>
+            );
+          })()}
+      </Map>
     </div>
   );
 }

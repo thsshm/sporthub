@@ -302,7 +302,9 @@
     "shareText": "视图中 {count} 个场所",
     "linkCopied": "链接已复制！",
     "venueList": "场所列表",
-    "expandSheet": "展开列表"
+    "expandSheet": "展开列表",
+    "clubCourts": "{count} 个场地",
+    "clubCourtsLoading": "正在加载场地…"
   },
   "footer": {
     "about": "Sport Hub",
