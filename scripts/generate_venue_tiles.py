@@ -119,27 +119,38 @@ def export_geojsonl(out_path: Path, limit: int | None) -> int:
     sb = create_client(url, key)
 
     written = 0
-    page, page_size = 0, 1000
+    page_size = 1000
+    # Pagination KEYSET (curseur sur `id`) et non OFFSET : `.range(page*size, …)`
+    # devient O(offset) — chaque page re-scanne tous les enregistrements sautés,
+    # donc les pages profondes ralentissent jusqu'à dépasser le statement_timeout
+    # Postgres (57014) à mesure que la table venue grossit (≈370k). Le keyset
+    # `WHERE id > <dernier_id> ORDER BY id LIMIT size` garde un coût constant par
+    # page (seek sur l'index PK), indépendamment de la profondeur.
+    last_id: str | None = None
     with out_path.open("w", encoding="utf-8") as fh:
         while True:
-            rows = (
+            q = (
                 sb.table("venue")
-                .select("slug, name, lat, lon, family_slug, primary_sport_slug")
+                .select("id, slug, name, lat, lon, family_slug, primary_sport_slug")
                 .eq("is_published", True)
                 .is_("deleted_at", "null")
-                .range(page * page_size, page * page_size + page_size - 1)
-                .execute()
-                .data
+                .order("id")
+                .limit(page_size)
             )
+            if last_id is not None:
+                q = q.gt("id", last_id)
+            rows = q.execute().data
             if not rows:
                 break
             for line in features_to_geojsonl(rows):
                 fh.write(line + "\n")
                 written += 1
+            # Avance le curseur sur le dernier id LU (pas la dernière feature
+            # écrite : certaines lignes sont droppées par venue_to_feature).
+            last_id = rows[-1]["id"]
             print(f"  …{written:,} features", end="\r", file=sys.stderr)
             if limit and written >= limit:
                 break
-            page += 1
     print(f"\n  ✓ {written:,} features écrites → {out_path}")
     return written
 
