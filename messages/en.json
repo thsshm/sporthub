@@ -534,6 +534,12 @@
       "listLabel": "List of retreats & camps",
       "stagesPlaceholder": "Upcoming stages — coming soon",
       "stagesSoon": "Dates, pricing and availability for upcoming stages will be displayed here.",
+      "stagesTitle": "Upcoming stages",
+      "stagesNone": "No upcoming stages scheduled yet",
+      "from": "From",
+      "book": "Book",
+      "lodging": "Lodging included",
+      "meals": "Meals included",
       "filterLabel": "Filter by retreat type",
       "filterAll": "All",
       "types": {

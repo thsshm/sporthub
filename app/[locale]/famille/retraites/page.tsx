@@ -5,6 +5,7 @@ import { Link } from "@/i18n/routing";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
+import { UpcomingRetreats } from "@/components/retreat/UpcomingRetreats";
 import {
   buildBreadcrumbJsonLd,
   buildHreflangAlternates,
@@ -282,11 +283,8 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
         </section>
       )}
 
-      {/* Placeholder "Stages à venir" — données à implémenter (#266 suite) */}
-      <section className="mt-16 rounded-xl border-2 border-dashed border-muted p-8 text-center text-muted-foreground">
-        <p className="text-lg font-medium">{t("retraites.stagesPlaceholder")}</p>
-        <p className="mt-1 text-sm">{t("retraites.stagesSoon")}</p>
-      </section>
+      {/* Stages à venir — données réelles depuis retreat_event (#266, palier 1) */}
+      <UpcomingRetreats locale={locale} />
     </main>
   );
 }
