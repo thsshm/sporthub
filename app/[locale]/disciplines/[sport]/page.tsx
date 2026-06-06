@@ -59,7 +59,7 @@ const fetchRanking = unstable_cache(
     const sb = getSupabaseStaticClient();
     try {
       // #331 — lit la vue matérialisée précalculée via le RPC
-      // `top_clubs_by_sport` (migration 0033) au lieu de trier en live
+      // `top_clubs_by_sport` (migration 0035) au lieu de trier en live
       // `venue.courts_count` (non indexé) sur la jointure venue_sport!inner, qui
       // dépassait le statement_timeout (57014) → requête en échec → page vide
       // ("0 clubs"). Le RPC sert un SELECT trié sur index (< 10 ms), dédupliqué

@@ -1,6 +1,6 @@
 /**
  * Cron : rafraîchit la vue matérialisée `mv_top_clubs_by_sport` (migration
- * 0033) qui alimente le RPC `top_clubs_by_sport` — pages /disciplines/{sport}.
+ * 0035) qui alimente le RPC `top_clubs_by_sport` — pages /disciplines/{sport}.
  *
  * La MV précalcule le classement des clubs par nombre de courts, par sport :
  * le tri live (`ORDER BY venue.courts_count` non indexé sur la jointure

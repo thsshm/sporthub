@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════
--- SportHub V2 — Migration 0033 : top clubs par sport (vue matérialisée)
+-- SportHub V2 — Migration 0035 : top clubs par sport (vue matérialisée)
 -- ════════════════════════════════════════════════════════════════════════
 -- Bug #331 : toutes les pages /disciplines/{sport} affichaient « 0 clubs ».
 -- Cause confirmée en prod (pas « courts_count NULL partout » — la colonne est
@@ -15,14 +15,17 @@
 -- statement_timeout = 0) et le RPC public se contente d'un SELECT trié indexé
 -- → < 10 ms. Rafraîchie par le cron /api/cron/refresh-top-clubs.
 --
+-- Comptage PAR SPORT (pas par famille) : courts_count = nombre de venues de CE
+-- sport au même club (même ville + adresse normalisée), via une window
+-- COUNT(*) OVER (sport_slug, city_id, adresse). Un club tennis+padel compte
+-- donc ses courts de tennis et ses courts de padel séparément — c'est ce qu'on
+-- veut sur une page « meilleurs clubs de {sport} ». On ne s'appuie plus sur
+-- venue.courts_count (0023, qui comptait par FAMILLE) : on recompte ici.
+--
 -- Déduplication : une page « meilleurs clubs » ne doit pas répéter les N courts
--- d'un même club. On réduit à UNE ligne par club réel via la clé de
--- regroupement qui DÉFINIT courts_count en 0023 :
---   (city_id, family_slug, adresse normalisée).
--- Tous les venues d'un groupe partagent le même courts_count (= taille du
--- groupe), donc n'importe quel représentant porte le bon nombre de courts.
--- Les venues à city_id NULL sont naturellement exclues (0031 a mis leur
--- courts_count à NULL → filtrées par `courts_count IS NOT NULL`).
+-- d'un même club → on réduit à UNE ligne par club réel (sport, ville, adresse).
+-- Les venues sans city_id ou sans adresse sont exclues : club non identifiable
+-- de façon fiable (cf. la sur-comptabilisation « le bourg » corrigée en 0031).
 --
 -- Restreint aux 5 sports raquette servis par la page (RANKED_SPORTS) pour
 -- garder la MV petite. Idempotent (IF NOT EXISTS / CREATE OR REPLACE).
@@ -43,23 +46,31 @@ WITH ranked AS (
     v.name,
     v.address,
     v.country_code,
-    v.courts_count,
     v.city_id,
-    v.family_slug,
-    lower(btrim(regexp_replace(v.address, '\s+', ' ', 'g'))) AS addr_key
+    lower(btrim(regexp_replace(v.address, '\s+', ' ', 'g'))) AS addr_key,
+    -- Nombre de courts DE CE SPORT au même club (ville + adresse), par sport.
+    COUNT(*) OVER (
+      PARTITION BY
+        vs.sport_slug,
+        v.city_id,
+        lower(btrim(regexp_replace(v.address, '\s+', ' ', 'g')))
+    ) AS courts_count
   FROM venue v
   JOIN venue_sport vs ON vs.venue_id = v.id
   WHERE v.is_published = TRUE
     AND v.deleted_at IS NULL
-    AND v.courts_count IS NOT NULL
+    AND v.city_id IS NOT NULL
+    AND v.address IS NOT NULL
+    AND btrim(v.address) <> ''
     AND vs.sport_slug IN ('tennis', 'padel', 'table_tennis', 'badminton', 'squash')
 ),
--- Un représentant par club réel (city, famille, adresse).
+-- Un représentant par club réel (sport, ville, adresse). Tous les venues d'un
+-- groupe portent le même courts_count (window) → le représentant est arbitraire.
 dedup AS (
-  SELECT DISTINCT ON (sport_slug, city_id, family_slug, addr_key)
+  SELECT DISTINCT ON (sport_slug, city_id, addr_key)
     sport_slug, id, slug, name, address, country_code, courts_count, city_id
   FROM ranked
-  ORDER BY sport_slug, city_id, family_slug, addr_key, courts_count DESC, id
+  ORDER BY sport_slug, city_id, addr_key, id
 )
 SELECT
   d.sport_slug,
@@ -68,7 +79,7 @@ SELECT
   d.name,
   d.address,
   d.country_code,
-  d.courts_count,
+  d.courts_count::INTEGER AS courts_count,
   c.name AS city_name,
   row_number() OVER (
     PARTITION BY d.sport_slug
