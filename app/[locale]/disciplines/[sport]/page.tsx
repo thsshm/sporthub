@@ -129,9 +129,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const tSports = await getTranslations({ locale, namespace: "sports" });
   const sportName = tSports.has(sportSlug) ? tSports(sportSlug) : sport.name_fr;
   const hreflang = buildHreflangAlternates(`/disciplines/${sportSlug}`);
+
+  // #331 : tant que le ranking ne ramène rien (la requête ORDER BY courts_count
+  // sur le set joint peut timeout côté DB → 0 club), la page est du thin content.
+  // On la met en `noindex` pour ne pas faire indexer des pages vides par Google
+  // ni envoyer « 0 clubs » aux LLMs (AEO). `follow` reste actif pour le crawl
+  // interne. Auto-correcteur : dès que le ranking se remplit, la page redevient
+  // indexable sans intervention. Même appel (mêmes args) que la page → cache
+  // partagé, pas de requête supplémentaire.
+  const isEmpty = (await fetchRanking(sportSlug, 50)).length === 0;
+
   return {
     title: t("metaTitle", { sport: sportName }),
     description: t("metaDescription", { sport: sportName }),
+    robots: isEmpty ? { index: false, follow: true } : undefined,
     alternates: {
       canonical: hreflang.canonical,
       languages: hreflang.languages,
