@@ -78,3 +78,30 @@ export function renderSitemapIndexXml(
 ${items}
 </sitemapindex>`;
 }
+
+/**
+ * Borne basse (incluse) et haute (exclue) d'un shard venue, en UUID (#333).
+ *
+ * On découpe l'espace UUID v4 (venue.id réparti uniformément) en `shardCount`
+ * tranches d'égale largeur sur le 1er octet. Chaque shard ne lit QUE sa
+ * tranche, en keyset (`id > cursor`), via l'index PK → zéro OFFSET, pas de
+ * statement_timeout (qui faisait des shards VIDES avec l'ancien OFFSET).
+ *
+ * `end = null` pour le dernier shard (borne haute = max UUID). Fonction pure
+ * (placée ici plutôt que dans sitemap-shards.ts pour être testable sans la
+ * dépendance Supabase/next-intl).
+ */
+export function shardIdRange(
+  shardIndex: number,
+  shardCount: number,
+): { start: string; end: string | null } {
+  const span = 256 / shardCount;
+  const lo = Math.round((shardIndex - 1) * span);
+  const hi = Math.round(shardIndex * span);
+  const prefix = (n: number) =>
+    `${n.toString(16).padStart(2, "0")}000000-0000-0000-0000-000000000000`;
+  return {
+    start: prefix(lo),
+    end: shardIndex >= shardCount ? null : prefix(hi),
+  };
+}
