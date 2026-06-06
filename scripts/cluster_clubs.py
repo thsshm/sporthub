@@ -527,6 +527,46 @@ class SupabaseRest:
             )
         return len(venue_ids)
 
+    def import_clubs_batched(
+        self, clubs: list[dict[str, Any]], batch_size: int = 250
+    ) -> int:
+        """Écrit les clubs + liens venues côté serveur via le RPC import_clubs.
+
+        Remplace l'ancienne boucle ~1 requête/club (insert + N liens) par
+        ~1 appel RPC par lot de `batch_size` clubs : chaque appel insère le lot
+        et lie ses venues en UNE transaction Postgres (migration 0032). Bien
+        plus rapide et insensible aux statement_timeout par-ligne.
+
+        Idempotent (ON CONFLICT slug + UPDATE … WHERE club_id IS NULL côté SQL).
+        Le retry HTTP de `_req` rejoue un lot qui aurait time out (le rollback
+        atomique de la fonction garantit l'absence d'écriture partielle).
+
+        Retourne le total de venues liées (somme des `linked` renvoyés).
+        """
+        if self.dry_run:
+            return sum(len(c["_venue_ids"]) for c in clubs)
+
+        total_linked = 0
+        for i in range(0, len(clubs), batch_size):
+            batch = clubs[i : i + batch_size]
+            payload = [
+                {
+                    "slug": c["slug"],
+                    "name": c["name"],
+                    "family_slug": c["family_slug"],
+                    "lat": c["lat"],
+                    "lon": c["lon"],
+                    "city_id": c.get("city_id"),
+                    "country_code": c.get("country_code"),
+                    "venue_ids": c["_venue_ids"],
+                }
+                for c in batch
+            ]
+            res = self._req("POST", "/rpc/import_clubs", body={"p_clubs": payload})
+            if isinstance(res, dict):
+                total_linked += int(res.get("linked", 0) or 0)
+        return total_linked
+
 
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
@@ -601,25 +641,9 @@ def run(args: argparse.Namespace) -> int:
                     c["slug"], c["name"], c["lat"], c["lon"], len(c["_venue_ids"]),
                 )
 
-        # 4. Insert clubs + link venues
-        family_linked = 0
-        for club in clubs:
-            venue_ids: list[str] = club["_venue_ids"]
-            if args.dry_run:
-                log.debug(
-                    "[dry-run] club %r -> %d venues", club["slug"], len(venue_ids)
-                )
-                family_linked += len(venue_ids)
-                continue
-
-            club_id = sb.insert_club(club)
-            if not club_id:
-                log.warning("UUID introuvable pour club %r — skip link.", club["slug"])
-                continue
-            n_linked = sb.link_venues_to_club(venue_ids, club_id)
-            family_linked += n_linked
-            log.debug("Club %r : %d venues liées.", club["slug"], n_linked)
-
+        # 4. Écriture batch côté serveur (RPC import_clubs, migration 0032) :
+        # ~1 appel par lot de 250 clubs au lieu de ~1 requête par club.
+        family_linked = sb.import_clubs_batched(clubs)
         total_linked += family_linked
         log.info(
             "  Famille %s : %d clusters, %d venues linkées.%s",
