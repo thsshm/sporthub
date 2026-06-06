@@ -62,25 +62,30 @@ type VenueRow = {
   courts_count: number | null;
   country_code: string | null;
   city?: { name?: string; country_code?: string } | null;
-  venue_sport?: { sport_slug: string }[];
 };
 
 async function fetchVenues(sportSlug: string, page: number) {
   const sb = getSupabaseServerClient();
   const offset = (page - 1) * PAGE_SIZE;
 
+  // On filtre sur `venue.primary_sport_slug` (colonne dénormalisée sur venue),
+  // PAS sur le join M:N `venue_sport`. Raison (#332) : la table `venue_sport`
+  // est éparse — elle ne couvre que certains sports (padel, surf, golf…),
+  // laissant yoga/boxing/judo/diving/running SANS aucune ligne → pages vides,
+  // alors que ces venues existent bel et bien avec ce sport en primaire. Tout
+  // le reste de l'app (page sport×ville, API /venues, sitemap, compteurs
+  // famille) clé déjà sur `primary_sport_slug` ; cette page était l'outlier.
   const { data, error, count } = await sb
     .from("venue")
     .select(
       `
       id, slug, name, lat, lon, family_slug, primary_sport_slug, address,
       courts_count, country_code,
-      city:city_id ( name, country_code ),
-      venue_sport!inner ( sport_slug )
+      city:city_id ( name, country_code )
     `,
       { count: "planned" },
     )
-    .eq("venue_sport.sport_slug", sportSlug)
+    .eq("primary_sport_slug", sportSlug)
     .eq("is_published", true)
     .is("deleted_at", null)
     .range(offset, offset + PAGE_SIZE - 1)
@@ -92,7 +97,7 @@ async function fetchVenues(sportSlug: string, page: number) {
     ...v,
     city_name: v.city?.name,
     country_code: v.country_code ?? v.city?.country_code ?? undefined,
-    sport_slugs: v.venue_sport?.map((vs) => vs.sport_slug) ?? [],
+    sport_slugs: v.primary_sport_slug ? [v.primary_sport_slug] : [],
   }));
   return { venues, total: count ?? 0 };
 }
