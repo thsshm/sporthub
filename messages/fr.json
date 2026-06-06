@@ -303,7 +303,9 @@
     "shareText": "{count} spots dans la vue",
     "linkCopied": "Lien copié !",
     "venueList": "Liste des spots",
-    "expandSheet": "Agrandir la liste"
+    "expandSheet": "Agrandir la liste",
+    "clubCourts": "{count} courts",
+    "clubCourtsLoading": "Chargement des courts…"
   },
   "footer": {
     "about": "Sport Hub",

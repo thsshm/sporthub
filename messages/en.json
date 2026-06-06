@@ -303,7 +303,9 @@
     "shareText": "{count} spots in view",
     "linkCopied": "Link copied!",
     "venueList": "Venue list",
-    "expandSheet": "Expand the list"
+    "expandSheet": "Expand the list",
+    "clubCourts": "{count} courts",
+    "clubCourtsLoading": "Loading courts…"
   },
   "footer": {
     "about": "Sport Hub",
