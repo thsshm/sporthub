@@ -53,6 +53,11 @@ CACHE_CONTROL = "public, max-age=31536000, immutable"
 # PMTiles n'a pas de type IANA officiel ; octet-stream garantit que le CDN
 # ne ré-encode pas et préserve les Range requests.
 CONTENT_TYPE = "application/octet-stream"
+# Plafond de taille du bucket. Le défaut Supabase (~50 Mo) faisait échouer
+# l'upload en 413 (venues.pmtiles = 77 Mo, voué à grossir avec l'expansion
+# mondiale). On fixe 1 Go pour ne pas y revenir. NB : ce plafond par bucket ne
+# peut dépasser le plafond GLOBAL du projet (Free = 50 Mo ; Pro = configurable).
+BUCKET_FILE_SIZE_LIMIT = 1024 * 1024 * 1024  # 1 Go (en octets)
 
 
 # ─── Helpers purs (testés sans réseau) ───────────────────────────────────
@@ -100,17 +105,26 @@ def resolve_supabase_env() -> tuple[str, str]:
 
 
 def ensure_bucket(sb, bucket: str) -> None:
-    """Crée le bucket public s'il n'existe pas. No-op s'il existe déjà."""
+    """Crée le bucket public s'il manque, et garantit son `file_size_limit`.
+
+    Sur un bucket déjà existant on appelle `update_bucket` pour relever le
+    plafond : sans ça, un bucket créé avant ce fix garde son ancien plafond
+    (~50 Mo) → upload 413. Idempotent (create ou update selon l'état)."""
+    options = {"public": True, "file_size_limit": BUCKET_FILE_SIZE_LIMIT}
     try:
         existing = {b.name for b in sb.storage.list_buckets()}
     except Exception as e:  # noqa: BLE001 — on dégrade proprement, l'upload retentera
         print(f"  ⚠ impossible de lister les buckets ({e}) — tentative de création directe.", file=sys.stderr)
         existing = set()
     if bucket in existing:
-        print(f"  ✓ bucket '{bucket}' déjà présent")
+        print(f"  ✓ bucket '{bucket}' présent — maj du plafond ({BUCKET_FILE_SIZE_LIMIT // (1024 * 1024)} Mo)")
+        try:
+            sb.storage.update_bucket(bucket, options=options)
+        except Exception as e:  # noqa: BLE001 — non bloquant si déjà au bon plafond
+            print(f"  ⚠ update_bucket a échoué ({e}) — on tente l'upload quand même.", file=sys.stderr)
         return
-    print(f"  ▶ création du bucket public '{bucket}'")
-    sb.storage.create_bucket(bucket, options={"public": True})
+    print(f"  ▶ création du bucket public '{bucket}' (plafond {BUCKET_FILE_SIZE_LIMIT // (1024 * 1024)} Mo)")
+    sb.storage.create_bucket(bucket, options=options)
 
 
 def upload_tile(file_path: Path, bucket: str, dest: str) -> str:
