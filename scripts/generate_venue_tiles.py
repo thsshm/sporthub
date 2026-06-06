@@ -26,8 +26,10 @@ Usage :
     python3 scripts/generate_venue_tiles.py                       # étapes 1+2 → venues.pmtiles
     python3 scripts/generate_venue_tiles.py --from-geojson f.jsonl  # étape 2 seule depuis un GeoJSONL
 
-Format de sortie : un layer `venues`, un point par venue, propriétés minimales
-(slug, name, fam, sport) pour styler par famille + naviguer au clic. GeoJSONL
+Format de sortie : un layer `venues`, un point par venue, une SEULE propriété
+`fam` (family_slug) pour styler par famille + filtrer — slug/name/sport droppés
+pour rester sous le plafond d'upload (50 Mo, plan gratuit ; détails au clic via
+l'API, pas depuis la tuile). GeoJSONL
 (line-delimited) plutôt que FeatureCollection : tippecanoe le lit en streaming,
 indispensable pour des centaines de milliers de venues sans saturer la RAM.
 """
@@ -63,15 +65,16 @@ def venue_to_feature(row: dict) -> dict | None:
     if not _is_lonlat(lon, lat):
         return None
     props: dict[str, object] = {}
-    # On ne sérialise que le non-vide → tuiles plus légères.
-    if row.get("slug"):
-        props["slug"] = row["slug"]
-    if row.get("name"):
-        props["name"] = row["name"]
+    # SEULE propriété embarquée : `fam` (family_slug) — c'est la seule lue par
+    # la carte (couleur par famille + filtre familles, cf. lib/map/venue-tiles.ts).
+    # On NE met PLUS slug/name/sport : ce sont des chaînes UNIQUES (donc non
+    # dédupliquées dans la string-table des tuiles) qui pesaient ~80 % du poids
+    # → 77 Mo, au-dessus du plafond d'upload Supabase (50 Mo, plan gratuit). Le
+    # clic/popup étant hors scope de l'intégration tuiles actuelle, les infos
+    # détaillées (nom, slug…) restent servies par l'API au clic. Si un jour on
+    # rend le clic depuis les tuiles, ré-ajouter `slug` ici et régénérer.
     if row.get("family_slug"):
         props["fam"] = row["family_slug"]
-    if row.get("primary_sport_slug"):
-        props["sport"] = row["primary_sport_slug"]
     return {
         "type": "Feature",
         # GeoJSON = [lon, lat] (x, y) — piège classique, lat/lon inversés sinon.
@@ -131,7 +134,7 @@ def export_geojsonl(out_path: Path, limit: int | None) -> int:
         while True:
             q = (
                 sb.table("venue")
-                .select("id, slug, name, lat, lon, family_slug, primary_sport_slug")
+                .select("id, lat, lon, family_slug")
                 .eq("is_published", True)
                 .is_("deleted_at", "null")
                 .order("id")
@@ -205,21 +208,21 @@ def self_test() -> int:
          "family_slug": "raquette", "primary_sport_slug": "tennis"}
     )
     assert f and f["geometry"]["coordinates"] == [2.3522, 48.8566], f  # [lon, lat]
-    assert f["properties"] == {"slug": "tennis-paris", "name": "Tennis Paris",
-                               "fam": "raquette", "sport": "tennis"}
+    # Seule `fam` est embarquée (slug/name/sport droppés pour le poids tuile).
+    assert f["properties"] == {"fam": "raquette"}, f
     # Coords invalides / Null Island → None
     assert venue_to_feature({"lat": None, "lon": 2.0}) is None
     assert venue_to_feature({"lat": 0, "lon": 0}) is None
     assert venue_to_feature({"lat": 91, "lon": 2}) is None
     assert venue_to_feature({"lat": 48, "lon": 200}) is None
-    # Propriétés vides omises
+    # Une venue sans family_slug → properties vide (mais Feature valide)
     f2 = venue_to_feature({"lat": 1.0, "lon": 1.0, "name": "X"})
-    assert f2 and f2["properties"] == {"name": "X"}, f2
+    assert f2 and f2["properties"] == {}, f2
     # GeoJSONL stream filtre les invalides
     lines = list(features_to_geojsonl([
-        {"slug": "a", "lat": 48.0, "lon": 2.0},
-        {"slug": "bad", "lat": None, "lon": None},
-        {"slug": "b", "lat": 45.0, "lon": 5.0},
+        {"family_slug": "raquette", "lat": 48.0, "lon": 2.0},
+        {"family_slug": "ballon", "lat": None, "lon": None},
+        {"family_slug": "ballon", "lat": 45.0, "lon": 5.0},
     ]))
     assert len(lines) == 2, lines
     assert all(json.loads(ln)["type"] == "Feature" for ln in lines)
