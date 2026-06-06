@@ -675,6 +675,7 @@ export type Database = {
           name: string;
           primary_sport_slug: string;
           slug: string;
+          club_id: string | null;
         }[];
       };
       top_cities_by_venue_count: {
@@ -868,6 +869,7 @@ export type Venue = {
   email: string | null;
   family_slug: string;
   primary_sport_slug: string | null;
+  club_id: string | null;
   is_indoor: boolean | null;
   has_lighting: boolean | null;
   is_wheelchair_accessible: boolean | null;
@@ -1037,5 +1039,5 @@ export type VenueDetail = Venue & {
 // Type léger pour la carte et les listes
 export type VenuePin = Pick<
   Venue,
-  "id" | "slug" | "name" | "lat" | "lon" | "family_slug" | "primary_sport_slug"
+  "id" | "slug" | "name" | "lat" | "lon" | "family_slug" | "primary_sport_slug" | "club_id"
 >;

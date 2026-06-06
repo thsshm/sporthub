@@ -330,7 +330,7 @@ async function fetchVenues(
     // d'arriver et n'a pas encore appliqué de filtres feat. C'est ok.
     let q = sb
       .from("venue")
-      .select("id, slug, name, lat, lon, family_slug, primary_sport_slug")
+      .select("id, slug, name, lat, lon, family_slug, primary_sport_slug, club_id")
       .eq("is_published", true)
       .is("deleted_at", null);
 
