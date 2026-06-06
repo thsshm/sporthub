@@ -58,50 +58,29 @@ const fetchRanking = unstable_cache(
   async (sportSlug: string, limit = 50): Promise<VenueRanking[]> => {
     const sb = getSupabaseStaticClient();
     try {
-      // #331 — on ordonne par `id` (PK indexée), PAS par `courts_count`.
-      // Trier le gros set joint (ex. tennis = 40k+ venues après venue_sport!
-      // inner) par `courts_count` — colonne non indexée ET NULL partout en prod
-      // tant que le backfill (0023/0031) n'a pas tourné — fait un sort full-scan
-      // qui dépasse le statement_timeout (57014) → la requête échoue → la page
-      // s'affichait VIDE ("0 clubs"). Ordonner par la PK est immédiat (cf.
-      // /sports/[sport] qui marche avec le même filtre).
-      const { data, error } = await sb
-        .from("venue")
-        .select(
-          `id, slug, name, address, country_code, courts_count,
-           city:city_id ( name ),
-           venue_sport!inner ( sport_slug )`,
-        )
-        .eq("venue_sport.sport_slug", sportSlug)
-        .eq("is_published", true)
-        .is("deleted_at", null)
-        .order("id", { ascending: true })
-        .limit(limit);
+      // #331 — vrai classement par nombre de courts, via le RPC
+      // `top_discipline_venues` qui lit la vue matérialisée `mv_disciplines_
+      // ranking` (migration 0034). Le tri live `ORDER BY courts_count` sur le
+      // set joint venue × venue_sport (tennis ≈ 40k, colonne non indexée)
+      // dépassait le statement_timeout (57014) → page vide. La MV précalcule le
+      // top 50 par sport → le RPC est un SELECT trié indexé (< 10 ms) ET c'est
+      // le VRAI top-N (le contournement #352 ORDER BY id ramenait 50 venues
+      // arbitraires). Rafraîchie hebdo par /api/cron/refresh-disciplines.
+      const { data, error } = await sb.rpc("top_discipline_venues", {
+        p_sport_slug: sportSlug,
+        max_results: limit,
+      });
 
       if (error || !data) return [];
-      const rows = (data as unknown[]).map((row) => {
-        const r = row as {
-          id: string; slug: string; name: string;
-          address: string | null; country_code: string | null;
-          courts_count: number | null;
-          city: { name: string } | null;
-        };
-        return {
-          id: r.id,
-          slug: r.slug,
-          name: r.name,
-          courts_count: r.courts_count,
-          address: r.address,
-          city_name: r.city?.name ?? null,
-          country_code: r.country_code,
-        };
-      });
-      // Tri par nombre de courts DESC (NULL en dernier) sur le lot récupéré —
-      // sans coût DB. Devient un vrai classement dès que courts_count est peuplé
-      // (backfill 0023/0031) ; aujourd'hui (courts NULL partout) = ordre PK.
-      return rows.sort(
-        (a, b) => (b.courts_count ?? -1) - (a.courts_count ?? -1),
-      );
+      return (data as VenueRanking[]).map((r) => ({
+        id: r.id,
+        slug: r.slug,
+        name: r.name,
+        courts_count: r.courts_count,
+        address: r.address,
+        city_name: r.city_name,
+        country_code: r.country_code,
+      }));
     } catch {
       return [];
     }
