@@ -3,9 +3,53 @@ import type { SitemapEntry } from "@/lib/seo/sitemap-render";
 import {
   renderSitemapIndexXml,
   renderUrlsetXml,
+  shardIdRange,
 } from "@/lib/seo/sitemap-render";
 
 const SITE_URL = "https://sporthubmap.com";
+
+/**
+ * #333 — le sharding des venues passe d'un OFFSET (qui timeout sur 329k venues
+ * → shards vides) à un découpage par tranche d'UUID, lu en keyset. On vérifie
+ * ici que les tranches PAVENT tout l'espace id sans trou ni recouvrement.
+ */
+describe("shardIdRange (#333)", () => {
+  const SHARDS = 8;
+
+  it("le 1er shard démarre à l'UUID minimal", () => {
+    expect(shardIdRange(1, SHARDS).start).toBe(
+      "00000000-0000-0000-0000-000000000000",
+    );
+  });
+
+  it("le dernier shard n'a pas de borne haute (jusqu'au max UUID)", () => {
+    expect(shardIdRange(SHARDS, SHARDS).end).toBeNull();
+  });
+
+  it("les tranches sont contiguës (fin shard i = début shard i+1)", () => {
+    for (let i = 1; i < SHARDS; i++) {
+      expect(shardIdRange(i, SHARDS).end).toBe(shardIdRange(i + 1, SHARDS).start);
+    }
+  });
+
+  it("les bornes sont strictement croissantes (pas de recouvrement)", () => {
+    const starts = Array.from({ length: SHARDS }, (_, i) =>
+      shardIdRange(i + 1, SHARDS).start,
+    );
+    for (let i = 1; i < starts.length; i++) {
+      expect(starts[i] > starts[i - 1]).toBe(true);
+    }
+  });
+
+  it("chaque borne est un UUID bien formé", () => {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    for (let i = 1; i <= SHARDS; i++) {
+      const { start, end } = shardIdRange(i, SHARDS);
+      expect(start).toMatch(uuid);
+      if (end !== null) expect(end).toMatch(uuid);
+    }
+  });
+});
 
 // Doit rester aligné sur URLS_PER_SHARD dans lib/seo/sitemap-shards.ts.
 // (On ne peut pas l'importer ici : ce module charge i18n/routing →

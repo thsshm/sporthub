@@ -13,7 +13,7 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
 import { routing } from "@/i18n/routing";
-import type { SitemapEntry } from "@/lib/seo/sitemap-render";
+import { shardIdRange, type SitemapEntry } from "@/lib/seo/sitemap-render";
 
 export const SITE_URL = "https://sporthubmap.com";
 
@@ -40,7 +40,7 @@ export const VENUE_SHARD_COUNT = 8;
 /** Total = 1 shard metadata + 8 shards venues = 9 sous-sitemaps. */
 export const TOTAL_SHARD_COUNT = VENUE_SHARD_COUNT + 1;
 
-type VenueRow = { slug: string; updated_at: string | null };
+type VenueRow = { id: string; slug: string; updated_at: string | null };
 type ComboRow = {
   primary_sport_slug: string | null;
   country_code: string | null;
@@ -147,27 +147,32 @@ const PAGE_SIZE = 1000;
 export async function buildVenueShard(shardIndex: number): Promise<SitemapEntry[]> {
   const sb = getSupabaseServerClient();
   const now = new Date().toISOString();
-  const shardStart = (shardIndex - 1) * URLS_PER_SHARD;
-  const shardEnd = shardStart + URLS_PER_SHARD - 1;
+  const { start, end } = shardIdRange(shardIndex, VENUE_SHARD_COUNT);
 
   const venues: VenueRow[] = [];
-  for (let from = shardStart; from <= shardEnd; from += PAGE_SIZE) {
-    const to = Math.min(from + PAGE_SIZE - 1, shardEnd);
-    const { data, error } = await sb
+  let cursor: string | null = null; // dernier id lu (keyset)
+  while (venues.length < URLS_PER_SHARD) {
+    let q = sb
       .from("venue")
-      .select("slug, updated_at")
+      .select("id, slug, updated_at")
       .eq("is_published", true)
       .is("deleted_at", null)
-      .order("id")
-      .range(from, to);
-    if (error || !data) break;
+      .order("id", { ascending: true })
+      .limit(PAGE_SIZE);
+    // Borne basse : keyset (id > cursor) après la 1re page, sinon début de
+    // tranche (id >= start). Pas d'OFFSET → l'index PK suffit, pas de timeout.
+    q = cursor === null ? q.gte("id", start) : q.gt("id", cursor);
+    if (end !== null) q = q.lt("id", end);
+
+    const { data, error } = await q;
+    if (error || !data || data.length === 0) break;
     venues.push(...(data as VenueRow[]));
-    // Si on a reçu moins que la taille demandée, on a atteint la fin de la
-    // table — pas la peine de continuer les batches suivants pour ce shard.
-    if (data.length < to - from + 1) break;
+    cursor = (data[data.length - 1] as VenueRow).id;
+    // Page incomplète = fin de la tranche.
+    if (data.length < PAGE_SIZE) break;
   }
 
-  return venues.map((v) =>
+  return venues.slice(0, URLS_PER_SHARD).map((v) =>
     localized(`/venue/${v.slug}`, {
       lastmod: v.updated_at ?? now,
       changefreq: "weekly",
