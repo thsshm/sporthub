@@ -227,6 +227,16 @@
       "officialWebsite": "Site officiel ({host})"
     }
   },
+  "club": {
+    "notFoundTitle": "Club introuvable",
+    "metaDescription": "{name} à {city} : {count} terrains, sports pratiqués, adresse et accès.",
+    "metaDescriptionNoCity": "{name} : {count} terrains, sports pratiqués, adresse et accès.",
+    "courts": "{count, plural, =0 {Aucun terrain} one {1 terrain} other {{count} terrains}}",
+    "courtsHeading": "Terrains du club",
+    "sportsHeading": "Sports pratiqués",
+    "emptyMessage": "Ce club n'a pas encore de terrain publié.",
+    "exploreFamily": "Voir d'autres clubs"
+  },
   "map": {
     "title": "Carte des spots sportifs",
     "titleSingleFamily": "Carte des clubs de {family}",

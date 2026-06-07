@@ -227,6 +227,16 @@
       "officialWebsite": "官方网站 ({host})"
     }
   },
+  "club": {
+    "notFoundTitle": "未找到俱乐部",
+    "metaDescription": "{city}的{name}：{count} 个场地、可练习的运动、地址和交通。",
+    "metaDescriptionNoCity": "{name}：{count} 个场地、可练习的运动、地址和交通。",
+    "courts": "{count, plural, =0 {无场地} other {{count} 个场地}}",
+    "courtsHeading": "俱乐部场地",
+    "sportsHeading": "可练习的运动",
+    "emptyMessage": "该俱乐部暂无已发布的场地。",
+    "exploreFamily": "查看其他俱乐部"
+  },
   "map": {
     "title": "运动场所地图",
     "titleSingleFamily": "{family}俱乐部地图",
