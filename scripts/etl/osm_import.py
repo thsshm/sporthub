@@ -56,6 +56,7 @@ from etl_upsert import (  # noqa: E402
     open_import_run,
     close_import_run,
     upsert_venues_batch,
+    soft_delete_missing,
 )
 
 # ── Constantes ────────────────────────────────────────────────────────────────
@@ -375,6 +376,7 @@ def run(args: argparse.Namespace) -> int:
 
     run_id: str | None = None
     total = UpsertResult()
+    all_seen_extids: set[str] = set()
 
     for family in families:
         print(f"\n  📦 famille : {family}")
@@ -392,14 +394,25 @@ def run(args: argparse.Namespace) -> int:
 
         result = upsert_venues_batch(client, records, chunk_size=args.chunk)
         total = total.merge(result)
+        all_seen_extids.update(r.external_id for r in records)
         print(f"  ✓ upserted={result.upserted} skipped={result.skipped} errors={len(result.errors)}")
         if result.errors:
             for e in result.errors[:5]:
                 print(f"    ⚠ {e}")
 
+    # Soft-delete des venues de cette source/pays non vus dans le batch.
+    # Seul pour un pays précis (pas pour "all" global, évite les faux positifs).
+    soft_deleted = 0
+    if run_id and args.country.upper() != "EU" and all_seen_extids:
+        print(f"\n  🗑 réconciliation soft-delete ({args.country.upper()}) …", flush=True)
+        soft_deleted = soft_delete_missing(
+            client, SOURCE, args.country.upper(), all_seen_extids
+        )
+        print(f"  ✓ soft-deleted={soft_deleted}")
+
     if run_id:
         err = "; ".join(total.errors[:3]) or None
-        close_import_run(client, run_id, total, error=err)
+        close_import_run(client, run_id, total, soft_deleted=soft_deleted, error=err)
         print(f"\n✅ import_run fermé · total upserted={total.upserted} skipped={total.skipped}")
     elif not args.dry_run:
         print("\n✅ aucun record à écrire")

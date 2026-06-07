@@ -24,10 +24,6 @@
     {
       "path": "/api/cron/refresh-top-clubs",
       "schedule": "30 8 * * 1"
-    },
-    {
-      "path": "/api/cron/refresh-aggregates",
-      "schedule": "0 9 * * 1"
     }
   ]
 }
