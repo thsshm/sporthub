@@ -291,7 +291,13 @@ def run(args: argparse.Namespace) -> int:
 
     soft_deleted = 0
     if run_id and args.country.upper() != "EU" and all_seen:
-        soft_deleted = soft_delete_missing(client, SOURCE, args.country.upper(), all_seen)
+        # #426/#445 — scope par famille pour un import mono-famille (sinon on
+        # soft-delete les autres familles, source+pays, absentes de ce batch).
+        # `None` pour --family all = réconciliation complète.
+        fam_scope = None if args.family == "all" else args.family
+        soft_deleted = soft_delete_missing(
+            client, SOURCE, args.country.upper(), all_seen, family_slug=fam_scope,
+        )
         print(f"\n  🗑 soft-deleted={soft_deleted}")
 
     if run_id:
