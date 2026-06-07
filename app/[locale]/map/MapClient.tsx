@@ -205,6 +205,7 @@ export default function MapClient({
 }: Props) {
   const tMap = useTranslations("map");
   const mapRef = useRef<MapRef | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   // Vector tiles (#226) : quand NEXT_PUBLIC_TILES_URL est défini, on rend les
   // venues via tuiles PMTiles (coût O(1)) au lieu de fetch /api/venues +
   // Supercluster. Inactif sur les pages presetVenues (sport) qui passent leurs
@@ -645,39 +646,59 @@ export default function MapClient({
 
   // Force le premier render MapLibre après le mount.
   //
-  // Bug observé : MapClient est dynamic-imported (next/dynamic, ssr:false), donc
-  // monté APRÈS l'hydration. À ce moment-là, le container peut avoir une taille
-  // transitoire (CSS layout pas encore stabilisé), et MapLibre s'initialise avec
-  // les mauvaises dimensions. Son ResizeObserver ne re-trigger pas toujours un
-  // repaint quand le container atteint sa taille finale. Résultat : style chargé,
-  // tiles chargées, mais canvas WebGL jamais peint → carte blanche (cf. #100).
-  //
-  // Le fix : au onLoad, on force resize() + triggerRepaint(). MAIS le 'load'
-  // arrive AVANT que le layout post-hydration soit stabilisé → le resize
-  // synchrone capture encore une taille transitoire et aucun repaint ne suit
-  // (carte blanche jusqu'à interaction, reproduit en prod, #421). On force donc
-  // des repaints DIFFÉRÉS : rAF (frame suivante) + un court délai (layout
-  // stabilisé). Chaque resize re-synchronise le viewport WebGL et peint le 1er
-  // frame avec les bonnes dimensions — réplique le `window.resize` manuel qui
-  // corrigeait le rendu. Gardés sur mapRef pour ne rien faire si démonté.
+  // Carte blanche au chargement initial (#421, reproduit + mesuré en prod via
+  // navigateur). MapClient est dynamic-imported (next/dynamic, ssr:false) → monté
+  // APRÈS l'hydration. Deux symptômes observés, INTERMITTENTS (race) :
+  //   - parfois MapLibre ne démarre jamais sa boucle de rendu (0 requête de tuile
+  //     même après 7s), canvas pourtant bien dimensionné, console sans erreur ;
+  //   - parfois les tuiles raster arrivent plusieurs secondes après le 'load'
+  //     mais ne sont pas peintes faute de repaint.
+  // Dans les deux cas, un resize/interaction tardif relance la boucle et peint
+  // (cf. aussi #100). Le resize() synchrone du onLoad arrive trop tôt et ne suffit
+  // pas. Fix : (1) un ResizeObserver (useEffect ci-dessous) relance la boucle au
+  // montage + à chaque changement de taille ; (2) ici, on repeint à chaque source
+  // qui finit de charger, jusqu'au 1er 'idle' (état stable, tuiles peintes).
   const handleLoad = () => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
     const repaint = () => {
-      const map = mapRef.current?.getMap();
-      if (!map) return;
-      map.resize();
-      map.triggerRepaint();
+      const m = mapRef.current?.getMap();
+      if (!m) return;
+      m.resize();
+      m.triggerRepaint();
     };
     repaint();
-    requestAnimationFrame(repaint);
-    setTimeout(repaint, 250);
     updateViewport();
+    const onSourceData = (e: { isSourceLoaded?: boolean }) => {
+      if (e.isSourceLoaded) repaint();
+    };
+    map.on("sourcedata", onSourceData);
+    map.once("idle", () => {
+      repaint();
+      map.off("sourcedata", onSourceData);
+    });
   };
+
+  // La boucle de rendu MapLibre ne démarre pas toujours de façon fiable quand le
+  // container atteint sa taille finale après l'hydration (race, #100/#421). Un
+  // ResizeObserver garantit un resize() au montage (le callback est invoqué une
+  // fois immédiatement avec la taille courante) ET à chaque changement → relance
+  // la boucle de rendu et repeint, sans dépendre d'un délai magique.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      mapRef.current?.getMap()?.resize();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Empty filter (l'user a tout décoché) — pas la peine de fetch
   const emptyFilter = selectedFamilies !== undefined && selectedFamilies.size === 0;
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={containerRef} className="relative h-full w-full">
       {/* Bouton "Rechercher dans cette zone" — visible quand autoUpdate=off
           ET le bbox courant diffère du dernier fetch. Pattern Airbnb/Google Maps. */}
       {isStale && !loading && (
