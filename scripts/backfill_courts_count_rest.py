@@ -40,9 +40,14 @@ def normalize_address(addr):
 
 def group_key(v):
     addr = normalize_address(v.get("address"))
-    if addr is None:
+    city_id = v.get("city_id")
+    # Sans city_id, l'adresse seule n'est pas un identifiant fiable : des adresses
+    # génériques ("le bourg") existent dans des centaines de communes distinctes →
+    # les grouper sur-compte (incident : 137 venues = un club de 137 courts). On ne
+    # groupe donc PAS les venues sans ville (cf. backfill_courts_count.py + migr 0031).
+    if addr is None or city_id is None:
         return None
-    return (v.get("city_id"), v.get("family_slug"), addr)
+    return (city_id, v.get("family_slug"), addr)
 
 
 def compute_courts_counts(venues):
@@ -154,6 +159,31 @@ def verify(url, key, sample=4000):
     return null_with_addr
 
 
+def self_test() -> int:
+    """Teste la logique pure de regroupement (sans DB ni creds → CI)."""
+    assert normalize_address(None) is None
+    assert normalize_address("  12 RUE de la Paix ") == "12 rue de la paix"
+    assert group_key({"address": None, "city_id": "c1", "family_slug": "r"}) is None
+    assert group_key({"address": "X", "city_id": "c1", "family_slug": "r"}) == ("c1", "r", "x")
+    # Régression : sans city_id → ungroupable (sinon sur-comptage NULL-ville, #274).
+    assert group_key({"address": "le bourg", "city_id": None, "family_slug": "r"}) is None
+    venues = [
+        {"id": "a", "address": "1 rue X", "city_id": "c1", "family_slug": "raquette"},
+        {"id": "b", "address": "1 rue X", "city_id": "c1", "family_slug": "raquette"},
+        {"id": "c", "address": "1 rue X", "city_id": "c2", "family_slug": "raquette"},
+        # g & h : même adresse générique, ville inconnue, communes différentes →
+        # ne doivent PAS être groupés (le bug d'origine les comptait comme 2).
+        {"id": "g", "address": "le bourg", "city_id": None, "family_slug": "raquette"},
+        {"id": "h", "address": "le bourg", "city_id": None, "family_slug": "raquette"},
+    ]
+    out = compute_courts_counts(venues)
+    assert out["a"] == out["b"] == 2, out
+    assert out["c"] == 1, out
+    assert "g" not in out and "h" not in out, out
+    print("✓ backfill_courts_count_rest self-test OK")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-writes", type=int, default=None,
@@ -161,7 +191,12 @@ def main():
     ap.add_argument("--chunk", type=int, default=120, help="ids par PATCH")
     ap.add_argument("--verify", action="store_true",
                     help="Contrôle lecture seule (taux de remplissage + trous), n'écrit rien")
+    ap.add_argument("--self-test", action="store_true",
+                    help="Teste la logique pure de regroupement (CI, sans creds ni DB)")
     args = ap.parse_args()
+
+    if args.self_test:
+        sys.exit(self_test())
 
     url, key = load_env()
     if args.verify:
