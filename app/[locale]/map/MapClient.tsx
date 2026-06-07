@@ -251,14 +251,15 @@ export default function MapClient({
   // les venues des familles sans clustering disparaîtraient (pas de club
   // parent + pois masqués). L'affichage simultané clubs + pois isolés est
   // prévu palier 4 (#130).
+  // Mode club actif sur toute la plage zoom 10-15 (hors pages preset / tuiles).
+  // On affiche désormais SIMULTANÉMENT les pins club (familles clusterisées) et
+  // les pois isolés (venues sans club_id : familles non clusterisées + courts
+  // isolés). Plus besoin de restreindre aux familles compatibles — rien ne
+  // disparaît, le tri pois↔clubs se fait via `club_id` côté rendu (#311).
   const isClubMode = useMemo(() => {
-    if (zoom < CLUB_ZOOM_MIN || zoom > CLUB_ZOOM_MAX) return false;
-    if (!selectedFamilies || selectedFamilies.size === 0) return false;
-    for (const fam of selectedFamilies) {
-      if (CLUB_INCOMPATIBLE_FAMILIES.has(fam)) return false;
-    }
-    return true;
-  }, [zoom, selectedFamilies]);
+    if (presetVenues || useTiles) return false;
+    return zoom >= CLUB_ZOOM_MIN && zoom <= CLUB_ZOOM_MAX;
+  }, [zoom, presetVenues, useTiles]);
 
   useEffect(() => {
     setFavorites(loadFavorites());
@@ -592,15 +593,20 @@ export default function MapClient({
         }
       },
     });
+    // En mode club, les venues rattachées à un club (club_id non null) sont
+    // représentées par un pin "club" → on ne garde dans la couche pois que les
+    // venues ISOLÉES (club_id null : familles non clusterisées + courts isolés),
+    // pour éviter le double affichage tout en ne masquant rien (#311).
+    const points = isClubMode ? venues.filter((v) => v.club_id == null) : venues;
     sc.load(
-      venues.map((v) => ({
+      points.map((v) => ({
         type: "Feature" as const,
         geometry: { type: "Point" as const, coordinates: [v.lon, v.lat] },
         properties: { venue: v },
       }))
     );
     return sc;
-  }, [venues]);
+  }, [venues, isClubMode]);
 
   const clusters = useMemo(() => {
     if (!bounds) return [];
@@ -762,10 +768,10 @@ export default function MapClient({
 
         {/* Mode POI individuels (zoom ≥ 10, ou presetVenues, ou rétro-compat).
           Fade-in coordonné avec les agrégats au swap zoom 9↔10.
-          Masqués en mode clubs pour éviter le double affichage. */}
+          En mode clubs, la couche pois ne contient que les venues isolées
+          (club_id null) — cf. filtre dans le useMemo supercluster ci-dessus. */}
         {!useTiles &&
           !emptyFilter &&
-          !isClubMode &&
           clusters.map((feature) => {
             const [lon, lat] = feature.geometry.coordinates;
             // Fade quand on quitte le mode POI (ex: dézoom 10→9). En presetVenues

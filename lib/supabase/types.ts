@@ -1039,5 +1039,10 @@ export type VenueDetail = Venue & {
 // Type léger pour la carte et les listes
 export type VenuePin = Pick<
   Venue,
-  "id" | "slug" | "name" | "lat" | "lon" | "family_slug" | "primary_sport_slug" | "club_id"
->;
+  "id" | "slug" | "name" | "lat" | "lon" | "family_slug" | "primary_sport_slug"
+> & {
+  // club_id est exposé par l'API carte (#372) mais n'est pas (encore) fourni par
+  // les pins construits côté SSR (pages famille/sport/favoris) → optionnel pour
+  // ne pas casser ces sources. À rendre requis quand ces call sites le peupleront.
+  club_id?: string | null;
+};
