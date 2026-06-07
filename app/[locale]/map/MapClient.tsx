@@ -769,7 +769,11 @@ export default function MapClient({
         onMoveEnd={debouncedUpdateViewport}
         onZoomEnd={debouncedUpdateViewport}
       >
-        <NavigationControl position="top-right" />
+        {/* Zoom +/- en BAS-droite : le haut-droite est occupé par la barre de
+            recherche + le toggle Map/List/Side + le bouton Partager (overlays
+            de MapWithSearch) qui masquaient le contrôle. Empilé au-dessus du
+            bouton géoloc via CSS (cf. globals.css). showCompass off : carte 2D. */}
+        <NavigationControl position="bottom-right" showCompass={false} />
 
         {/* Vector tiles (#226) — quand NEXT_PUBLIC_TILES_URL est défini, le rendu
           des venues vient des tuiles PMTiles (coût O(1)), et les blocs markers
