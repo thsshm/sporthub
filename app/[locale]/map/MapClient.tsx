@@ -654,11 +654,31 @@ export default function MapClient({
   //
   // Le fix : au onLoad, on force resize() + triggerRepaint() pour s'assurer
   // que le 1er frame est dessiné avec les bonnes dimensions.
+  //
+  // Ref toujours à jour vers le flyTarget courant : `handleLoad` est un closure
+  // attaché à <Map onLoad> ; sans ref il capturerait une valeur périmée (#408).
+  const flyTargetRef = useRef(flyTarget);
+  flyTargetRef.current = flyTarget;
+
   const handleLoad = () => {
     const map = mapRef.current?.getMap();
     if (!map) return;
     map.resize();
     map.triggerRepaint();
+    // #408 — Deep-link / restauration : un flyTarget posé AVANT que la carte
+    // soit prête (MapClient est ssr:false → monté après l'effet de restauration
+    // de MapWithSearch) a no-opé dans l'effet flyTo (mapRef encore vide), et
+    // n'est jamais re-tenté (token inchangé). On l'applique ici au load, en
+    // `jumpTo` (instantané — pas d'animation France→cible au 1er rendu). Sans
+    // ça, la carte reste au viewport par défaut et `syncViewportToUrl` réécrit
+    // l'URL deep-link avec la position par défaut (symptôme #408).
+    const pending = flyTargetRef.current;
+    if (pending) {
+      map.jumpTo({
+        center: [pending.lon, pending.lat],
+        zoom: pending.zoom ?? 12,
+      });
+    }
     updateViewport();
   };
 
