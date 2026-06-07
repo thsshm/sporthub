@@ -22,7 +22,6 @@ import { publicEnv } from "@/lib/env";
 import {
   isViewMode,
   loadAutoUpdate,
-  loadViewMode,
   loadViewport,
   saveAutoUpdate,
   saveViewMode,
@@ -391,11 +390,15 @@ export function MapWithSearch({
   const [geolocError, setGeolocError] = useState<string | null>(null);
 
   // Mode d'affichage carte / liste / split (#123).
-  // Précédence : URL (?view=…) → localStorage → "map" par défaut.
+  // Précédence : URL (?view=…) → "map" par défaut (carte-first, demandé par
+  // Gautier). On ne RESTAURE plus un viewMode persisté au chargement : on
+  // veut toujours arriver sur la CARTE (sauf lien explicite ?view=). Le toggle
+  // reste fonctionnel en session ; `saveViewMode` garde la valeur pour le sync
+  // URL mais ne pilote plus le mode d'atterrissage.
   // initialViewMode est résolu côté Server par page.tsx pour éviter Suspense.
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
     if (initialViewMode && isViewMode(initialViewMode)) return initialViewMode;
-    return loadViewMode() ?? "map";
+    return "map";
   });
 
   // Wrapper qui persiste + sync URL via router.replace (pas d'historique).
