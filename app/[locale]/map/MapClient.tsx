@@ -652,13 +652,24 @@ export default function MapClient({
   // repaint quand le container atteint sa taille finale. Résultat : style chargé,
   // tiles chargées, mais canvas WebGL jamais peint → carte blanche (cf. #100).
   //
-  // Le fix : au onLoad, on force resize() + triggerRepaint() pour s'assurer
-  // que le 1er frame est dessiné avec les bonnes dimensions.
+  // Le fix : au onLoad, on force resize() + triggerRepaint(). MAIS le 'load'
+  // arrive AVANT que le layout post-hydration soit stabilisé → le resize
+  // synchrone capture encore une taille transitoire et aucun repaint ne suit
+  // (carte blanche jusqu'à interaction, reproduit en prod, #421). On force donc
+  // des repaints DIFFÉRÉS : rAF (frame suivante) + un court délai (layout
+  // stabilisé). Chaque resize re-synchronise le viewport WebGL et peint le 1er
+  // frame avec les bonnes dimensions — réplique le `window.resize` manuel qui
+  // corrigeait le rendu. Gardés sur mapRef pour ne rien faire si démonté.
   const handleLoad = () => {
-    const map = mapRef.current?.getMap();
-    if (!map) return;
-    map.resize();
-    map.triggerRepaint();
+    const repaint = () => {
+      const map = mapRef.current?.getMap();
+      if (!map) return;
+      map.resize();
+      map.triggerRepaint();
+    };
+    repaint();
+    requestAnimationFrame(repaint);
+    setTimeout(repaint, 250);
     updateViewport();
   };
 
