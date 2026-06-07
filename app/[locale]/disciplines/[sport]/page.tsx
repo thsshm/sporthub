@@ -58,26 +58,24 @@ const fetchRanking = unstable_cache(
   async (sportSlug: string, limit = 50): Promise<VenueRanking[]> => {
     const sb = getSupabaseStaticClient();
     try {
-      // #331 — vrai classement par nombre de courts, via le RPC
-      // `top_discipline_venues` qui lit la vue matérialisée `mv_disciplines_
-      // ranking` (migration 0034). Le tri live `ORDER BY courts_count` sur le
-      // set joint venue × venue_sport (tennis ≈ 40k, colonne non indexée)
-      // dépassait le statement_timeout (57014) → page vide. La MV précalcule le
-      // top 50 par sport → le RPC est un SELECT trié indexé (< 10 ms) ET c'est
-      // le VRAI top-N (le contournement #352 ORDER BY id ramenait 50 venues
-      // arbitraires). Rafraîchie hebdo par /api/cron/refresh-disciplines.
-      const { data, error } = await sb.rpc("top_discipline_venues", {
+      // #366 — vrai classement par CLUB (et non par venue/feature). Le RPC
+      // `top_clubs_by_sport` lit la MV `mv_top_clubs_by_sport` (migration 0038)
+      // qui classe les entités `club` par leur nombre de courts DU SPORT. Évite
+      // le bruit des classements venue-based (#1 tennis = « Bassin Aquatique » :
+      // venues = features, adresses grossières, tags multi-sports). Le slug
+      // renvoyé est celui du club → lien vers /club/[slug] (#373).
+      const { data, error } = await sb.rpc("top_clubs_by_sport", {
         p_sport_slug: sportSlug,
         max_results: limit,
       });
 
       if (error || !data) return [];
-      return (data as VenueRanking[]).map((r) => ({
-        id: r.id,
-        slug: r.slug,
-        name: r.name,
+      return data.map((r) => ({
+        id: r.club_id,
+        slug: r.club_slug,
+        name: r.club_name,
         courts_count: r.courts_count,
-        address: r.address,
+        address: null,
         city_name: r.city_name,
         country_code: r.country_code,
       }));
@@ -148,7 +146,7 @@ export default async function DisciplinesPage({ params }: Props) {
     sportName,
     venues.slice(0, 10).map((v) => ({
       name: v.name,
-      url: `${SITE_URL}/venue/${v.slug}`,
+      url: `${SITE_URL}/club/${v.slug}`,
     })),
   );
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
@@ -193,7 +191,7 @@ export default async function DisciplinesPage({ params }: Props) {
             {venues.slice(0, 3).map((v, i) => (
               <Link
                 key={v.id}
-                href={`/venue/${v.slug}`}
+                href={`/club/${v.slug}`}
                 className="group relative flex flex-col rounded-lg border bg-card p-4 transition-shadow hover:shadow-md"
               >
                 <span className="absolute right-3 top-3 text-2xl font-bold text-muted-foreground/30 select-none">
@@ -229,7 +227,7 @@ export default async function DisciplinesPage({ params }: Props) {
             {venues.map((v, i) => (
               <li key={v.id}>
                 <Link
-                  href={`/venue/${v.slug}`}
+                  href={`/club/${v.slug}`}
                   className="group flex items-center gap-4 px-4 py-3 transition-colors hover:bg-accent"
                 >
                   <span className="w-7 shrink-0 text-right text-sm font-mono text-muted-foreground">

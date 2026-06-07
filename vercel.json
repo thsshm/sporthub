@@ -6,6 +6,7 @@
     { "path": "/api/cron/refresh-diving", "schedule": "0 5 * * 1" },
     { "path": "/api/cron/refresh-wikidata", "schedule": "0 6 * * 1" },
     { "path": "/api/cron/refresh-top-cities", "schedule": "0 7 * * 1" },
-    { "path": "/api/cron/refresh-disciplines", "schedule": "0 8 * * 1" }
+    { "path": "/api/cron/refresh-disciplines", "schedule": "0 8 * * 1" },
+    { "path": "/api/cron/refresh-top-clubs", "schedule": "30 8 * * 1" }
   ]
 }
