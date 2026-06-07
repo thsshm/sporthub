@@ -14,13 +14,12 @@
  * Toutes les sections sont des Server Components dans `components/home/*`.
  * Aucun "use client" — fetch direct Supabase via getSupabaseServerClient.
  */
-import { MapPin } from "lucide-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/routing";
 import { FAMILIES } from "@/lib/families";
 import { getFamilyCounts } from "@/lib/home-stats";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
-import { formatCount } from "@/lib/utils";
+import { HomeHero } from "@/components/home/HomeHero";
 import { HomeFAQ } from "@/components/home/HomeFAQ";
 import { HomeFeaturedCities } from "@/components/home/HomeFeaturedCities";
 import { HomeHowItWorks } from "@/components/home/HomeHowItWorks";
@@ -45,38 +44,11 @@ export default async function HomePage({
 
   return (
     <>
-      {/* Hero */}
-      <section className="border-b bg-gradient-to-b from-muted/40 to-background">
-        <div className="container mx-auto max-w-4xl px-6 py-16 text-center md:py-20">
-          <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
-            {t("heroTitle")}
-          </h1>
-          <p className="mt-3 text-lg text-muted-foreground md:text-xl">
-            {t("heroSubtitle")}
-          </p>
-          <p className="mx-auto mt-4 max-w-2xl text-sm text-muted-foreground">
-            {t("heroDescription", { count: formatCount(totalVenues) })}
-          </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
-            <Link
-              href="/map"
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              <MapPin className="h-4 w-4" aria-hidden="true" />
-              {t("ctaMap")}
-            </Link>
-            <Link
-              href="/sports/tennis"
-              className="inline-flex items-center rounded-md border px-5 py-2.5 text-sm font-medium hover:bg-accent"
-            >
-              {t("ctaList")}
-            </Link>
-          </div>
-        </div>
-      </section>
+      {/* Hero — A/B home_layout (brochure | map-first), #253 */}
+      <HomeHero totalSpots={totalVenues} />
 
       {/* Grille familles */}
-      <section className="container mx-auto max-w-6xl px-6 py-12">
+      <section id="families" className="container mx-auto max-w-6xl px-6 py-12">
         <h2 className="text-2xl font-semibold tracking-tight">
           {t("familiesTitle")}
         </h2>
