@@ -331,7 +331,8 @@ export function MapWithSearch({
         setFlyTarget({
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
-          zoom: 11,
+          // Position précise → zoom quartier pour voir les spots proches (#436).
+          zoom: 13,
           token: Date.now(),
         });
       },
@@ -508,7 +509,8 @@ export function MapWithSearch({
         flyToUser({
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
-          zoom: 12,
+          // Recentrage explicite "ma position" → zoom quartier (#436).
+          zoom: 14,
           token: Date.now(),
         });
       },
