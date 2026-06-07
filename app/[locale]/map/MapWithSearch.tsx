@@ -128,6 +128,22 @@ export function MapWithSearch({
         restored: true,
       };
     }
+    // Deep-link viewport (?lat=&lon=&zoom=, #408) — lu AVANT le viewport sauvé
+    // en localStorage. Le lien partagé exprime une intention explicite de position
+    // → la carte MONTE directement sur ce viewport (initialViewState) plutôt que
+    // d'y voler après le mount (flyTo post-mount = race avec mapRef non prêt).
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const pLat = parseFloat(params.get("lat") ?? "");
+      const pLon = parseFloat(params.get("lon") ?? "");
+      const pZoom = parseFloat(params.get("zoom") ?? "");
+      if (
+        Number.isFinite(pLat) && Number.isFinite(pLon) && Number.isFinite(pZoom) &&
+        Math.abs(pLat) <= 90 && Math.abs(pLon) <= 180 && pZoom >= 0 && pZoom <= 24
+      ) {
+        return { lat: pLat, lon: pLon, zoom: pZoom, restored: true };
+      }
+    }
     const saved = loadViewport();
     if (saved) {
       return { lat: saved.lat, lon: saved.lon, zoom: saved.zoom, restored: true };
