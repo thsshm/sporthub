@@ -24,7 +24,7 @@ Usage :
     python3 scripts/etl/osm_import.py --family all --country FR --dry-run
 
 Options :
-    --family    raquette|fitness|combat|baignade|boules|escalade|all
+    --family    raquette|fitness|combat|yoga|baignade|boules|nautique|glisse|snow|hike|escalade|ballon|plus|all
     --country   ISO-2 (FR, ES, DE, IT, PT, BE, NL, CH, …) ou "EU" (bbox Europe)
     --limit     Cap le nb de venues (test/smoke)
     --dry-run   N'écrit pas en DB (défaut : False)
@@ -81,34 +81,109 @@ COUNTRY_BBOXES: dict[str, tuple[float, float, float, float]] = {
 }
 
 # Tags OSM → (family_slug, primary_sport_slug)
+# Couvre toutes les 14 familles V2 avec les tags OSM les plus répandus.
+# Sources de référence : taginfo.openstreetmap.org + mapping V1.
 TAG_MAP: dict[tuple[str, str], tuple[str, str]] = {
+    # Raquette
     ("sport", "tennis"):       ("raquette", "tennis"),
     ("sport", "padel"):        ("raquette", "padel"),
     ("sport", "table_tennis"): ("raquette", "table_tennis"),
     ("sport", "badminton"):    ("raquette", "badminton"),
     ("sport", "squash"):       ("raquette", "squash"),
+    # Fitness
     ("leisure", "fitness_centre"): ("fitness", "gym"),
+    ("sport", "crossfit"):     ("fitness", "crossfit"),
+    ("sport", "pilates"):      ("fitness", "pilates"),
+    ("leisure", "dance"):      ("fitness", "dance"),
+    # Combat
     ("sport", "judo"):         ("combat", "judo"),
     ("sport", "karate"):       ("combat", "karate"),
     ("sport", "boxing"):       ("combat", "boxing"),
-    ("sport", "martial_arts"): ("combat", "combat"),  # fallback
+    ("sport", "martial_arts"): ("combat", "combat"),
+    # Bien-être / yoga
+    ("sport", "yoga"):         ("yoga", "yoga"),
+    ("leisure", "spa"):        ("yoga", "spa"),
+    ("amenity", "spa"):        ("yoga", "spa"),
+    # Baignade
     ("leisure", "swimming_pool"): ("baignade", "pool"),
     ("sport", "swimming"):     ("baignade", "pool"),
+    ("natural", "beach"):      ("baignade", "beach"),
+    # Boules
     ("sport", "boules"):       ("boules", "boules"),
     ("sport", "petanque"):     ("boules", "petanque"),
+    # Nautique
+    ("sport", "surfing"):      ("nautique", "surf"),
+    ("sport", "kitesurfing"):  ("nautique", "kitesurf"),
+    ("sport", "windsurfing"):  ("nautique", "windsurf"),
+    ("sport", "diving"):       ("nautique", "diving"),
+    ("sport", "scuba_diving"): ("nautique", "diving"),
+    ("amenity", "dive_centre"):("nautique", "diving"),
+    ("leisure", "marina"):     ("nautique", "marina"),
+    # Glisse / board sports
+    ("sport", "skateboard"):   ("glisse", "glisse"),
+    ("leisure", "skateboard_park"): ("glisse", "glisse"),
+    ("sport", "bmx"):          ("glisse", "glisse"),
+    # Snow / hiver
+    ("sport", "skiing"):       ("snow", "skiing"),
+    ("sport", "snowboarding"): ("snow", "snowboarding"),
+    ("aerialway", "chair_lift"):("snow", "skiing"),  # remontées mécaniques
+    # Plein air / hike
+    ("highway", "trailhead"):  ("hike", "trail"),
+    ("route", "hiking"):       ("hike", "trail"),
+    ("sport", "cycling"):      ("hike", "cycling"),
+    ("sport", "running"):      ("hike", "running"),
+    ("sport", "athletics"):    ("hike", "running"),
+    # Escalade
     ("sport", "climbing"):     ("escalade", "climbing_indoor"),
+    ("natural", "rock"):       ("escalade", "climbing_indoor"),  # falaises
+    # Ballon
+    ("sport", "football"):     ("ballon", "football"),
+    ("sport", "soccer"):       ("ballon", "football"),
+    ("sport", "basketball"):   ("ballon", "basketball"),
+    ("sport", "handball"):     ("ballon", "handball"),
+    ("sport", "volleyball"):   ("ballon", "volleyball"),
+    ("sport", "rugby"):        ("ballon", "rugby"),
+    # Golf (→ plus)
+    ("leisure", "golf_course"):("plus", "golf"),
+    ("sport", "golf"):         ("plus", "golf"),
+    # Équitation (→ plus)
+    ("leisure", "horse_riding"):("plus", "equestrian"),
+    ("sport", "equestrian"):   ("plus", "equestrian"),
+    # Tir à l'arc (→ plus)
+    ("sport", "archery"):      ("plus", "archery"),
+    # Parapente (→ plus)
+    ("sport", "paragliding"):  ("plus", "paragliding"),
 }
 
-# Tags par famille (pour construire les requêtes Overpass)
+# Tags par famille pour construire les requêtes Overpass.
+# On regroupe par famille pour limiter le nb de requêtes Overpass.
 FAMILY_TAGS: dict[str, list[tuple[str, str]]] = {
     "raquette":  [("sport", "tennis"), ("sport", "padel"), ("sport", "table_tennis"),
                   ("sport", "badminton"), ("sport", "squash")],
-    "fitness":   [("leisure", "fitness_centre")],
+    "fitness":   [("leisure", "fitness_centre"), ("sport", "crossfit"),
+                  ("sport", "pilates"), ("leisure", "dance")],
     "combat":    [("sport", "judo"), ("sport", "karate"), ("sport", "boxing"),
                   ("sport", "martial_arts")],
-    "baignade":  [("leisure", "swimming_pool"), ("sport", "swimming")],
+    "yoga":      [("sport", "yoga"), ("leisure", "spa"), ("amenity", "spa")],
+    "baignade":  [("leisure", "swimming_pool"), ("sport", "swimming"),
+                  ("natural", "beach")],
     "boules":    [("sport", "boules"), ("sport", "petanque")],
-    "escalade":  [("sport", "climbing")],
+    "nautique":  [("sport", "surfing"), ("sport", "kitesurfing"),
+                  ("sport", "windsurfing"), ("sport", "diving"),
+                  ("amenity", "dive_centre"), ("leisure", "marina")],
+    "glisse":    [("sport", "skateboard"), ("leisure", "skateboard_park"),
+                  ("sport", "bmx")],
+    "snow":      [("sport", "skiing"), ("sport", "snowboarding"),
+                  ("aerialway", "chair_lift")],
+    "hike":      [("highway", "trailhead"), ("sport", "cycling"),
+                  ("sport", "running"), ("sport", "athletics")],
+    "escalade":  [("sport", "climbing"), ("natural", "rock")],
+    "ballon":    [("sport", "football"), ("sport", "soccer"),
+                  ("sport", "basketball"), ("sport", "handball"),
+                  ("sport", "volleyball"), ("sport", "rugby")],
+    "plus":      [("leisure", "golf_course"), ("sport", "golf"),
+                  ("sport", "equestrian"), ("leisure", "horse_riding"),
+                  ("sport", "archery"), ("sport", "paragliding")],
 }
 
 
@@ -389,10 +464,19 @@ def self_test() -> int:
     el_bad = {"type": "node", "id": 0, "lat": 999.0, "lon": 0.0, "tags": {"name": "X"}}
     assert element_to_record(el_bad, "raquette", "tennis") is None
 
-    # TAG_MAP couvre toutes les familles
+    # TAG_MAP couvre toutes les familles déclarées dans FAMILY_TAGS
     for fam, tags in FAMILY_TAGS.items():
         for tag in tags:
-            assert tag in TAG_MAP, f"TAG_MAP manque {tag}"
+            assert tag in TAG_MAP, f"TAG_MAP manque {tag} (famille {fam})"
+
+    # Toutes les 13 familles actives + plus sont couvertes
+    expected_families = {
+        "raquette", "fitness", "combat", "yoga", "baignade", "boules",
+        "nautique", "glisse", "snow", "hike", "escalade", "ballon", "plus",
+    }
+    assert expected_families <= set(FAMILY_TAGS.keys()), (
+        f"Familles manquantes: {expected_families - set(FAMILY_TAGS.keys())}"
+    )
 
     # COUNTRY_BBOXES : toutes les bboxes sont (S, W, N, E) valides
     for country, (s, w, n, e) in COUNTRY_BBOXES.items():
@@ -407,7 +491,7 @@ def self_test() -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Import OSM Overpass → Supabase (#227)")
-    p.add_argument("--family", choices=[*FAMILY_TAGS.keys(), "all"], default="raquette")
+    p.add_argument("--family", choices=[*sorted(FAMILY_TAGS.keys()), "all"], default="raquette")
     p.add_argument("--country", default="FR", help="ISO-2 ou EU")
     p.add_argument("--limit", type=int, default=None, help="Cap venues (test)")
     p.add_argument("--dry-run", action="store_true", help="Aucune écriture DB")
