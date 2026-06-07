@@ -33,6 +33,13 @@ export type EmptyStateInput = {
   totalFamilies?: number;
   /** Critères universels cochés (lit / indoor / wheelchair / free / paid). */
   selectedCriteria?: Set<string>;
+  /**
+   * Les tuiles vectorielles PMTiles sont actives (#226/#407).
+   * Quand true, ne jamais afficher l'overlay « 0 spots » : le rendu visuel
+   * vient des tuiles (toujours peuplées) et count=0 est un artefact du
+   * découplage tuiles/API — pas une zone vraiment vide.
+   */
+  hasTiles?: boolean;
 };
 
 export type EmptyStateResult = {
@@ -49,6 +56,12 @@ export type EmptyStateResult = {
  */
 export function getEmptyState(input: EmptyStateInput): EmptyStateResult | null {
   if (input.count > 0) return null;
+
+  // En mode PMTiles, les spots sont rendus par les tuiles (toujours peuplées).
+  // count=0 est un artefact du découplage tuiles/API — pas une zone vide réelle.
+  // On supprime l'overlay pour ne jamais afficher « 0 spots » par-dessus des
+  // pastilles visibles (cf. #407).
+  if (input.hasTiles) return null;
 
   // Cas 1 — zoom trop bas (vue planétaire) : on ne charge probablement rien
   // côté serveur (cf. global bypass #143 retourne quand même 200 max).

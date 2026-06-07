@@ -17,6 +17,8 @@ type Props = {
   selectedFamilies?: Set<string>;
   totalFamilies?: number;
   selectedCriteria?: Set<string>;
+  /** PMTiles actives → jamais d'overlay « 0 spots » (#407). */
+  hasTiles?: boolean;
 };
 
 export function EmptyStateOverlay({
@@ -25,6 +27,7 @@ export function EmptyStateOverlay({
   selectedFamilies,
   totalFamilies,
   selectedCriteria,
+  hasTiles,
 }: Props) {
   const t = useTranslations("map.emptyState");
 
@@ -34,6 +37,7 @@ export function EmptyStateOverlay({
     selectedFamilies,
     totalFamilies,
     selectedCriteria,
+    hasTiles,
   });
 
   if (!result) return null;
