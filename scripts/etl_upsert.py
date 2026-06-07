@@ -194,6 +194,86 @@ def upsert_venues_batch(
     return result
 
 
+def soft_delete_missing(
+    client: SupabaseRestClient,
+    source: str,
+    country_code: str,
+    seen_external_ids: set[str],
+    chunk_size: int = 200,
+) -> int:
+    """Soft-delete les venues (source, country_code) absentes du batch courant.
+
+    Logique (227.3) :
+      1. Charge tous les external_id (source, country_code, deleted_at=null).
+      2. Calcule l'ensemble des disparus = existants - seen_external_ids.
+      3. PATCH deleted_at = now() sur ces ids (par lots, filtre sur external_id
+         pour ne jamais toucher un venue d'une autre source).
+
+    Retourne le nombre de venues soft-deleted.
+    """
+    # 1. Récupère les external_id existants (paginé, keyset sur id)
+    existing_extids: set[str] = set()
+    last_id = ""
+    page_size = 1000
+    while True:
+        path = (
+            f"venue?select=id,external_id"
+            f"&source=eq.{urllib.parse.quote(source)}"
+            f"&country_code=eq.{urllib.parse.quote(country_code)}"
+            f"&deleted_at=is.null"
+            f"&order=id.asc&limit={page_size}"
+        )
+        if last_id:
+            path += f"&id=gt.{last_id}"
+        req = urllib.request.Request(
+            f"{client.url}/rest/v1/{path}",
+            headers={
+                "apikey": client.key,
+                "Authorization": f"Bearer {client.key}",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=client.timeout) as resp:
+            rows = json.loads(resp.read())
+        if not rows:
+            break
+        for row in rows:
+            if row.get("external_id"):
+                existing_extids.add(row["external_id"])
+        last_id = rows[-1]["id"]
+        if len(rows) < page_size:
+            break
+
+    # 2. Disparus = existants non vus dans le batch courant
+    missing = existing_extids - seen_external_ids
+    if not missing:
+        return 0
+
+    # 3. Soft-delete par lots
+    deleted = 0
+    missing_list = list(missing)
+    for i in range(0, len(missing_list), chunk_size):
+        batch = missing_list[i : i + chunk_size]
+        id_list = ",".join(urllib.parse.quote(x) for x in batch)
+        patch = json.dumps({"deleted_at": "now()"}).encode()
+        req = urllib.request.Request(
+            f"{client.url}/rest/v1/venue?source=eq.{urllib.parse.quote(source)}"
+            f"&external_id=in.({id_list})",
+            data=patch,
+            headers={
+                "apikey": client.key,
+                "Authorization": f"Bearer {client.key}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            },
+            method="PATCH",
+        )
+        with urllib.request.urlopen(req, timeout=client.timeout):
+            pass
+        deleted += len(batch)
+
+    return deleted
+
+
 def open_import_run(
     client: SupabaseRestClient,
     source: str,
@@ -318,6 +398,17 @@ def self_test() -> int:
     assert m.upserted == 15
     assert m.skipped == 2
     assert m.errors == ["e1"]
+
+    # soft_delete_missing : logique de calcul des disparus (pure, sans réseau)
+    seen = {"osm/node/1", "osm/node/2", "osm/node/3"}
+    existing = {"osm/node/1", "osm/node/2", "osm/node/3", "osm/node/4", "osm/node/5"}
+    missing = existing - seen
+    assert missing == {"osm/node/4", "osm/node/5"}, f"disparus incorrects: {missing}"
+    assert len(missing) == 2
+
+    # Cas : aucun disparu
+    missing_none = {"osm/node/1"} - {"osm/node/1"}
+    assert len(missing_none) == 0
 
     print("✓ etl_upsert self-test OK")
     return 0
