@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { getTranslations } from "next-intl/server";
 import { MapWithSearch } from "@/app/[locale]/map/MapWithSearch";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -6,6 +7,7 @@ import { isViewMode, type ViewMode } from "@/lib/map-storage";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenuePin } from "@/lib/supabase/types";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
+import { parseVercelGeo } from "@/lib/ip-geo";
 
 // Bbox d'initialisation : Europe élargie centrée sur la France.
 // Permet d'afficher des pins dès le first paint (LCP), avant le bbox-aware
@@ -115,7 +117,7 @@ type MapPageProps = {
   // `params` est typé Promise (Next.js 15 pattern, cf. /favoris) pour
   // permettre l'await de la locale dans generateMetadata async.
   params: Promise<{ locale: string }>;
-  searchParams: { family?: string; view?: string; q?: string; city?: string };
+  searchParams: { family?: string; view?: string; q?: string; city?: string; lat?: string };
 };
 
 export default async function MapPage({ searchParams }: MapPageProps) {
@@ -127,6 +129,16 @@ export default async function MapPage({ searchParams }: MapPageProps) {
     typeof searchParams.city === "string" && searchParams.city.trim()
       ? searchParams.city.trim()
       : null;
+  // Géoloc IP (#409) : centrer sur la ville du visiteur au 1er chargement.
+  // parseVercelGeo lit les headers Vercel edge (x-vercel-ip-latitude/longitude)
+  // injectés gratuitement — retourne null en dev local (headers absents).
+  // On s'en sert uniquement si aucun deep-link positionnel n'est présent
+  // (pas de ?city, pas de ?lat&lon = l'utilisateur a une intention explicite).
+  const h = await headers();
+  const ipGeo = (!citySlug && !searchParams.lat)
+    ? parseVercelGeo((name) => h.get(name))
+    : null;
+
   // Résolution ville et venues SSR en parallèle.
   const [initialCityCenter, initialVenues] = await Promise.all([
     citySlug ? fetchCityCenter(citySlug) : Promise.resolve(null),
@@ -146,9 +158,9 @@ export default async function MapPage({ searchParams }: MapPageProps) {
 
       <div className="relative h-[calc(100vh-4rem)] w-full">
         <MapWithSearch
-          initialLat={46.5}
-          initialLon={2.5}
-          initialZoom={5}
+          initialLat={ipGeo?.lat ?? 46.5}
+          initialLon={ipGeo?.lon ?? 2.5}
+          initialZoom={ipGeo ? 10 : 5}
           initialVenues={initialVenues}
           initialFamilies={initialFamilies}
           initialViewMode={initialViewMode}
