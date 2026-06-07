@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatRetreatDateRange, formatPriceFrom } from "@/lib/retreats";
+import {
+  formatRetreatDateRange,
+  formatPriceFrom,
+  retreatSeason,
+  filterBySeason,
+  type RetreatEvent,
+} from "@/lib/retreats";
 
 // Assertions volontairement tolérantes (substrings) : la ponctuation/abréviation
 // exacte d'Intl varie selon la version d'ICU/Node — on vérifie le sens, pas le
@@ -62,5 +68,45 @@ describe("formatPriceFrom", () => {
 
   it("retombe sur EUR quand la devise est vide", () => {
     expect(formatPriceFrom(100, "", "fr")).toBeTruthy();
+  });
+});
+
+describe("retreatSeason", () => {
+  it("mappe chaque mois sur la bonne saison (hémisphère nord)", () => {
+    expect(retreatSeason("2026-01-15")).toBe("winter");
+    expect(retreatSeason("2026-02-28")).toBe("winter");
+    expect(retreatSeason("2026-03-01")).toBe("spring");
+    expect(retreatSeason("2026-05-31")).toBe("spring");
+    expect(retreatSeason("2026-06-01")).toBe("summer");
+    expect(retreatSeason("2026-08-31")).toBe("summer");
+    expect(retreatSeason("2026-09-01")).toBe("autumn");
+    expect(retreatSeason("2026-11-30")).toBe("autumn");
+    expect(retreatSeason("2026-12-25")).toBe("winter");
+  });
+
+  it("renvoie null pour une date absente ou invalide", () => {
+    expect(retreatSeason(null)).toBeNull();
+    expect(retreatSeason("")).toBeNull();
+    expect(retreatSeason("2026-13-01")).toBeNull();
+    expect(retreatSeason("2026")).toBeNull();
+  });
+});
+
+describe("filterBySeason", () => {
+  const mk = (id: string, start: string | null): RetreatEvent =>
+    ({ id, start_date: start } as RetreatEvent);
+  const list = [mk("a", "2026-07-10"), mk("b", "2026-01-05"), mk("c", "2026-08-20"), mk("d", null)];
+
+  it("ne filtre rien quand season est null", () => {
+    expect(filterBySeason(list, null)).toHaveLength(4);
+  });
+
+  it("ne garde que les stages de la saison demandée", () => {
+    const summer = filterBySeason(list, "summer");
+    expect(summer.map((r) => r.id)).toEqual(["a", "c"]);
+  });
+
+  it("exclut les stages sans date", () => {
+    expect(filterBySeason(list, "winter").map((r) => r.id)).toEqual(["b"]);
   });
 });

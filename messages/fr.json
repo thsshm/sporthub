@@ -543,6 +543,14 @@
       "book": "Réserver",
       "lodging": "Hébergement inclus",
       "meals": "Repas inclus",
+      "stagesFiltersLabel": "Filtrer les stages",
+      "filterAllSeasons": "Toutes saisons",
+      "season": {
+        "spring": "Printemps",
+        "summer": "Été",
+        "autumn": "Automne",
+        "winter": "Hiver"
+      },
       "filterLabel": "Filtrer par type de retraite",
       "filterAll": "Toutes",
       "types": {

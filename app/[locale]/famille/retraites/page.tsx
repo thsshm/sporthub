@@ -110,7 +110,12 @@ async function fetchRetraites(page: number, type: string | null) {
 
 type Props = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ page?: string; type?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    type?: string;
+    r_season?: string;
+    r_lodging?: string;
+  }>;
 };
 
 export default async function FamilleRetraitesPage({ params, searchParams }: Props) {
@@ -284,7 +289,7 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
       )}
 
       {/* Stages à venir — données réelles depuis retreat_event (#266, palier 1) */}
-      <UpcomingRetreats locale={locale} />
+      <UpcomingRetreats locale={locale} searchParams={sp} />
     </main>
   );
 }
