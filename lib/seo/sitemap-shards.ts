@@ -4,11 +4,11 @@
  * Cette couche TOUCHE Supabase et next-intl (routing). Les sérialiseurs XML
  * purs sont dans `sitemap-render.ts` (pour les tests sans DB).
  *
- * Structure des routes :
- *   - /sitemap.xml              → sitemap-index (liste les 10 sous-sitemaps)
+ * Structure des routes (cf. VENUE_SHARD_COUNT) :
+ *   - /sitemap.xml              → sitemap-index (liste TOTAL_SHARD_COUNT sous-sitemaps)
  *   - /sitemap/0.xml            → statiques + familles + disciplines + program.
- *   - /sitemap/1.xml … /8.xml   → venues paginés (45 000 chacun = 360k max)
- *   - /sitemap/9.xml            → clubs (/club/[slug])
+ *   - /sitemap/1.xml … /12.xml  → venues paginés (45 000 chacun = 540k max)
+ *   - /sitemap/13.xml           → clubs (/club/[slug])
  */
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -35,18 +35,30 @@ export const SITE_URL = "https://sporthubmap.com";
  */
 export const URLS_PER_SHARD = 45_000;
 
-/** 8 shards venues = 360k URLs venues max indexables (~348k actuels). */
-export const VENUE_SHARD_COUNT = 8;
+/**
+ * Nombre de shards venues. Capacité indexable = VENUE_SHARD_COUNT × URLS_PER_SHARD.
+ *
+ * ⚠️ 8 (= 360k) était INSUFFISANT : à 371k venues publiées (mesuré 2026-06-07),
+ * chaque tranche UUID faisait ~46,5k > cap 45k → ~11k venues tronquées
+ * silencieusement (`.slice(0, URLS_PER_SHARD)`), absentes du sitemap (jamais
+ * soumises à Google). Cf. #402.
+ *
+ * Passé à 12 → ~31k/shard aujourd'hui, capacité 540k (marge pour la croissance ;
+ * chaque shard reste < limite Google de 50k URLs/sitemap). `id` = UUID v4
+ * (aléatoire) → distribution par tranche uniforme. Le test garde-fou
+ * (sitemap-shards.test.ts) bloque si la capacité repasse sous le seuil.
+ */
+export const VENUE_SHARD_COUNT = 12;
 
 /**
  * Shard dédié aux pages club (/club/[slug], #398). Isolé dans son propre shard
  * (pas dans le shard 0 metadata) car les clubs croissent avec le clustering
  * (#311) → aucune interaction avec le cap 45k du shard metadata. Index = juste
- * après les 8 shards venues.
+ * après les shards venues.
  */
 export const CLUB_SHARD_INDEX = VENUE_SHARD_COUNT + 1;
 
-/** Total = 1 metadata + 8 venues + 1 clubs = 10 sous-sitemaps. */
+/** Total = 1 metadata + VENUE_SHARD_COUNT venues + 1 clubs sous-sitemaps. */
 export const TOTAL_SHARD_COUNT = VENUE_SHARD_COUNT + 2;
 
 /**
@@ -54,13 +66,7 @@ export const TOTAL_SHARD_COUNT = VENUE_SHARD_COUNT + 2;
  * `RANKED_SPORTS` de `app/[locale]/disciplines/[sport]/page.tsx` (et la MV
  * `mv_top_clubs_by_sport`). Si la liste évolue côté app, mettre à jour ici.
  */
-const DISCIPLINE_SPORTS = [
-  "tennis",
-  "padel",
-  "table_tennis",
-  "badminton",
-  "squash",
-] as const;
+const DISCIPLINE_SPORTS = ["tennis", "padel", "table_tennis", "badminton", "squash"] as const;
 
 type VenueRow = { id: string; slug: string; updated_at: string | null };
 type ComboRow = {
@@ -77,13 +83,13 @@ type ComboRow = {
  */
 function localized(
   path: string,
-  meta: Omit<SitemapEntry, "loc" | "alternates"> = {},
+  meta: Omit<SitemapEntry, "loc" | "alternates"> = {}
 ): SitemapEntry {
   const alternates = Object.fromEntries(
     routing.locales.map((l) => [
       l,
       `${SITE_URL}${l === routing.defaultLocale ? path : `/${l}${path}`}`,
-    ]),
+    ])
   );
   return {
     loc: alternates[routing.defaultLocale],
@@ -107,7 +113,7 @@ export async function buildMetadataShard(): Promise<SitemapEntry[]> {
       lastmod: now,
       changefreq: "monthly",
       priority: 0.7,
-    }),
+    })
   );
 
   // Pages /disciplines/[sport] — classement national des clubs (#366/#398).
@@ -116,7 +122,7 @@ export async function buildMetadataShard(): Promise<SitemapEntry[]> {
       lastmod: now,
       changefreq: "weekly",
       priority: 0.8,
-    }),
+    })
   );
 
   // Paginé pour contourner le cap PostgREST 1000 rows. On scanne jusqu'à
@@ -155,16 +161,11 @@ export async function buildMetadataShard(): Promise<SitemapEntry[]> {
         lastmod: now,
         changefreq: "weekly",
         priority: 0.9,
-      }),
+      })
     );
   }
 
-  return [
-    ...staticEntries,
-    ...familyEntries,
-    ...disciplineEntries,
-    ...programmaticEntries,
-  ];
+  return [...staticEntries, ...familyEntries, ...disciplineEntries, ...programmaticEntries];
 }
 
 /**
@@ -177,8 +178,8 @@ const PAGE_SIZE = 1000;
  * Shards 1..N : venues paginées par tranche de URLS_PER_SHARD.
  *
  * Implémentation : on accumule en batches de 1000 (limite PostgREST par
- * défaut). 45 batches × 8 shards = 360 requêtes par rebuild complet, exécuté
- * 1x/24h grâce à revalidate=86400.
+ * défaut). ~31 batches × 12 shards par rebuild complet, exécuté 1x/24h grâce
+ * à revalidate=86400.
  */
 export async function buildVenueShard(shardIndex: number): Promise<SitemapEntry[]> {
   const sb = getSupabaseServerClient();
@@ -213,7 +214,7 @@ export async function buildVenueShard(shardIndex: number): Promise<SitemapEntry[
       lastmod: v.updated_at ?? now,
       changefreq: "weekly",
       priority: 0.8,
-    }),
+    })
   );
 }
 
@@ -251,6 +252,6 @@ export async function buildClubShard(): Promise<SitemapEntry[]> {
       lastmod: c.updated_at ?? now,
       changefreq: "monthly",
       priority: 0.7,
-    }),
+    })
   );
 }

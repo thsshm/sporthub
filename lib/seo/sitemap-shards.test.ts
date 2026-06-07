@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SitemapEntry } from "@/lib/seo/sitemap-render";
-import {
-  renderSitemapIndexXml,
-  renderUrlsetXml,
-  shardIdRange,
-} from "@/lib/seo/sitemap-render";
+import { renderSitemapIndexXml, renderUrlsetXml, shardIdRange } from "@/lib/seo/sitemap-render";
 
 const SITE_URL = "https://sporthubmap.com";
 
@@ -17,9 +13,7 @@ describe("shardIdRange (#333)", () => {
   const SHARDS = 8;
 
   it("le 1er shard démarre à l'UUID minimal", () => {
-    expect(shardIdRange(1, SHARDS).start).toBe(
-      "00000000-0000-0000-0000-000000000000",
-    );
+    expect(shardIdRange(1, SHARDS).start).toBe("00000000-0000-0000-0000-000000000000");
   });
 
   it("le dernier shard n'a pas de borne haute (jusqu'au max UUID)", () => {
@@ -33,9 +27,7 @@ describe("shardIdRange (#333)", () => {
   });
 
   it("les bornes sont strictement croissantes (pas de recouvrement)", () => {
-    const starts = Array.from({ length: SHARDS }, (_, i) =>
-      shardIdRange(i + 1, SHARDS).start,
-    );
+    const starts = Array.from({ length: SHARDS }, (_, i) => shardIdRange(i + 1, SHARDS).start);
     for (let i = 1; i < starts.length; i++) {
       expect(starts[i] > starts[i - 1]).toBe(true);
     }
@@ -186,5 +178,26 @@ describe("audit poids shard (#108 part 2/2)", () => {
   it("un shard plein avec slug moyen pèse < 30 MB (sanity)", () => {
     const medSlug = "complexe-sportif-municipal-saint-jean-de-luz";
     expect(shardBytes(medSlug)).toBeLessThan(30 * 1024 * 1024);
+  });
+});
+
+// Doit rester aligné sur VENUE_SHARD_COUNT dans lib/seo/sitemap-shards.ts
+// (même raison que URLS_PER_SHARD ci-dessus : import server-only impossible
+//  dans l'environnement node de vitest).
+const VENUE_SHARD_COUNT = 12;
+
+describe("capacité de sharding venues (#402)", () => {
+  // Seuil de sécurité : la capacité indexable (shards × cap) doit rester
+  // confortablement au-dessus du nombre de venues publiées (~371k au
+  // 2026-06-07). 8×45k = 360k < 371k provoquait une troncature silencieuse
+  // (venues absentes du sitemap, jamais soumises à Google). Cf. #402.
+  const SAFE_CAPACITY = 450_000;
+
+  it("la capacité (shards × cap) couvre le total publié avec marge", () => {
+    expect(VENUE_SHARD_COUNT * URLS_PER_SHARD).toBeGreaterThanOrEqual(SAFE_CAPACITY);
+  });
+
+  it("chaque shard plein reste sous la limite Google de 50 000 URLs", () => {
+    expect(URLS_PER_SHARD).toBeLessThanOrEqual(50_000);
   });
 });
