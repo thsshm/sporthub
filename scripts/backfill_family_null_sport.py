@@ -192,12 +192,46 @@ def patch_batch(url, key, ids, fam, sport):
     req(url, key, method="PATCH", path=path, body=body, prefer="return=minimal")
 
 
+def self_test() -> int:
+    """Teste classify() + l'invariant « familles canoniques ». Sans DB ni creds
+    → tourne en CI (le repo n'a pas d'infra pytest)."""
+    # Invariant critique #312 : toute famille produite DOIT être canonique,
+    # sinon la venue retombe en bucket invisible ('autre'). On le vérifie ici
+    # pour TOUTES les entrées du mapping, pas seulement celles vues à l'exécution.
+    for st, (s, f) in MAPPING.items():
+        assert f in CANON, f"MAPPING[{st!r}] → famille non canonique: {f!r}"
+    for rx, (s, f) in NAME_HEURISTICS:
+        assert f in CANON, f"NAME_HEURISTICS {rx.pattern!r} → famille non canonique: {f!r}"
+    assert DEFAULT[1] in CANON, DEFAULT
+
+    # classify : sport_type mappé → famille du mapping
+    assert classify({}, "skiing") == ("skiing", "snow", "v1:skiing")
+    assert classify({}, "climbing")[1] == "escalade"
+    # fallback nom quand sport_type absent
+    assert classify({"name": "Salle Arkose Bloc"}, None) == ("climbing_indoor", "escalade", "name")
+    assert classify({"name": "Piscine Municipale"}, None)[1] == "baignade"
+    assert classify({"name": "Golf de Saint-Cloud"}, None) == ("golf", "plus", "name")
+    # sport_type V1 connu mais non mappé → DEFAULT 'plus' (jamais 'autre')
+    s, f, reason = classify({"name": "X"}, "some_unknown_sport")
+    assert (s, f) == DEFAULT and reason == "v1-unmapped:some_unknown_sport", (s, f, reason)
+    # ni sport_type ni nom exploitable → DEFAULT, raison 'default'
+    assert classify({"name": "Truc Random"}, None) == (None, "plus", "default")
+
+    print("✓ backfill_family_null_sport self-test OK")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true", help="écrit en base (défaut: dry-run)")
     ap.add_argument("--limit", type=int, default=None, help="ne traiter que N venues (test)")
     ap.add_argument("--chunk", type=int, default=100, help="taille de lot PATCH")
+    ap.add_argument("--self-test", action="store_true",
+                    help="Teste classify() + invariant familles canoniques (CI, sans DB)")
     args = ap.parse_args()
+
+    if args.self_test:
+        return self_test()
 
     url, key, v1 = load_env()
     print(f"V1 SQLite : {v1} ({'OK' if v1.exists() else 'INTROUVABLE'})")
