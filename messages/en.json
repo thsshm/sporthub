@@ -227,6 +227,16 @@
       "officialWebsite": "Official website ({host})"
     }
   },
+  "club": {
+    "notFoundTitle": "Club not found",
+    "metaDescription": "{name} in {city}: {count} courts, sports played, address and access.",
+    "metaDescriptionNoCity": "{name}: {count} courts, sports played, address and access.",
+    "courts": "{count, plural, =0 {No court} one {1 court} other {{count} courts}}",
+    "courtsHeading": "Club courts",
+    "sportsHeading": "Sports played",
+    "emptyMessage": "This club has no published court yet.",
+    "exploreFamily": "See other clubs"
+  },
   "map": {
     "title": "Map of sport spots",
     "titleSingleFamily": "Map of {family} clubs",
