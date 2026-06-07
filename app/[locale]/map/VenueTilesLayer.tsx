@@ -11,7 +11,7 @@ import {
   VENUE_TILES_SOURCE_LAYER,
   buildCircleRadiusExpression,
   buildFamilyColorExpression,
-  buildFamilyFilter,
+  venueTilesFilter,
   pmtilesSourceUrl,
 } from "@/lib/map/venue-tiles";
 
@@ -66,7 +66,7 @@ export default function VenueTilesLayer({
         id={VENUE_TILES_LAYER_ID}
         type="circle"
         source-layer={VENUE_TILES_SOURCE_LAYER}
-        filter={buildFamilyFilter(selectedFamilies, totalFamilies)}
+        filter={venueTilesFilter(selectedFamilies, totalFamilies)}
         paint={paint}
       />
     </Source>
