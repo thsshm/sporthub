@@ -226,20 +226,53 @@ def deduplicate_records(
     return result
 
 
+def _existing_venues_query(
+    source: str,
+    country_code: str,
+    family_slug: str | None,
+    page_size: int,
+    last_id: str,
+) -> str:
+    """Path PostgREST des venues existantes à réconcilier (pur → testable).
+
+    #426 — `family_slug` (optionnel) scope la requête : indispensable pour un
+    import mono-famille (sinon on charge toutes les familles source+pays).
+    """
+    path = (
+        f"venue?select=id,external_id"
+        f"&source=eq.{urllib.parse.quote(source)}"
+        f"&country_code=eq.{urllib.parse.quote(country_code)}"
+    )
+    if family_slug:
+        path += f"&family_slug=eq.{urllib.parse.quote(family_slug)}"
+    path += f"&deleted_at=is.null&order=id.asc&limit={page_size}"
+    if last_id:
+        path += f"&id=gt.{last_id}"
+    return path
+
+
 def soft_delete_missing(
     client: SupabaseRestClient,
     source: str,
     country_code: str,
     seen_external_ids: set[str],
     chunk_size: int = 200,
+    family_slug: str | None = None,
 ) -> int:
-    """Soft-delete les venues (source, country_code) absentes du batch courant.
+    """Soft-delete les venues (source, country_code[, family_slug]) absentes du
+    batch courant.
 
     Logique (227.3) :
       1. Charge tous les external_id (source, country_code, deleted_at=null).
       2. Calcule l'ensemble des disparus = existants - seen_external_ids.
       3. PATCH deleted_at = now() sur ces ids (par lots, filtre sur external_id
          pour ne jamais toucher un venue d'une autre source).
+
+    #426 — `family_slug` (optionnel) : un import MONO-famille ne voit que sa
+    propre famille dans `seen_external_ids`. Sans scope, il soft-deleterait
+    toutes les AUTRES familles (même source+pays) absentes de son batch → perte
+    de données. Passer la famille courante borne la réconciliation à cette
+    famille. `None` (ex. `--family all`) = réconciliation complète source+pays.
 
     Retourne le nombre de venues soft-deleted.
     """
@@ -248,15 +281,9 @@ def soft_delete_missing(
     last_id = ""
     page_size = 1000
     while True:
-        path = (
-            f"venue?select=id,external_id"
-            f"&source=eq.{urllib.parse.quote(source)}"
-            f"&country_code=eq.{urllib.parse.quote(country_code)}"
-            f"&deleted_at=is.null"
-            f"&order=id.asc&limit={page_size}"
+        path = _existing_venues_query(
+            source, country_code, family_slug, page_size, last_id
         )
-        if last_id:
-            path += f"&id=gt.{last_id}"
         req = urllib.request.Request(
             f"{client.url}/rest/v1/{path}",
             headers={
@@ -459,6 +486,16 @@ def self_test() -> int:
     # Cas : aucun disparu
     missing_none = {"osm/node/1"} - {"osm/node/1"}
     assert len(missing_none) == 0
+
+    # #426 — scope famille dans la query des venues existantes.
+    q_fam = _existing_venues_query("osm", "FR", "raquette", 1000, "")
+    assert "source=eq.osm" in q_fam
+    assert "country_code=eq.FR" in q_fam
+    assert "family_slug=eq.raquette" in q_fam, "scope famille manquant"
+    q_all = _existing_venues_query("osm", "FR", None, 1000, "")
+    assert "family_slug" not in q_all, "ne doit pas scoper si family_slug=None"
+    q_keyset = _existing_venues_query("osm", "FR", "fitness", 1000, "abc")
+    assert "id=gt.abc" in q_keyset, "keyset last_id manquant"
 
     print("✓ etl_upsert self-test OK")
     return 0
