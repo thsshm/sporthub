@@ -543,6 +543,14 @@
       "book": "Book",
       "lodging": "Lodging included",
       "meals": "Meals included",
+      "stagesFiltersLabel": "Filter stages",
+      "filterAllSeasons": "All seasons",
+      "season": {
+        "spring": "Spring",
+        "summer": "Summer",
+        "autumn": "Autumn",
+        "winter": "Winter"
+      },
       "filterLabel": "Filter by retreat type",
       "filterAll": "All",
       "types": {

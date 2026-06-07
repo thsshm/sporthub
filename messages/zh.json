@@ -543,6 +543,14 @@
       "book": "预订",
       "lodging": "含住宿",
       "meals": "含餐食",
+      "stagesFiltersLabel": "筛选营期",
+      "filterAllSeasons": "全部季节",
+      "season": {
+        "spring": "春季",
+        "summer": "夏季",
+        "autumn": "秋季",
+        "winter": "冬季"
+      },
       "filterLabel": "按类型筛选",
       "filterAll": "全部",
       "types": {
