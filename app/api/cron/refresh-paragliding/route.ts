@@ -26,6 +26,7 @@ import { captureException } from "@/lib/monitoring";
 import { verifyCronAuth } from "@/lib/cron/auth";
 import { logCronCompleted } from "@/lib/cron/log";
 import { venueSlugFromName } from "@/lib/cron/slug";
+import { softUnpublishMissing } from "@/lib/cron/soft-unpublish";
 import type { Json } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
@@ -94,6 +95,7 @@ type ParaglidingVenueRow = {
   description: string | null;
   source: string;
   external_id: string;
+  last_seen_at: string;
   enrichments: Json;
 };
 
@@ -155,6 +157,7 @@ function featureToVenue(feat: PgeFeature): ParaglidingVenueRow | null {
     description: desc ? desc.slice(0, 300) : null,
     source: "paraglidingearth",
     external_id: externalId,
+    last_seen_at: new Date().toISOString(),
     enrichments: {
       paragliding_features: features,
       ...(altitudeM !== null ? { altitude_m: altitudeM } : {}),
@@ -196,6 +199,7 @@ export async function GET(request: Request) {
   const authFailure = verifyCronAuth(request);
   if (authFailure) return authFailure.response;
 
+  const runStart = new Date();
   const startedAt = Date.now();
   let upserted = 0;
   let failed = 0;
@@ -271,13 +275,16 @@ export async function GET(request: Request) {
     );
   }
 
+  const sb2 = getSupabaseAdminClient();
+  const softResult = await softUnpublishMissing(sb2, "paraglidingearth", runStart, upserted);
+
   const duration_ms = Date.now() - startedAt;
   logCronCompleted({
     event: EVENT_NAME,
     upserted,
     failed,
     duration_ms,
-    extra: { countriesProcessed, countriesSkipped },
+    extra: { countriesProcessed, countriesSkipped, softUnpublish: softResult },
   });
   return NextResponse.json({
     ok: true,
@@ -286,5 +293,6 @@ export async function GET(request: Request) {
     duration_ms,
     countriesProcessed,
     countriesSkipped,
+    softUnpublish: softResult,
   });
 }

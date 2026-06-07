@@ -28,6 +28,7 @@ import { captureException } from "@/lib/monitoring";
 import { verifyCronAuth } from "@/lib/cron/auth";
 import { logCronCompleted } from "@/lib/cron/log";
 import { venueSlugFromName } from "@/lib/cron/slug";
+import { softUnpublishMissing } from "@/lib/cron/soft-unpublish";
 import type { Json } from "@/lib/supabase/types";
 
 export const runtime = "nodejs";
@@ -72,6 +73,7 @@ type DivingVenueRow = {
   is_indoor: boolean | null;
   source: string;
   external_id: string;
+  last_seen_at: string;
   enrichments: Json;
 };
 
@@ -155,6 +157,7 @@ function elementToVenue(el: OverpassElement): DivingVenueRow | null {
     is_indoor: null,
     source: "osm-diving",
     external_id: externalId,
+    last_seen_at: new Date().toISOString(),
     enrichments: {
       diving_features: features,
       raw_tags: tags,
@@ -166,6 +169,7 @@ export async function GET(request: Request) {
   const authFailure = verifyCronAuth(request);
   if (authFailure) return authFailure.response;
 
+  const runStart = new Date();
   const startedAt = Date.now();
   let upserted = 0;
   let failed = 0;
@@ -233,13 +237,19 @@ export async function GET(request: Request) {
     );
   }
 
+  // Soft-unpublish des venues disparues de la source (#399).
+  // Garde-plancher : ne désactive rien si le run a ramené < 90 % du connu
+  // (détecte les fetches partiels dus aux 429 Overpass).
+  const sb2 = getSupabaseAdminClient();
+  const softResult = await softUnpublishMissing(sb2, "osm-diving", runStart, upserted);
+
   const duration_ms = Date.now() - startedAt;
   logCronCompleted({
     event: EVENT_NAME,
     upserted,
     failed,
     duration_ms,
-    extra: { totalElements },
+    extra: { totalElements, softUnpublish: softResult },
   });
   return NextResponse.json({
     ok: true,
@@ -247,5 +257,6 @@ export async function GET(request: Request) {
     failed,
     duration_ms,
     totalElements,
+    softUnpublish: softResult,
   });
 }
