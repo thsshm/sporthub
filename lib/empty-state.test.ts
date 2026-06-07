@@ -113,4 +113,26 @@ describe("getEmptyState", () => {
       expect(r?.kind).toBe("empty_generic");
     });
   });
+
+  describe("hasTiles (#407) — jamais d'overlay en mode PMTiles", () => {
+    it("hasTiles=true + count=0 → null (pastilles tuiles visibles)", () => {
+      const r = getEmptyState({ count: 0, zoom: 10, hasTiles: true });
+      expect(r).toBeNull();
+    });
+
+    it("hasTiles=true + count=0 + zoom bas → null (pas d'overlay sur l'océan non plus)", () => {
+      const r = getEmptyState({ count: 0, zoom: 3, hasTiles: true });
+      expect(r).toBeNull();
+    });
+
+    it("hasTiles=false + count=0 → overlay normal", () => {
+      const r = getEmptyState({ count: 0, zoom: 10, hasTiles: false });
+      expect(r).not.toBeNull();
+    });
+
+    it("hasTiles non défini + count=0 → overlay normal (rétrocompat)", () => {
+      const r = getEmptyState({ count: 0, zoom: 10 });
+      expect(r).not.toBeNull();
+    });
+  });
 });

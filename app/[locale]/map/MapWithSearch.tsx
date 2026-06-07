@@ -19,6 +19,7 @@ import { ExplorePicker, type PickerSelection } from "@/app/[locale]/map/ExploreP
 import { MapLegend } from "@/app/[locale]/map/MapLegend";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
+import { publicEnv } from "@/lib/env";
 import {
   isViewMode,
   loadAutoUpdate,
@@ -689,6 +690,7 @@ export function MapWithSearch({
         selectedFamilies={selectedFamilies}
         totalFamilies={FAMILIES.length}
         selectedCriteria={selectedCriteria}
+        hasTiles={Boolean(publicEnv.tilesUrl)}
       />
 
       {/* Toggle mode d'affichage (#123) — top-right, à côté du SearchBar.
