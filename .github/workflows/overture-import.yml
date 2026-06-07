@@ -1,0 +1,92 @@
+name: Overture import
+
+# Importe les POI Overture Maps → Supabase (#227.5).
+# Complémentaire à OSM : Overture couvre mieux les fitness/gym (Meta/FB data)
+# et les POI mondiaux mal tagués dans OSM.
+#
+# Dépendance : `pip install duckdb` (DuckDB + httpfs lit les parquet S3 public).
+# Secrets : SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (déjà configurés).
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"   # dimanche 03:00 UTC (après l'import OSM à 02:00)
+  workflow_dispatch:
+    inputs:
+      family:
+        description: "Famille Overture à importer"
+        type: choice
+        required: false
+        default: "fitness"
+        options: [fitness, yoga, baignade, nautique, ballon, raquette, escalade, glisse, snow, plus, all]
+      country:
+        description: "Pays ISO-2 ou EU"
+        type: string
+        required: false
+        default: "FR"
+      release:
+        description: "Overture release (vide = défaut)"
+        type: string
+        required: false
+        default: ""
+      limit:
+        description: "Cap venues (smoke test)"
+        type: string
+        required: false
+        default: ""
+      apply:
+        description: "Écrire en DB (sinon dry-run)"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: overture-import
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    name: overture_import.py
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install DuckDB
+        run: pip install duckdb --quiet
+
+      - name: Run overture_import.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IN_FAMILY: ${{ inputs.family || 'fitness' }}
+          IN_COUNTRY: ${{ inputs.country || 'FR' }}
+          IN_RELEASE: ${{ inputs.release || '' }}
+          IN_LIMIT: ${{ inputs.limit || '' }}
+          IN_APPLY: ${{ inputs.apply || 'false' }}
+        run: |
+          set -euo pipefail
+          ARGS=(--family "$IN_FAMILY" --country "$IN_COUNTRY")
+          [ -n "$IN_RELEASE" ] && ARGS+=(--release "$IN_RELEASE")
+          [ -n "$IN_LIMIT" ]   && ARGS+=(--limit "$IN_LIMIT")
+          [ "$IN_APPLY" = "true" ] || ARGS+=(--dry-run)
+          echo "▶ overture_import.py ${ARGS[*]}  (apply=$IN_APPLY)"
+          python3 scripts/etl/overture_import.py "${ARGS[@]}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Overture Import"
+            echo "- Famille : ${{ inputs.family || 'fitness' }}"
+            echo "- Pays : ${{ inputs.country || 'FR' }}"
+            echo "- Mode : ${{ (inputs.apply == 'true') && 'APPLY' || 'DRY-RUN' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

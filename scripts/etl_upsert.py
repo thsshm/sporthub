@@ -194,6 +194,38 @@ def upsert_venues_batch(
     return result
 
 
+def deduplicate_records(
+    records: list[VenueRecord],
+    geo_threshold_deg: float = 0.0005,
+) -> list[VenueRecord]:
+    """Déduplique les VenueRecord par proximité géo (seuil ~50 m en ° lat/lon).
+
+    227.6 — dédup AVANT upsert quand on mélange plusieurs sources (OSM + Overture
+    + RES) dans le même batch. Sans dédup, deux sources peuvent insérer le même
+    club physique → doublon en DB.
+
+    Stratégie (pure, O(n²) suffisant pour des lots ≤ 5000) :
+      - Pour chaque record, calcule la « cellule de grille »
+        floor(lat/thr)*thr, floor(lon/thr)*thr).
+      - Le premier record de chaque cellule gagne ; les suivants dans la même
+        cellule sont écartés.
+      - Précision : ~50 m à moyenne latitude (0.0005° ≈ 55 m en latitude).
+
+    Limite : ne déduplique qu'au sein du même batch — pas contre les venues
+    déjà en DB (c'est l'upsert ON CONFLICT qui gère ça côté DB pour la même
+    source, et la logique RPC de dédup cross-source est un chantier distinct).
+    """
+    seen_cells: set[tuple[int, int]] = set()
+    result: list[VenueRecord] = []
+    scale = 1.0 / geo_threshold_deg
+    for r in records:
+        cell = (int(r.lat * scale), int(r.lon * scale))
+        if cell not in seen_cells:
+            seen_cells.add(cell)
+            result.append(r)
+    return result
+
+
 def soft_delete_missing(
     client: SupabaseRestClient,
     source: str,
@@ -398,6 +430,24 @@ def self_test() -> int:
     assert m.upserted == 15
     assert m.skipped == 2
     assert m.errors == ["e1"]
+
+    # deduplicate_records : ~50m geo dedup
+    dupes = [
+        VenueRecord(source="osm", external_id=f"node/{i}", name=f"Club {i}",
+                    lat=48.8500 + i * 0.00001,  # <0.0005° d'écart → même cellule
+                    lon=2.3500, family_slug="raquette")
+        for i in range(3)
+    ]
+    distinct = [
+        VenueRecord(source="osm", external_id="node/100", name="Autre club",
+                    lat=48.9000, lon=2.4000, family_slug="raquette"),
+    ]
+    all_r = dupes + distinct
+    deduped = deduplicate_records(all_r)
+    # les 3 premiers sont dans la même cellule 50m → 1 seul gardé
+    assert len(deduped) == 2, f"attendu 2, obtenu {len(deduped)}"
+    assert deduped[0].external_id == "node/0"  # premier gagne
+    assert deduped[1].external_id == "node/100"
 
     # soft_delete_missing : logique de calcul des disparus (pure, sans réseau)
     seen = {"osm/node/1", "osm/node/2", "osm/node/3"}
