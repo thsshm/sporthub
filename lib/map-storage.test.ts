@@ -1,10 +1,35 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  isMeaningfulViewport,
   loadAutoUpdate,
   loadViewport,
+  MIN_MEANINGFUL_RESTORE_ZOOM,
   saveAutoUpdate,
   saveViewport,
 } from "@/lib/map-storage";
+
+describe("isMeaningfulViewport (#439)", () => {
+  it("restaure un viewport assez zoomé (ville/quartier)", () => {
+    expect(isMeaningfulViewport({ lat: 48.85, lon: 2.35, zoom: 12 })).toBe(true);
+    expect(isMeaningfulViewport({ lat: 48.85, lon: 2.35, zoom: 10 })).toBe(true);
+  });
+  it("ne restaure PAS une vue trop large (pays/continent) → géoloc prime", () => {
+    expect(isMeaningfulViewport({ lat: 46.5, lon: 2.5, zoom: 5 })).toBe(false);
+    expect(isMeaningfulViewport({ lat: 46.5, lon: 2.5, zoom: 4 })).toBe(false);
+  });
+  it("le seuil est inclusif", () => {
+    expect(
+      isMeaningfulViewport({ lat: 0, lon: 0, zoom: MIN_MEANINGFUL_RESTORE_ZOOM }),
+    ).toBe(true);
+    expect(
+      isMeaningfulViewport({
+        lat: 0,
+        lon: 0,
+        zoom: MIN_MEANINGFUL_RESTORE_ZOOM - 0.1,
+      }),
+    ).toBe(false);
+  });
+});
 
 // Fake localStorage pour env node.
 const fakeStorage = (() => {

@@ -21,6 +21,7 @@ import { formatCount } from "@/lib/utils";
 import { publicEnv } from "@/lib/env";
 import {
   isViewMode,
+  isMeaningfulViewport,
   loadAutoUpdate,
   loadViewMode,
   loadViewport,
@@ -143,8 +144,13 @@ export function MapWithSearch({
         return { lat: pLat, lon: pLon, zoom: pZoom, restored: true };
       }
     }
+    // #439 — on ne restaure le viewport sauvé QUE s'il est « informatif » (assez
+    // zoomé = lieu choisi). Un viewport trop large (zoom faible, vue pays/
+    // continent type France entière) n'est pas restauré → restored:false laisse
+    // la géoloc IP/navigateur recentrer sur la ville du visiteur (raffinement
+    // demandé : la géoloc prime sur une dernière position « vide »).
     const saved = loadViewport();
-    if (saved) {
+    if (saved && isMeaningfulViewport(saved)) {
       return { lat: saved.lat, lon: saved.lon, zoom: saved.zoom, restored: true };
     }
     return { lat: initialLat, lon: initialLon, zoom: initialZoom, restored: false };
