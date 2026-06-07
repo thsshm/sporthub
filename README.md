@@ -52,6 +52,36 @@ pnpm dev
 - 🔄 [`MIGRATION.md`](./MIGRATION.md) — mapping V1 → V2
 - 📐 [`ADR.md`](./ADR.md) — décisions architecturales
 
+## Opérations (GitHub Actions)
+
+Les jobs data longs tournent sur des runners GitHub — **plus besoin d'un Mac
+allumé** (#342). Secrets requis (Repo → Settings → Secrets and variables →
+Actions, déjà configurés) : `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+| Workflow | Quand | Rôle |
+| --- | --- | --- |
+| [`cluster-clubs.yml`](./.github/workflows/cluster-clubs.yml) | manuel | Regroupe les venues en clubs (`club` + `venue.club_id`) via `scripts/cluster_clubs.py`. **Dry-run par défaut.** |
+| [`regenerate-tiles.yml`](./.github/workflows/regenerate-tiles.yml) | nightly 04:00 UTC + manuel | Régénère les tuiles vectorielles PMTiles (tippecanoe) et les upload dans le bucket `tiles`. |
+
+Déclenchement — depuis l'onglet **Actions** (bouton « Run workflow ») ou en CLI :
+
+```bash
+# Clustering : dry-run d'abord (lecture seule), puis écriture réelle
+gh workflow run cluster-clubs.yml -f dry_run=true  -f family=raquette   # simulation
+gh workflow run cluster-clubs.yml -f dry_run=false -f family=raquette   # écrit en DB
+gh workflow run cluster-clubs.yml -f dry_run=false                      # toutes les familles
+
+# Régénérer les tuiles à la demande (sinon nightly auto)
+gh workflow run regenerate-tiles.yml
+
+# Suivre le run
+gh run watch
+```
+
+> Non migrés (hors de ce repo) : `import_v1.py` dépend de la SQLite V1 locale
+> (`../data-pipeline/`), `export_clubs_js.py` et `scrape_res_raquette.py` sont
+> des scripts du pipeline V1 (`sporthub-legacy`).
+
 ## Workflow
 
 ```
