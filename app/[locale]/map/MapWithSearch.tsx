@@ -450,8 +450,29 @@ export function MapWithSearch({
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  /** Mode effectivement appliqué — split dégradé en map sur étroit. */
-  const effectiveMode: ViewMode = viewMode === "split" && !isWideEnoughForSplit ? "map" : viewMode;
+  // Mobile = sous le breakpoint `md` (768px), là où le ViewModeToggle est caché
+  // (`hidden md:inline-flex`). Sur mobile la liste passe par le bottom sheet
+  // (#256), donc les modes desktop "list"/"split" ne s'appliquent pas. Sans ça,
+  // un `viewMode` "list" persisté (visite desktop / ?view=list) couvrait toute
+  // la carte en `inset-0` SANS aucun toggle mobile pour en sortir → écran liste
+  // bloqué. SSR-safe : false au 1er render (desktop par défaut), corrigé au mount.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    setIsMobile(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  /** Mode effectivement appliqué : toujours "map" sur mobile (liste = bottom
+   *  sheet) ; "split" dégradé en "map" sous le seuil split. */
+  const effectiveMode: ViewMode = isMobile
+    ? "map"
+    : viewMode === "split" && !isWideEnoughForSplit
+      ? "map"
+      : viewMode;
 
   // Snapshot venues + center reporté par MapClient pour alimenter
   // VenueListPanel sans re-fetch propre (#123).
