@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VenuePin } from "@/lib/supabase/types";
 import type { FlyTarget } from "@/app/[locale]/map/MapClient";
 import { formatCount } from "@/lib/utils";
@@ -14,6 +14,11 @@ const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
     </div>
   ),
 });
+
+// Ne jamais redemander la permission de géoloc navigateur en auto. Clé partagée
+// avec la carte principale (/map, cf. MapWithSearch #214) : si l'utilisateur a
+// déjà été sollicité là-bas, on ne le re-sollicite pas ici.
+const GEO_PROMPTED_KEY = "sporthub_geo_prompted";
 
 type Props = {
   /** Slug du sport pour le filtrage côté API (mode bbox-aware) */
@@ -35,6 +40,14 @@ type Props = {
  * Au mount, affiche les venues initiaux fournis. Dès que l'user pan/zoom,
  * refetch via /api/venues?sport=X&bbox=... pour tous les venues du sport
  * dans la nouvelle vue.
+ *
+ * Géolocalisation auto au mount : la page sport ouvrait sur la France entière
+ * (bbox des venues initiaux, vue agrégats PMTiles tous-sports) sans recentrage.
+ * On géolocalise donc l'utilisateur et on zoome chez lui — ce qui, en plus de
+ * recentrer, fait basculer l'affichage sur la couche API filtrée par sport
+ * (les pins deviennent ceux du sport, près de l'utilisateur). Même logique que
+ * la carte principale, mais SportPageMap utilise MapClient en direct (sans
+ * MapWithSearch qui portait jusqu'ici toute la logique #214).
  */
 export function SportPageMap({
   sportSlug,
@@ -45,7 +58,81 @@ export function SportPageMap({
 }: Props) {
   const [visibleCount, setVisibleCount] = useState(initialVenues.length);
 
-  // Calc initial center + zoom depuis les venues initiaux
+  // flyTarget géoloc auto (interne). Le flyTarget explicite du parent (clic sur
+  // un item de la liste) reste prioritaire — cf. effectiveFlyTarget plus bas.
+  const [geoFlyTarget, setGeoFlyTarget] = useState<FlyTarget | null>(null);
+
+  // Dès qu'une intention explicite du parent recentre la carte, la géoloc auto
+  // ne doit plus écraser ce choix (anti-race, comme userMovedRef dans #214).
+  const parentMovedRef = useRef(false);
+  useEffect(() => {
+    if (flyTarget) parentMovedRef.current = true;
+  }, [flyTarget]);
+
+  // Géoloc précise (navigateur) → recentre en zoom 12 si l'utilisateur autorise.
+  // Gardée par GEO_PROMPTED_KEY : on ne redemande jamais la permission en auto.
+  const precisePosRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) return;
+    try {
+      if (window.localStorage.getItem(GEO_PROMPTED_KEY) === "1") return;
+    } catch {
+      /* localStorage inaccessible → on tente une fois quand même */
+    }
+    const markPrompted = () => {
+      try {
+        window.localStorage.setItem(GEO_PROMPTED_KEY, "1");
+      } catch {
+        /* silent */
+      }
+    };
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        markPrompted();
+        if (parentMovedRef.current) return;
+        precisePosRef.current = true; // position précise : prime sur la géoloc IP
+        setGeoFlyTarget({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          zoom: 12,
+          token: Date.now(),
+        });
+      },
+      () => markPrompted(),
+      { timeout: 8000, maximumAge: 60_000 },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Géoloc approximative par IP (/api/geo, edge Vercel, SANS permission) →
+  // recentrage instantané sur la région du visiteur dès le mount. La géoloc
+  // précise ci-dessus raffine ensuite (zoom 12) si elle est autorisée.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/geo");
+        if (!res.ok) return;
+        const { geo } = (await res.json()) as {
+          geo: { lat: number; lon: number } | null;
+        };
+        if (cancelled || !geo || parentMovedRef.current || precisePosRef.current) return;
+        setGeoFlyTarget({ lat: geo.lat, lon: geo.lon, zoom: 11, token: Date.now() });
+      } catch {
+        /* /api/geo indispo (dev local) → on garde la vue par défaut */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Priorité : intention explicite du parent (clic liste) > géoloc auto.
+  const effectiveFlyTarget = flyTarget ?? geoFlyTarget;
+
+  // Calc initial center + zoom depuis les venues initiaux (fallback si géoloc
+  // indisponible / refusée → on garde une vue France raisonnable).
   const initial = (() => {
     if (initialVenues.length === 0) {
       return { lat: 46.5, lon: 2.5, zoom: 5 };
@@ -73,7 +160,7 @@ export function SportPageMap({
         selectedSport={sportSlug}
         onVenuesChange={setVisibleCount}
         onVenuesData={onVenuesData}
-        flyTarget={flyTarget}
+        flyTarget={effectiveFlyTarget}
       />
       <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-background/90 px-2 py-1 text-[11px] shadow backdrop-blur">
         <span className="font-semibold">{formatCount(visibleCount)}</span> visible
