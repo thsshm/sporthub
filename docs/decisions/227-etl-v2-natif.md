@@ -1,6 +1,6 @@
 # ADR #227 — ETL V2-natif : couper le cordon SQLite V1
 
-**Statut** : implémentation en cours (Phase 1.B de ROADMAP-SCALE.md)
+**Statut** : pipeline OSM + Overture opérationnel (#395 + #397 + #400 + #403 + cette PR)
 **Date** : 2026-06-07
 
 ## Contexte
@@ -41,7 +41,9 @@ RES           ─┘       external_id) DO UPDATE            import_run (traçab
 | **227.4** | Toutes familles FR/EU (mapping tags OSM → `family_slug`/`sport_slug`) | TBD |
 | **227.5** | Importeur Overture (parquet + DuckDB) monde par région | TBD |
 | **227.6** | Dédup cross-source (géo 50m + nom normalisé) + précédence | TBD |
-| **227.7** | Cutover + `import_v1.py` deprecated (recoupe #343) | TBD |
+| **227.5** (cette PR) | Importeur Overture (DuckDB parquet S3) + workflow GH Actions | #xxx |
+| **227.6** (cette PR) | `deduplicate_records` : dédup géo 50 m dans `etl_upsert` | #xxx |
+| **227.7** | Cutover + `import_v1.py` deprecated (recoupe #343) — décision Gautier | À planifier |
 
 ## Décisions ouvertes (input de Gautier attendu)
 
