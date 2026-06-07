@@ -731,11 +731,90 @@ Exemples
         action="store_true",
         help="Log DEBUG.",
     )
+    p.add_argument(
+        "--self-test",
+        action="store_true",
+        help="Teste la logique pure géo/texte/clustering (CI, sans creds ni DB).",
+    )
     return p.parse_args(argv)
+
+
+def self_test() -> int:
+    """Tests de la logique pure (géo, texte, Union-Find, clustering). Sans DB
+    ni creds → tourne en CI (le repo n'a pas d'infra pytest)."""
+
+    # ── haversine_m ──────────────────────────────────────────────────────
+    assert haversine_m(48.85, 2.35, 48.85, 2.35) == 0.0
+    # 1° de latitude ≈ 111.2 km (tolérance large)
+    assert abs(haversine_m(0.0, 0.0, 1.0, 0.0) - 111_195) < 100, haversine_m(0, 0, 1, 0)
+    # ~111 m pour 0.001° de latitude
+    assert abs(haversine_m(48.0, 2.0, 48.001, 2.0) - 111.2) < 2, haversine_m(48.0, 2.0, 48.001, 2.0)
+    # symétrie
+    assert haversine_m(48.0, 2.0, 49.0, 3.0) == haversine_m(49.0, 3.0, 48.0, 2.0)
+
+    # ── normalize_name ───────────────────────────────────────────────────
+    assert normalize_name(None) == ""
+    assert normalize_name("  TENNIS   Club  ") == "tennis club"
+    assert normalize_name("Café de l'Été!") == "cafe de l ete"
+
+    # ── slugify ──────────────────────────────────────────────────────────
+    assert slugify("Tennis Club de Paris") == "tennis-club-de-paris"
+    assert slugify("") == "x"  # fallback
+    assert slugify("Café!!!") == "cafe"
+
+    # ── is_generic ───────────────────────────────────────────────────────
+    assert is_generic(None) is True
+    assert is_generic("Court 1") is True
+    assert is_generic("tennis") is True       # nom de famille de sport seul
+    assert is_generic("abc") is True          # < 4 chars
+    assert is_generic("Tennis Club de Vincennes") is False
+
+    # ── names_similar ────────────────────────────────────────────────────
+    assert names_similar("Court 1", "Court 2") is False           # deux génériques
+    assert names_similar("Aviron Club Lyon", "Aviron Club Lyon") is True  # égalité
+    # préfixe commun ≥ 8 chars
+    assert names_similar("Stade Roland Garros", "Stade Roland Garros Annexe") is True
+    # ≥ 2 tokens (≥4 chars) communs, ordre différent
+    assert names_similar("Club Nautique Lyon", "Lyon Club Aviron") is True
+    # aucun chevauchement significatif
+    assert names_similar("Padel Center Aaa", "Squash Place Bbb") is False
+
+    # ── UnionFind ────────────────────────────────────────────────────────
+    uf = UnionFind(5)
+    assert all(uf.find(i) == i for i in range(5))
+    assert uf.union(0, 1) is True
+    assert uf.union(0, 1) is False            # déjà fusionnés
+    assert uf.find(0) == uf.find(1)
+    uf.union(1, 2)
+    assert uf.find(0) == uf.find(2)           # transitivité
+    assert uf.find(0) != uf.find(3)
+
+    # ── cluster_venues (passe 1 : géo + nom) ─────────────────────────────
+    v = [
+        {"name": "Aviron Club Lyon", "lat": 45.7600, "lon": 4.8300},
+        {"name": "Aviron Club Lyon", "lat": 45.76001, "lon": 4.83000},  # ~1 m, même nom
+        {"name": "Karate Do Marseille", "lat": 43.3000, "lon": 5.4000},  # loin
+    ]
+    uf1 = cluster_venues(v)
+    assert uf1.find(0) == uf1.find(1)         # fusionnés (proches + même nom)
+    assert uf1.find(0) != uf1.find(2)         # séparés (loin)
+
+    # ── cluster_venues (passe 2 : fallback géo pur sur noms génériques) ───
+    v2 = [
+        {"name": "Court 1", "lat": 10.0, "lon": 10.0},
+        {"name": "Court 2", "lat": 10.00001, "lon": 10.0},  # ~1 m, deux génériques
+    ]
+    uf2 = cluster_venues(v2)
+    assert uf2.find(0) == uf2.find(1)         # fusionnés via fallback géo
+
+    print("✓ cluster_clubs self-test OK")
+    return 0
 
 
 def main() -> int:
     args = parse_args()
+    if args.self_test:
+        return self_test()
     return run(args)
 
 
