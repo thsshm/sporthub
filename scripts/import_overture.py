@@ -66,11 +66,8 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Iterable
 
-try:
-    import duckdb
-except ImportError:
-    print("❌ pip install --break-system-packages duckdb", file=sys.stderr)
-    sys.exit(1)
+# duckdb est importé lazy dans connect_duckdb() (pas au module-level) pour que
+# `--self-test` tourne en CI sans le package (cf. import_v1 / backfill_*).
 
 import time as _time
 
@@ -353,6 +350,11 @@ def build_overture_query(
 
 
 def connect_duckdb() -> "duckdb.DuckDBPyConnection":
+    try:
+        import duckdb
+    except ImportError:
+        print("❌ pip install --break-system-packages duckdb", file=sys.stderr)
+        sys.exit(1)
     con = duckdb.connect()
     con.execute("INSTALL httpfs; LOAD httpfs;")
     con.execute("SET s3_region='us-west-2';")  # bucket public, accès anonyme
@@ -548,6 +550,55 @@ def _flush(sb, batch: list[dict]) -> int:
     return len(res.data)
 
 
+def self_test() -> int:
+    """Teste la logique pure (mapping catégorie, slug, similarité, géo, transform).
+    Sans DuckDB ni creds → tourne en CI (imports lourds sont lazy dans run/_import_live)."""
+    # Familles canoniques (lib/families.ts). Toute famille de CATEGORY_MAP doit
+    # en faire partie, sinon les venues importés tombent en bucket invisible.
+    CANON = {"raquette", "ballon", "fitness", "combat", "yoga", "baignade",
+             "boules", "nautique", "glisse", "snow", "hike", "escalade",
+             "retraites", "plus"}
+    for cat, (fam, sport) in CATEGORY_MAP.items():
+        assert fam in CANON, f"CATEGORY_MAP[{cat!r}] → famille non canonique: {fam!r}"
+        assert sport, f"CATEGORY_MAP[{cat!r}] → sport vide"
+
+    # slugify / venue_slug
+    assert slugify("Café de l'Été!") == "cafe-de-l-ete"
+    assert slugify("") == "untitled"
+    assert venue_slug("Gym", "Lyon", "FR") == "gym-lyon-fr"
+    assert venue_slug("Gym", None, None) == "gym"
+    assert len(venue_slug("x" * 200, "y" * 200, "z" * 200)) <= 120
+
+    # name_similarity (insensible casse/accents)
+    assert name_similarity("Tennis Club", "Tennis Club") == 1.0
+    assert name_similarity("Café", "cafe") == 1.0
+    assert name_similarity("AAAA", "ZZZZ") < 0.5
+
+    # cell_key : points proches même cellule, points lointains cellules ≠
+    assert cell_key(48.0, 2.0) == cell_key(48.0001, 2.0001)
+    assert cell_key(48.0, 2.0) != cell_key(49.0, 2.0)
+
+    # overture_row_to_venue : transform + garde-fous
+    assert overture_row_to_venue({"category": "unknown_cat"}, False) is None
+    assert overture_row_to_venue({"category": "gym", "name": "", "lat": 1.0, "lon": 2.0}, False) is None
+    assert overture_row_to_venue({"category": "gym", "name": "X", "lat": None, "lon": 2.0}, False) is None
+    v = overture_row_to_venue({
+        "category": "gym", "name": "  Basic Fit Lyon ", "lat": 45.76, "lon": 4.83,
+        "country_code": "fr", "locality": "Lyon", "address": "1 rue X",
+        "postcode": "69001", "website": "http://x", "phone": "+33",
+        "overture_id": "abc", "confidence": 0.9,
+    }, True)
+    assert v["family_slug"] == "fitness" and v["primary_sport_slug"] == "gym", v
+    assert v["name"] == "Basic Fit Lyon"          # trim
+    assert v["country_code"] == "FR"              # upper
+    assert v["external_id"] == "overture/abc"
+    assert v["source"] == "overture" and v["is_published"] is True
+    assert v["slug"].startswith("basic-fit-lyon")
+
+    print("✓ import_overture self-test OK")
+    return 0
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         description="Import Overture Maps places → Supabase (#110 fitness/yoga, #97 snow/retraites)")
@@ -566,7 +617,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     p.add_argument("--release", default=DEFAULT_RELEASE, help="Release Overture")
     p.add_argument("--dry-run", action="store_true",
                    help="Aucune écriture DB : requête + mapping + report seulement")
+    p.add_argument("--self-test", action="store_true",
+                   help="Teste la logique pure (mapping/slug/géo) — CI, sans DuckDB/creds")
     args = p.parse_args(list(argv) if argv is not None else None)
+    if args.self_test:
+        return self_test()
     return run(args)
 
 

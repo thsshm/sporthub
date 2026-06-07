@@ -68,3 +68,4 @@ jobs:
           python3 scripts/cluster_clubs.py --self-test
           python3 scripts/backfill_family_null_sport.py --self-test
           python3 scripts/backfill_courts_count_rest.py --self-test
+          python3 scripts/import_overture.py --self-test
