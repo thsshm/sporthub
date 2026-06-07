@@ -729,7 +729,10 @@ export function MapWithSearch({
           className={
             effectiveMode === "split"
               ? "absolute right-0 top-0 z-10 h-full w-[380px] border-l bg-background shadow-xl"
-              : "absolute inset-0 z-10 bg-background"
+              : // Mode liste : plein écran sur mobile ; sur desktop on démarre
+                // APRÈS la sidebar filtres (left-4 + w-56 ≈ 15rem) pour ne pas
+                // la recouvrir, avec un trait de séparation (#feedback Gautier).
+                "absolute inset-0 z-10 bg-background md:left-64 md:border-l"
           }
         />
       )}
