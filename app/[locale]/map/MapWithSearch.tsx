@@ -14,7 +14,6 @@ import {
 import { EmptyStateOverlay } from "@/app/[locale]/map/EmptyStateOverlay";
 import { ViewModeToggle } from "@/app/[locale]/map/ViewModeToggle";
 import { VenueListPanel } from "@/app/[locale]/map/VenueListPanel";
-import { MapBottomSheet, type SheetSnap } from "@/app/[locale]/map/MapBottomSheet";
 import { ExplorePicker, type PickerSelection } from "@/app/[locale]/map/ExplorePicker";
 import { MapLegend } from "@/app/[locale]/map/MapLegend";
 import { FAMILIES } from "@/lib/families";
@@ -217,25 +216,6 @@ export function MapWithSearch({
       ? new Set(initialFamilies)
       : new Set(FAMILIES.map((f) => f.slug))
   );
-
-  // ── Bottom sheet mobile (#256) ─────────────────────────────────────────
-  // Snap point actif : peek (80px) / mid (45%) / full (92%). Initialisé
-  // depuis ?sheet= dans l'URL (partage de vue, #251) ou peek par défaut.
-  const [sheetSnap, setSheetSnap] = useState<SheetSnap>(() => {
-    if (typeof window === "undefined") return "peek";
-    const s = new URLSearchParams(window.location.search).get("sheet");
-    return (s === "peek" || s === "mid" || s === "full") ? s : "peek";
-  });
-
-  // Sync snap → URL pour que le lien partagé (#251) rouvre le même snap.
-  const handleSheetSnap = (snap: SheetSnap) => {
-    setSheetSnap(snap);
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      params.set("sheet", snap);
-      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
-    }
-  };
 
   // Picker explore (#132) : overlay multi-familles au 1er visit de /map sans
   // Le picker n'est plus ouvert automatiquement au mount (#257) : un utilisateur
@@ -450,12 +430,10 @@ export function MapWithSearch({
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  // Mobile = sous le breakpoint `md` (768px), là où le ViewModeToggle est caché
-  // (`hidden md:inline-flex`). Sur mobile la liste passe par le bottom sheet
-  // (#256), donc les modes desktop "list"/"split" ne s'appliquent pas. Sans ça,
-  // un `viewMode` "list" persisté (visite desktop / ?view=list) couvrait toute
-  // la carte en `inset-0` SANS aucun toggle mobile pour en sortir → écran liste
-  // bloqué. SSR-safe : false au 1er render (desktop par défaut), corrigé au mount.
+  // Mobile = sous le breakpoint `md` (768px). Sur mobile on n'affiche QUE
+  // carte OU liste (jamais les deux superposées) via un ViewModeToggle visible :
+  // le mode "split" n'a pas de sens, on le masque. SSR-safe : false au 1er
+  // render (desktop par défaut), corrigé au mount via matchMedia.
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -466,13 +444,9 @@ export function MapWithSearch({
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  /** Mode effectivement appliqué : toujours "map" sur mobile (liste = bottom
-   *  sheet) ; "split" dégradé en "map" sous le seuil split. */
-  const effectiveMode: ViewMode = isMobile
-    ? "map"
-    : viewMode === "split" && !isWideEnoughForSplit
-      ? "map"
-      : viewMode;
+  /** Mode effectivement appliqué — "split" dégradé en "map" sous le seuil split
+   *  (donc aussi sur mobile). Carte OU liste plein écran, jamais superposées. */
+  const effectiveMode: ViewMode = viewMode === "split" && !isWideEnoughForSplit ? "map" : viewMode;
 
   // Snapshot venues + center reporté par MapClient pour alimenter
   // VenueListPanel sans re-fetch propre (#123).
@@ -730,13 +704,15 @@ export function MapWithSearch({
         hasTiles={Boolean(publicEnv.tilesUrl)}
       />
 
-      {/* Toggle mode d'affichage (#123) — top-right, à côté du SearchBar.
-          Visible uniquement desktop (mobile garde la carte plein écran). */}
+      {/* Toggle mode d'affichage (#123) — visible AUSSI sur mobile (carte ↔
+          liste, sans "split") pour basculer entre les deux vues plein écran.
+          z-20 : flotte au-dessus de la liste plein écran → jamais bloqué. */}
       <ViewModeToggle
         active={viewMode}
         onChange={setViewMode}
         disableSplit={!isWideEnoughForSplit}
-        className="absolute right-4 top-16 z-20 hidden md:inline-flex"
+        hideSplit={isMobile}
+        className="absolute right-4 top-16 z-20 inline-flex"
       />
 
       {/* Panneau liste (#123) — overlay à droite en split, full-width en list.
@@ -785,20 +761,6 @@ export function MapWithSearch({
           initialVenues={effectiveInitialVenues}
         />
       </div>
-
-      {/* Bottom sheet mobile (#256) — visible uniquement sur mobile (md:hidden
-          dans le composant). Monté quand la sidebar desktop n'est pas visible,
-          i.e. toujours sur mobile (split dégrade en map, pas de panel droit). */}
-      {!isWideEnoughForSplit && (
-        <MapBottomSheet
-          venues={venuesSnapshot.venues}
-          center={venuesSnapshot.center}
-          visibleCount={visibleCount}
-          snap={sheetSnap}
-          onSnapChange={handleSheetSnap}
-          onSelect={handleListVenueSelect}
-        />
-      )}
 
       {/* Picker explore (#132) : overlay multi-familles + ville. Au-dessus de
           tout (z-40). Monté seulement quand ouvert. */}
