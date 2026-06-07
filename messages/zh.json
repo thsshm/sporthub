@@ -553,5 +553,15 @@
         "tennis_camp": "网球营"
       }
     }
+  },
+  "club": {
+    "metaTitle": "{club} — 运动场地",
+    "metaDescription": "{club}：{count} 个场地。该俱乐部的所有场地、可开展的运动、路线和地图，尽在 SportHub。",
+    "notFoundTitle": "未找到俱乐部",
+    "courtsTitle": "{club} 的场地",
+    "courtsCount": "{count} 个场地",
+    "viewOnMap": "在地图上查看",
+    "openInMaps": "在 Google 地图中打开",
+    "noCourts": "该俱乐部暂无场地。"
   }
 }

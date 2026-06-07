@@ -553,5 +553,15 @@
         "tennis_camp": "Tennis camp"
       }
     }
+  },
+  "club": {
+    "metaTitle": "{club} — courts et terrains de sport",
+    "metaDescription": "{club} : {count} courts. Tous les terrains du club, sports praticables, accès et carte sur SportHub.",
+    "notFoundTitle": "Club introuvable",
+    "courtsTitle": "Les courts de {club}",
+    "courtsCount": "{count} courts",
+    "viewOnMap": "Voir sur la carte",
+    "openInMaps": "Ouvrir dans Google Maps",
+    "noCourts": "Aucun court listé pour ce club."
   }
 }

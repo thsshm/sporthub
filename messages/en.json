@@ -553,5 +553,15 @@
         "tennis_camp": "Tennis camp"
       }
     }
+  },
+  "club": {
+    "metaTitle": "{club} — sports courts & facilities",
+    "metaDescription": "{club}: {count} courts. All the club's facilities, available sports, directions and map on SportHub.",
+    "notFoundTitle": "Club not found",
+    "courtsTitle": "Courts at {club}",
+    "courtsCount": "{count} courts",
+    "viewOnMap": "View on map",
+    "openInMaps": "Open in Google Maps",
+    "noCourts": "No courts listed for this club."
   }
 }
