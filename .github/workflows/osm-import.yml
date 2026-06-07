@@ -1,0 +1,93 @@
+name: OSM import
+
+# Importe les POI sportifs depuis OpenStreetMap Overpass → Supabase (#227.2).
+#
+# Stratégie :
+#   - Dry-run par défaut (aucune écriture tant que `apply` n'est pas coché).
+#   - Upsert idempotent par (source='osm', external_id='osm/<type>/<id>').
+#   - Un `import_run` est tracé dans Postgres (table 0043).
+#
+# Secrets requis (déjà configurés) :
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#
+# Déclenché manuellement (workflow_dispatch) ou en cron hebdomadaire
+# (dimanche 02:00 UTC, avant les autres crons data du lundi).
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"   # dimanche 02:00 UTC (hebdomadaire)
+  workflow_dispatch:
+    inputs:
+      family:
+        description: "Famille OSM à importer"
+        type: choice
+        required: false
+        default: "raquette"
+        options: [raquette, fitness, combat, baignade, boules, escalade, all]
+      country:
+        description: "Pays ISO-2 ou EU (Europe)"
+        type: string
+        required: false
+        default: "FR"
+      limit:
+        description: "Cap venues par famille (smoke test ; vide = tout)"
+        type: string
+        required: false
+        default: ""
+      apply:
+        description: "Écrire réellement en DB (sinon dry-run)"
+        type: boolean
+        required: false
+        default: false
+
+# Une seule exécution à la fois (évite deux imports concurrents).
+concurrency:
+  group: osm-import
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    name: osm_import.py
+    runs-on: ubuntu-latest
+    timeout-minutes: 120   # Overpass + upsert par pays peut être long
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run osm_import.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IN_FAMILY: ${{ inputs.family || 'raquette' }}
+          IN_COUNTRY: ${{ inputs.country || 'FR' }}
+          IN_LIMIT: ${{ inputs.limit || '' }}
+          IN_APPLY: ${{ inputs.apply || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
+            exit 1
+          fi
+          ARGS=(--family "$IN_FAMILY" --country "$IN_COUNTRY")
+          [ -n "$IN_LIMIT" ] && ARGS+=(--limit "$IN_LIMIT")
+          [ "$IN_APPLY" = "true" ] || ARGS+=(--dry-run)
+          echo "▶ osm_import.py ${ARGS[*]}  (apply=$IN_APPLY)"
+          python3 scripts/etl/osm_import.py "${ARGS[@]}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### OSM Import"
+            echo "- Famille : ${{ inputs.family || 'raquette' }}"
+            echo "- Pays : ${{ inputs.country || 'FR' }}"
+            echo "- Mode : ${{ (inputs.apply == 'true') && 'APPLY (écriture réelle)' || 'DRY-RUN (aucune écriture)' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
