@@ -17,6 +17,10 @@ export const config = {
   // 200 direct (ces routes lisent leur locale via params, pas via next-intl).
   // Cf. #222.
   matcher: [
-    "/((?!api|_next|auth|sitemap|robots.txt|favicon|og-image|.*opengraph-image|.*twitter-image|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|js|css|map|woff2?|ttf)).*)",
+    // Exclut : API, assets Next, auth, sitemap, robots.txt, favicon, og-image,
+    // opengraph/twitter-image, manifest.webmanifest (#413 — sans cette
+    // exclusion next-intl interprète /manifest.webmanifest comme une route de
+    // locale → 404), et tous les fichiers statiques avec extension.
+    "/((?!api|_next|auth|sitemap|robots.txt|favicon|manifest.webmanifest|og-image|.*opengraph-image|.*twitter-image|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|js|css|map|woff2?|ttf)).*)",
   ],
 };
