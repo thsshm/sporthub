@@ -22,10 +22,6 @@
       "schedule": "0 7 * * 1"
     },
     {
-      "path": "/api/cron/refresh-disciplines",
-      "schedule": "0 8 * * 1"
-    },
-    {
       "path": "/api/cron/refresh-top-clubs",
       "schedule": "30 8 * * 1"
     }
