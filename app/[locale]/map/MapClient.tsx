@@ -101,16 +101,18 @@ const AGGREGATE_CLICK_ZOOM_BOOST = 3;
 const MAP_STYLE = {
   version: 8 as const,
   sources: {
-    // Tuiles CartoCDN "Voyager" servies via NOTRE domaine (#430). On NE pointe
-    // PLUS directement cartocdn : sur certains réseaux le CORS est retiré, ou les
-    // sous-domaines a-d sont filtrés → MapLibre ne peut pas uploader la tuile en
-    // texture WebGL → fond blanc. Le proxy same-origin `/api/basemap/...` supprime
-    // toute dépendance au CORS et aux sous-domaines tiers (cf. app/api/basemap).
-    // URL relative → résolue same-origin ; HTTP/2 rend le sharding par sous-domaine
-    // inutile (une seule origine, multiplexée).
+    // CartoCDN "Voyager" — CDN global rapide (vs tile.openstreetmap.org
+    // qui est lent, capacity-policy 1 req/s/IP, et HTTP/1.1).
+    // Carto fournit ces tiles publiques gratuites pour usage modéré.
+    // Subdomains a-d permettent au navigateur de paralléliser jusqu'à 4×.
     basemap: {
       type: "raster" as const,
-      tiles: ["/api/basemap/{z}/{x}/{y}"],
+      tiles: [
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+        "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+      ],
       tileSize: 256,
       attribution:
         '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
