@@ -30,6 +30,7 @@ function makeVenue(overrides: Partial<VenueDetail> = {}): VenueDetail {
     email: null,
     family_slug: "raquette",
     primary_sport_slug: "tennis",
+    club_id: null,
     is_indoor: false,
     has_lighting: null,
     is_wheelchair_accessible: null,

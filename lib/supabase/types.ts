@@ -1036,8 +1036,14 @@ export type VenueDetail = Venue & {
   booking_links?: BookingLink[];
 };
 
-// Type léger pour la carte et les listes
+// Type léger pour la carte et les listes.
+// `club_id` est OPTIONNEL : seules les sources qui le chargent (RPC
+// venues_in_bbox / API /venues, cf. #311/#372) le portent ; les pins SSR des
+// pages sport / ville / retraites / favoris ne sélectionnent pas cette colonne
+// et n'en ont pas besoin. Le rendre REQUIS (#372) cassait le typecheck de ces
+// 5 pages (PR mergée avec CI rouge → main cassée) ; on relâche en optionnel,
+// ce qui est aussi plus honnête sémantiquement (un pin n'a pas toujours de club).
 export type VenuePin = Pick<
   Venue,
-  "id" | "slug" | "name" | "lat" | "lon" | "family_slug" | "primary_sport_slug" | "club_id"
->;
+  "id" | "slug" | "name" | "lat" | "lon" | "family_slug" | "primary_sport_slug"
+> & { club_id?: Venue["club_id"] };
