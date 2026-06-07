@@ -695,7 +695,7 @@ export function MapWithSearch({
       {/* Légende couleurs par famille — visible en mode explore (2+ familles
           actives), cachée quand une seule famille filtrée. Cf. #132. */}
       {selectedFamilies.size >= 2 && (
-        <div className="bottom-safe-16 pointer-events-none absolute left-1/2 z-20 -translate-x-1/2">
+        <div className="bottom-safe-16 pointer-events-none absolute left-4 z-20 md:left-1/2 md:-translate-x-1/2">
           <MapLegend activeSlugs={Array.from(selectedFamilies).sort()} />
         </div>
       )}
