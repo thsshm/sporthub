@@ -713,6 +713,25 @@ export type Database = {
         Args: Record<string, never>;
         Returns: undefined;
       };
+      top_clubs_by_sport: {
+        Args: {
+          p_sport_slug: string;
+          max_results?: number;
+        };
+        Returns: {
+          club_id: string;
+          club_slug: string;
+          club_name: string;
+          country_code: string | null;
+          city_name: string | null;
+          courts_count: number;
+          rank: number;
+        }[];
+      };
+      refresh_top_clubs_by_sport_mv: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
     };
     Enums: {
       [_ in never]: never;
