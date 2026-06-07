@@ -5,9 +5,10 @@
  * purs sont dans `sitemap-render.ts` (pour les tests sans DB).
  *
  * Structure des routes :
- *   - /sitemap.xml              → sitemap-index (liste les 9 sous-sitemaps)
- *   - /sitemap/0.xml            → pages statiques + familles + programmatiques
+ *   - /sitemap.xml              → sitemap-index (liste les 10 sous-sitemaps)
+ *   - /sitemap/0.xml            → statiques + familles + disciplines + program.
  *   - /sitemap/1.xml … /8.xml   → venues paginés (45 000 chacun = 360k max)
+ *   - /sitemap/9.xml            → clubs (/club/[slug])
  */
 
 import { getSupabaseServerClient } from "@/lib/supabase/server";
@@ -37,8 +38,29 @@ export const URLS_PER_SHARD = 45_000;
 /** 8 shards venues = 360k URLs venues max indexables (~348k actuels). */
 export const VENUE_SHARD_COUNT = 8;
 
-/** Total = 1 shard metadata + 8 shards venues = 9 sous-sitemaps. */
-export const TOTAL_SHARD_COUNT = VENUE_SHARD_COUNT + 1;
+/**
+ * Shard dédié aux pages club (/club/[slug], #398). Isolé dans son propre shard
+ * (pas dans le shard 0 metadata) car les clubs croissent avec le clustering
+ * (#311) → aucune interaction avec le cap 45k du shard metadata. Index = juste
+ * après les 8 shards venues.
+ */
+export const CLUB_SHARD_INDEX = VENUE_SHARD_COUNT + 1;
+
+/** Total = 1 metadata + 8 venues + 1 clubs = 10 sous-sitemaps. */
+export const TOTAL_SHARD_COUNT = VENUE_SHARD_COUNT + 2;
+
+/**
+ * Sports servis par /disciplines/[sport]. COUPLAGE : doit rester aligné avec
+ * `RANKED_SPORTS` de `app/[locale]/disciplines/[sport]/page.tsx` (et la MV
+ * `mv_top_clubs_by_sport`). Si la liste évolue côté app, mettre à jour ici.
+ */
+const DISCIPLINE_SPORTS = [
+  "tennis",
+  "padel",
+  "table_tennis",
+  "badminton",
+  "squash",
+] as const;
 
 type VenueRow = { id: string; slug: string; updated_at: string | null };
 type ComboRow = {
@@ -88,6 +110,15 @@ export async function buildMetadataShard(): Promise<SitemapEntry[]> {
     }),
   );
 
+  // Pages /disciplines/[sport] — classement national des clubs (#366/#398).
+  const disciplineEntries: SitemapEntry[] = DISCIPLINE_SPORTS.map((s) =>
+    localized(`/disciplines/${s}`, {
+      lastmod: now,
+      changefreq: "weekly",
+      priority: 0.8,
+    }),
+  );
+
   // Paginé pour contourner le cap PostgREST 1000 rows. On scanne jusqu'à
   // URLS_PER_SHARD rows sources, ce qui après dédup (sport × pays × ville)
   // donne un nombre de combos bien inférieur. Cf. PAGE_SIZE plus bas.
@@ -128,7 +159,12 @@ export async function buildMetadataShard(): Promise<SitemapEntry[]> {
     );
   }
 
-  return [...staticEntries, ...familyEntries, ...programmaticEntries];
+  return [
+    ...staticEntries,
+    ...familyEntries,
+    ...disciplineEntries,
+    ...programmaticEntries,
+  ];
 }
 
 /**
@@ -177,6 +213,44 @@ export async function buildVenueShard(shardIndex: number): Promise<SitemapEntry[
       lastmod: v.updated_at ?? now,
       changefreq: "weekly",
       priority: 0.8,
+    }),
+  );
+}
+
+type ClubRow = { id: string; slug: string; updated_at: string | null };
+
+/**
+ * Shard clubs (#398) : toutes les pages /club/[slug]. La table `club` est en
+ * lecture publique (RLS USING(true), pas de soft-delete) → on liste tout.
+ * Keyset par `id` (index PK) pour paginer au-delà du cap PostgREST de 1000,
+ * sans OFFSET. ~4,4k clubs aujourd'hui, borné à URLS_PER_SHARD par sécurité.
+ */
+export async function buildClubShard(): Promise<SitemapEntry[]> {
+  const sb = getSupabaseServerClient();
+  const now = new Date().toISOString();
+
+  const clubs: ClubRow[] = [];
+  let cursor: string | null = null;
+  while (clubs.length < URLS_PER_SHARD) {
+    let q = sb
+      .from("club")
+      .select("id, slug, updated_at")
+      .order("id", { ascending: true })
+      .limit(PAGE_SIZE);
+    if (cursor !== null) q = q.gt("id", cursor);
+
+    const { data, error } = await q;
+    if (error || !data || data.length === 0) break;
+    clubs.push(...(data as ClubRow[]));
+    cursor = (data[data.length - 1] as ClubRow).id;
+    if (data.length < PAGE_SIZE) break;
+  }
+
+  return clubs.slice(0, URLS_PER_SHARD).map((c) =>
+    localized(`/club/${c.slug}`, {
+      lastmod: c.updated_at ?? now,
+      changefreq: "monthly",
+      priority: 0.7,
     }),
   );
 }
