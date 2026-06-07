@@ -104,15 +104,16 @@ const MAP_STYLE = {
     // CartoCDN "Voyager" — CDN global rapide (vs tile.openstreetmap.org
     // qui est lent, capacity-policy 1 req/s/IP, et HTTP/1.1).
     // Carto fournit ces tiles publiques gratuites pour usage modéré.
-    // Subdomains a-d permettent au navigateur de paralléliser jusqu'à 4×.
+    // Servies via notre proxy same-origin /api/basemap (#430, cf. ci-dessous).
     basemap: {
       type: "raster" as const,
-      tiles: [
-        "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-        "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
-      ],
+      // #430 — tuiles servies SAME-ORIGIN via /api/basemap (proxy → cartocdn
+      // côté serveur). Évite la dépendance CORS + sous-domaines a/b/c/d.cartocdn
+      // qui laissait le fond blanc sur certains réseaux (CORS stripté ou
+      // sous-domaines filtrés → MapLibre charge en crossOrigin=anonymous → la
+      // texture WebGL est refusée). Same-origin → couvert par img-src 'self',
+      // aucun CORS requis. Un seul host (le CDN Vercel parallélise via HTTP/2).
+      tiles: ["/api/basemap/{z}/{x}/{y}"],
       tileSize: 256,
       attribution:
         '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
