@@ -9,6 +9,8 @@ import { InstallPwaButton } from "@/components/InstallPwaButton";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 import { PostHogProvider } from "@/components/PostHogProvider";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { routing, type Locale } from "@/i18n/routing";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
 import { getTotalSpots } from "@/lib/home-stats";
@@ -62,6 +64,12 @@ export async function generateMetadata({
     icons: {
       apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
     },
+    // Google Search Console verification (#412). On lit la valeur depuis l'env
+    // pour pouvoir la régénérer sans commit. Si absente : balise non émise,
+    // GSC bascule sur l'autre méthode de vérif (fichier HTML / DNS).
+    verification: process.env.GOOGLE_SITE_VERIFICATION
+      ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+      : undefined,
   };
 }
 
@@ -103,6 +111,11 @@ export default async function LocaleLayout({
             <InstallPwaButton />
           </PostHogProvider>
         </NextIntlClientProvider>
+        {/* Vercel Analytics + Speed Insights (#412). Auto-pageview + CWV.
+            Gratuit jusqu'à 2,5k events/mois sur Hobby. À activer dans le
+            dashboard Vercel : Project → Analytics tab + Speed Insights tab. */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
