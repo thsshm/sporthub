@@ -71,6 +71,26 @@ export function buildFamilyFilter(
   ] as unknown as FilterSpecification;
 }
 
+/**
+ * Filtre TOUJOURS valide pour le layer tuiles (jamais `undefined`).
+ *
+ * MapLibre `addLayer` REJETTE `filter: undefined` (« array expected, undefined
+ * found ») → l'exception casse tout le rendu : carte BLANCHE (incident
+ * d'activation #226). `buildFamilyFilter` renvoie `undefined` quand aucun
+ * sous-ensemble n'est sélectionné ; on le remplace alors par `["all"]`
+ * (combinateur GL sans condition = toujours vrai → affiche toutes les venues).
+ * À utiliser à la place de `buildFamilyFilter` côté composant Layer.
+ */
+export function venueTilesFilter(
+  selectedFamilies?: Set<string>,
+  totalFamilies?: number,
+): FilterSpecification {
+  return (
+    buildFamilyFilter(selectedFamilies, totalFamilies) ??
+    (["all"] as unknown as FilterSpecification)
+  );
+}
+
 /** URL de source MapLibre pour un .pmtiles hébergé (préfixe `pmtiles://`). */
 export function pmtilesSourceUrl(tilesUrl: string): string {
   return `pmtiles://${tilesUrl}`;

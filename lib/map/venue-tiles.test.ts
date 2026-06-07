@@ -3,6 +3,7 @@ import {
   buildCircleRadiusExpression,
   buildFamilyColorExpression,
   buildFamilyFilter,
+  venueTilesFilter,
   pmtilesSourceUrl,
   FALLBACK_COLOR,
 } from "./venue-tiles";
@@ -43,6 +44,21 @@ describe("venue-tiles", () => {
     const f = buildFamilyFilter(new Set(["raquette", "ballon"]), 13) as unknown[];
     expect(f[0]).toBe("in");
     expect(f[1]).toEqual(["get", "fam"]);
+    expect(f[2]).toEqual(["literal", ["raquette", "ballon"]]);
+  });
+
+  // Régression #226 : MapLibre addLayer rejette `filter: undefined` (carte
+  // blanche). venueTilesFilter doit TOUJOURS renvoyer un tableau valide.
+  it("venueTilesFilter : jamais undefined — ['all'] quand pas de sous-ensemble", () => {
+    expect(venueTilesFilter(undefined, 13)).toEqual(["all"]);
+    expect(venueTilesFilter(new Set<string>(), 13)).toEqual(["all"]);
+    expect(venueTilesFilter(new Set(["a", "b"]), 2)).toEqual(["all"]);
+    expect(venueTilesFilter(new Set(["a"]), undefined)).toEqual(["all"]);
+  });
+
+  it("venueTilesFilter : délègue à buildFamilyFilter quand sous-ensemble strict", () => {
+    const f = venueTilesFilter(new Set(["raquette", "ballon"]), 13) as unknown[];
+    expect(f[0]).toBe("in");
     expect(f[2]).toEqual(["literal", ["raquette", "ballon"]]);
   });
 
