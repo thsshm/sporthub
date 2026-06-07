@@ -1,7 +1,7 @@
 /**
  * /sitemap — sitemap-index racine.
  *
- * Liste les 9 sous-sitemaps (1 metadata + 8 venues). Référencé par
+ * Liste les 10 sous-sitemaps (1 metadata + 8 venues + 1 clubs). Référencé par
  * `app/robots.ts`.
  *
  * Le dossier `app/sitemap.xml/` (avec `.xml` dans le nom) provoquait des
