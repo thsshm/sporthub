@@ -23,7 +23,7 @@ on:
         type: choice
         required: false
         default: "raquette"
-        options: [raquette, fitness, combat, baignade, boules, escalade, all]
+        options: [raquette, fitness, combat, yoga, baignade, boules, nautique, glisse, snow, hike, escalade, ballon, plus, all]
       country:
         description: "Pays ISO-2 ou EU (Europe)"
         type: string
