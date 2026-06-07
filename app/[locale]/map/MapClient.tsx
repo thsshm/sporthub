@@ -209,7 +209,14 @@ export default function MapClient({
   // venues via tuiles PMTiles (coût O(1)) au lieu de fetch /api/venues +
   // Supercluster. Inactif sur les pages presetVenues (sport) qui passent leurs
   // propres venues. Flag absent → comportement carte inchangé.
-  const useTiles = Boolean(publicEnv.tilesUrl) && !presetVenues;
+  //
+  // Inactif aussi quand un sport unique est sélectionné (page /sports/[sport] ou
+  // filtre mono-sport sur /map) : les tuiles PMTiles ne portent qu'un filtre
+  // FAMILLE (cf. venueTilesFilter), pas le sport — les afficher montrerait tous
+  // les sports de la famille. On bascule alors sur le fetch /api/venues?sport=…
+  // qui filtre par sport côté DB (POI à zoom ≥ 10, agrégats venues_aggregates à
+  // zoom < 10). Sans ce garde, selectedSport était silencieusement ignoré.
+  const useTiles = Boolean(publicEnv.tilesUrl) && !presetVenues && !selectedSport;
   const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(() => initialVenues ?? []);
   // Cellules d'agrégat retournées quand zoom < 10 (#114). Vide en mode POI.
   // En mode presetVenues, jamais utilisé (la page passe les venues directement).
