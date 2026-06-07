@@ -36,7 +36,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  grid_size_m DOUBLE PRECISION;
+  v_grid      DOUBLE PRECISION;
   env3857     geometry;
   min_cx BIGINT; max_cx BIGINT; min_cy BIGINT; max_cy BIGINT;
 BEGIN
@@ -61,21 +61,21 @@ BEGIN
 
   -- ── zoom 6-9 : grille (lecture mv_venue_grid_agg) ──
   IF zoom_level <= 6 THEN
-    grid_size_m := 500000.0;
+    v_grid := 500000.0;
   ELSIF zoom_level = 7 THEN
-    grid_size_m := 200000.0;
+    v_grid := 200000.0;
   ELSIF zoom_level = 8 THEN
-    grid_size_m := 100000.0;
+    v_grid := 100000.0;
   ELSE
-    grid_size_m := 50000.0;
+    v_grid := 50000.0;
   END IF;
 
   -- bbox 4326 → 3857 pour dériver la plage de cellules à lire.
   env3857 := ST_Transform(ST_MakeEnvelope(west, south, east, north, 4326), 3857);
-  min_cx := FLOOR(ST_XMin(env3857) / grid_size_m);
-  max_cx := FLOOR(ST_XMax(env3857) / grid_size_m);
-  min_cy := FLOOR(ST_YMin(env3857) / grid_size_m);
-  max_cy := FLOOR(ST_YMax(env3857) / grid_size_m);
+  min_cx := FLOOR(ST_XMin(env3857) / v_grid);
+  max_cx := FLOOR(ST_XMax(env3857) / v_grid);
+  min_cy := FLOOR(ST_YMin(env3857) / v_grid);
+  max_cy := FLOOR(ST_YMax(env3857) / v_grid);
 
   RETURN QUERY
   SELECT
@@ -84,7 +84,7 @@ BEGIN
     SUM(a.n)::BIGINT AS count,
     NULL::TEXT AS country_code
   FROM mv_venue_grid_agg a
-  WHERE a.grid_size_m = grid_size_m
+  WHERE a.grid_size_m = v_grid
     AND a.cell_x BETWEEN min_cx AND max_cx
     AND a.cell_y BETWEEN min_cy AND max_cy
     AND (fams IS NULL
