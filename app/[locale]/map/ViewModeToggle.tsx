@@ -16,6 +16,8 @@ type Props = {
   onChange: (mode: ViewMode) => void;
   /** Désactive le bouton "split" (typiquement viewport < 1100px). */
   disableSplit?: boolean;
+  /** Masque complètement "split" (mobile : seulement carte ↔ liste). */
+  hideSplit?: boolean;
   className?: string;
 };
 
@@ -23,6 +25,7 @@ export function ViewModeToggle({
   active,
   onChange,
   disableSplit,
+  hideSplit,
   className,
 }: Props) {
   const t = useTranslations("map.viewMode");
@@ -48,7 +51,7 @@ export function ViewModeToggle({
         }`}
       >
         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-        <span className="hidden sm:inline">{t(labelKey)}</span>
+        <span>{t(labelKey)}</span>
       </button>
     );
   };
@@ -61,7 +64,7 @@ export function ViewModeToggle({
     >
       {btn("map", MapIcon, "map")}
       {btn("list", List, "list")}
-      {btn("split", Columns, "split", disableSplit)}
+      {!hideSplit && btn("split", Columns, "split", disableSplit)}
     </div>
   );
 }

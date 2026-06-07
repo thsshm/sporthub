@@ -160,7 +160,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
         <MapWithSearch
           initialLat={ipGeo?.lat ?? 46.5}
           initialLon={ipGeo?.lon ?? 2.5}
-          initialZoom={ipGeo ? 10 : 5}
+          initialZoom={ipGeo ? 12 : 6}
           initialVenues={initialVenues}
           initialFamilies={initialFamilies}
           initialViewMode={initialViewMode}
