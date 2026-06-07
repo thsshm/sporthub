@@ -21,6 +21,7 @@ import { captureException } from "@/lib/monitoring";
 import { verifyCronAuth } from "@/lib/cron/auth";
 import { logCronCompleted } from "@/lib/cron/log";
 import { venueSlugFromName } from "@/lib/cron/slug";
+import { softUnpublishMissing } from "@/lib/cron/soft-unpublish";
 import type { Json } from "@/lib/supabase/types";
 
 // Node runtime (pas Edge) — on a besoin de `fetch` standard + accès Supabase
@@ -72,6 +73,7 @@ type HyroxVenueRow = {
   is_indoor: boolean;
   source: string;
   external_id: string;
+  last_seen_at: string;
   enrichments: Json;
 };
 
@@ -133,6 +135,7 @@ function rawToVenue(raw: HyroxRaw): HyroxVenueRow | null {
     is_indoor: true,
     source: "hyrox",
     external_id: externalId,
+    last_seen_at: new Date().toISOString(),
     enrichments: {
       hyrox_partner: true,
       hyrox_id: recId,
@@ -160,6 +163,7 @@ export async function GET(request: Request) {
   const authFailure = verifyCronAuth(request);
   if (authFailure) return authFailure.response;
 
+  const runStart = new Date();
   const startedAt = Date.now();
   let upserted = 0;
   let failed = 0;
@@ -213,13 +217,16 @@ export async function GET(request: Request) {
     );
   }
 
+  const sb2 = getSupabaseAdminClient();
+  const softResult = await softUnpublishMissing(sb2, "hyrox", runStart, upserted);
+
   const duration_ms = Date.now() - startedAt;
   logCronCompleted({
     event: EVENT_NAME,
     upserted,
     failed,
     duration_ms,
-    extra: { fetched: totalFetched },
+    extra: { fetched: totalFetched, softUnpublish: softResult },
   });
   return NextResponse.json({
     ok: true,
@@ -227,5 +234,6 @@ export async function GET(request: Request) {
     failed,
     duration_ms,
     fetched: totalFetched,
+    softUnpublish: softResult,
   });
 }
