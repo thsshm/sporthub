@@ -210,31 +210,52 @@ def load_env() -> tuple[str, str]:
     return url, key
 
 
+def _rest_get(url: str, key: str, path: str) -> list[dict]:
+    req = urllib.request.Request(
+        f"{url}/rest/v1/{path}",
+        headers={"apikey": key, "Authorization": f"Bearer {key}"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read())
+    return data if isinstance(data, list) else []
+
+
 def load_padel_venues_fr(url: str, key: str) -> list[dict]:
-    """Charge les venues padel FR (id, name, lat, lon) via PostgREST (keyset)."""
-    venues: list[dict] = []
+    """Charge les venues padel FR (id, name, lat, lon) via PostgREST, en DEUX
+    requêtes simples et indexées (évite le scan de `venue` 267k+ qui timeout en
+    500, cf. run #27138981141) :
+
+      1. venue_ids padel via `venue_sport` filtré sur sport_slug='padel'
+         (index sélectif), en keyset sur venue_id.
+      2. détails venue par lots d'ids (PK index) + filtres résiduels FR/publié.
+
+    Pas de jointure latérale `venue!inner` → coût borné par le nombre de venues
+    padel, pas par la taille de `venue`.
+    """
+    # 1) tous les venue_id padel (monde), keyset sur venue_id.
+    vids: list[str] = []
     last = ""
     while True:
-        path = (
-            f"venue?select=id,name,lat,lon,venue_sport!inner(sport_slug)"
-            f"&venue_sport.sport_slug=eq.padel&country_code=eq.FR"
-            f"&is_published=eq.true&deleted_at=is.null"
-            f"&order=id.asc&limit=1000"
-        )
+        path = "venue_sport?select=venue_id&sport_slug=eq.padel&order=venue_id.asc&limit=2000"
         if last:
-            path += f"&id=gt.{last}"
-        req = urllib.request.Request(
-            f"{url}/rest/v1/{path}",
-            headers={"apikey": key, "Authorization": f"Bearer {key}"},
-        )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            rows = json.loads(resp.read())
+            path += f"&venue_id=gt.{last}"
+        rows = _rest_get(url, key, path)
         if not rows:
             break
-        venues.extend(rows)
-        last = rows[-1]["id"]
-        if len(rows) < 1000:
+        vids.extend(r["venue_id"] for r in rows)
+        last = rows[-1]["venue_id"]
+        if len(rows) < 2000:
             break
+
+    # 2) détails par lots d'ids ; filtres FR/publié appliqués côté serveur.
+    venues: list[dict] = []
+    for chunk in _chunks(vids, 200):
+        ids = ",".join(urllib.parse.quote(str(i)) for i in chunk)
+        path = (
+            f"venue?select=id,name,lat,lon&id=in.({ids})"
+            f"&country_code=eq.FR&is_published=eq.true&deleted_at=is.null"
+        )
+        venues.extend(_rest_get(url, key, path))
     return venues
 
 
