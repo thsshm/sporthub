@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/routing";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
   buildVenueMetadata,
@@ -51,7 +52,7 @@ async function fetchVenue(slug: string): Promise<VenueDetail | null> {
         amenity ( slug, name_fr, name_en, emoji, category )
       ),
       booking_links:booking_link ( id, partner, url, sport_slug, is_active )
-    `,
+    `
     )
     .eq("slug", slug)
     .eq("is_published", true)
@@ -74,7 +75,7 @@ async function fetchVenue(slug: string): Promise<VenueDetail | null> {
     sports: (v.sports ?? []) as VenueDetail["sports"],
     amenities: (v.amenities ?? []) as VenueDetail["amenities"],
     booking_links: (v.booking_links ?? []).filter(
-      (b) => b?.is_active !== false,
+      (b) => b?.is_active !== false
     ) as VenueDetail["booking_links"],
   };
 }
@@ -107,16 +108,13 @@ export default async function VenuePage({ params }: Props) {
   const sportSlugs = (venue.sports ?? []).map((s) => s.sport_slug).filter(Boolean);
   const phoneHref = telHref(venue.phone);
   const jsonLd = buildVenueJsonLd(venue, venue.city_name);
-  const safeLocale: "fr" | "en" | "zh" =
-    locale === "en" || locale === "zh" ? locale : "fr";
+  const safeLocale: "fr" | "en" | "zh" = locale === "en" || locale === "zh" ? locale : "fr";
 
   // BreadcrumbList — aide Google à comprendre Home → Famille → Venue (#94).
   const SITE_URL = "https://sporthubmap.com";
   const tFamilies = await getTranslations("families");
   const family = FAMILIES_BY_SLUG[venue.family_slug];
-  const breadcrumbItems: { name: string; url: string }[] = [
-    { name: "Sport Hub", url: SITE_URL },
-  ];
+  const breadcrumbItems: { name: string; url: string }[] = [{ name: "Sport Hub", url: SITE_URL }];
   if (family) {
     breadcrumbItems.push({
       name: tFamilies(venue.family_slug),
@@ -133,7 +131,7 @@ export default async function VenuePage({ params }: Props) {
   // mailto pré-rempli avec le nom de la venue + l'URL de la fiche.
   const venueUrl = `${SITE_URL}/${locale}/venue/${venue.slug}`;
   const reportErrorHref = `mailto:hello@sporthubmap.com?subject=${encodeURIComponent(
-    t("reportErrorSubject", { name: venue.name }),
+    t("reportErrorSubject", { name: venue.name })
   )}&body=${encodeURIComponent(t("reportErrorBody", { url: venueUrl }))}`;
 
   return (
@@ -175,10 +173,7 @@ export default async function VenuePage({ params }: Props) {
           {/* CTAs d'action : Appeler / Site officiel (si dispo) + itinéraires (#467) */}
           <section className="flex flex-wrap gap-2 border-t pt-4 text-sm">
             {phoneHref && (
-              <a
-                className="rounded-md border px-3 py-2 hover:bg-accent"
-                href={phoneHref}
-              >
+              <a className="rounded-md border px-3 py-2 hover:bg-accent" href={phoneHref}>
                 📞 {t("callCta")}
               </a>
             )}
@@ -248,6 +243,19 @@ export default async function VenuePage({ params }: Props) {
           primarySportSlug={venue.primary_sport_slug}
           familySlug={venue.family_slug}
         />
+      </div>
+
+      {/* CTA contribution (#467) : « ajouter un lieu » embarqué sur chaque fiche.
+          Capte l'intention au moment où l'utilisateur connaît le terrain (il
+          consulte une fiche voisine) → l'envoie vers /contribute. */}
+      <div className="mt-12 rounded-lg border bg-muted/30 px-5 py-4 text-center">
+        <p className="text-sm font-medium text-foreground">{t("addPlacePrompt")}</p>
+        <Link
+          href="/contribute"
+          className="mt-1 inline-block text-sm font-semibold text-primary underline-offset-2 hover:underline"
+        >
+          {t("addPlaceCta")}
+        </Link>
       </div>
     </article>
   );
