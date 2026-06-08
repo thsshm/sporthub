@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import type { VenueDetail } from "@/lib/supabase/types";
 import { getFamilyEmoji } from "@/lib/families";
 import { parseOpeningHours, toSchemaOpeningHours } from "@/lib/venue/opening-hours";
+import { isLowQualityVenue } from "@/lib/venue/quality-score";
 
 const SITE_URL = "https://sporthubmap.com";
 const SITE_NAME = "Sport Hub";
@@ -115,6 +116,11 @@ export function buildVenueMetadata(venue: VenueDetail, cityName?: string): Metad
   // (#108).
   const hreflang = buildHreflangAlternates(`/venue/${venue.slug}`);
 
+  // noindex des fiches trop pauvres (« nom + coordonnées » sans adresse,
+  // contact ni contenu) : thin content non indexable (#464). `follow` reste
+  // actif pour ne pas couper le maillage interne.
+  const lowQuality = isLowQualityVenue(venue);
+
   return {
     title,
     description,
@@ -122,6 +128,7 @@ export function buildVenueMetadata(venue: VenueDetail, cityName?: string): Metad
       canonical: hreflang.canonical,
       languages: hreflang.languages,
     },
+    ...(lowQuality ? { robots: { index: false, follow: true } } : {}),
     openGraph: {
       type: "website",
       url: venueUrl,
