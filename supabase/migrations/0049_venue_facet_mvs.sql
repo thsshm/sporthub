@@ -90,6 +90,13 @@ AS $$
 BEGIN
   REFRESH MATERIALIZED VIEW mv_venue_facet_grid;
   REFRESH MATERIALIZED VIEW mv_venue_facet_surface_grid;
+  -- CRITIQUE : ANALYZE après chaque REFRESH. Sans stats fraîches, le
+  -- planificateur part en seq scan sur les plages de cellules larges (vues
+  -- zoom 10-11) → re-timeout. Vérifié en prod : ANALYZE fait passer ces vues
+  -- de timeout (froid) à ~200-400 ms (chaud). REFRESH ne met PAS à jour les
+  -- stats → on les recalcule explicitement ici.
+  ANALYZE mv_venue_facet_grid;
+  ANALYZE mv_venue_facet_surface_grid;
 END;
 $$;
 
