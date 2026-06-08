@@ -177,20 +177,30 @@ def upsert_venues_batch(
 
     ON CONFLICT (source, external_id) → merge (migration 0043).
     Le champ `slug` est dérivé de (source, external_id) : stable + unique.
+
+    PostgREST exige que toutes les lignes d'un insert bulk aient EXACTEMENT les
+    mêmes clés (sinon PGRST102 "All object keys must match"). Or `to_api_dict`
+    omet les champs None (pour ne pas écraser une valeur existante par null lors
+    du merge). On groupe donc les lignes par signature de clés avant de chunker.
     """
     result = UpsertResult()
-    for chunk in batch_records(records, chunk_size):
-        rows = [r.to_api_dict() for r in chunk]
-        try:
-            client.upsert("venue", rows)
-            result.upserted += len(chunk)
-        except urllib.error.HTTPError as e:
-            body = e.read()[:200].decode("utf-8", errors="replace")
-            result.errors.append(f"HTTP {e.code}: {body}")
-            result.skipped += len(chunk)
-        except Exception as e:  # noqa: BLE001
-            result.errors.append(str(e))
-            result.skipped += len(chunk)
+    groups: dict[frozenset, list[dict]] = {}
+    for r in records:
+        row = r.to_api_dict()
+        groups.setdefault(frozenset(row.keys()), []).append(row)
+    for rows in groups.values():
+        for i in range(0, len(rows), chunk_size):
+            chunk = rows[i : i + chunk_size]
+            try:
+                client.upsert("venue", chunk)
+                result.upserted += len(chunk)
+            except urllib.error.HTTPError as e:
+                body = e.read()[:200].decode("utf-8", errors="replace")
+                result.errors.append(f"HTTP {e.code}: {body}")
+                result.skipped += len(chunk)
+            except Exception as e:  # noqa: BLE001
+                result.errors.append(str(e))
+                result.skipped += len(chunk)
     return result
 
 
