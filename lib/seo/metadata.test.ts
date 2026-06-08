@@ -166,6 +166,25 @@ describe("buildVenueMetadata", () => {
       }
     }
   });
+
+  it("noindex une fiche trop pauvre (squelette sans adresse/contact/contenu) (#464)", () => {
+    const meta = buildVenueMetadata(
+      makeVenue({
+        address: null,
+        phone: null,
+        website_url: null,
+        primary_sport_slug: null,
+        enrichments: {},
+      }),
+    );
+    expect(meta.robots).toEqual({ index: false, follow: true });
+  });
+
+  it("n'ajoute pas de robots pour une fiche suffisamment complète", () => {
+    // makeVenue par défaut = address + phone + sport → au-dessus du seuil
+    const meta = buildVenueMetadata(makeVenue(), "Paris");
+    expect(meta.robots).toBeUndefined();
+  });
 });
 
 describe("buildVenueJsonLd", () => {
