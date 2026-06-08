@@ -33,6 +33,9 @@ type Props = {
   sportSlug: string;
   initialVenues: VenuePin[];
   totalSportVenues: number;
+  /** Critères de filtre actifs (indoor / lit), portés par l'URL (#467) — passés
+   * à la carte pour que les pins suivent le même filtre que la liste SSR. */
+  selectedCriteria?: string[];
   /** Hint sous la carte, déjà traduit côté serveur. */
   mapHint: string;
   /** Grille de VenueCard + pagination, rendues côté serveur (mode ancré). */
@@ -43,6 +46,7 @@ export function SportVenuesSection({
   sportSlug,
   initialVenues,
   totalSportVenues,
+  selectedCriteria,
   mapHint,
   children,
 }: Props) {
@@ -51,21 +55,16 @@ export function SportVenuesSection({
   const [viewportVenues, setViewportVenues] = useState<VenuePin[]>(initialVenues);
   const [center, setCenter] = useState<{ lat: number; lon: number }>(() => {
     if (initialVenues.length === 0) return { lat: 46.5, lon: 2.5 };
-    const lat =
-      initialVenues.reduce((s, v) => s + v.lat, 0) / initialVenues.length;
-    const lon =
-      initialVenues.reduce((s, v) => s + v.lon, 0) / initialVenues.length;
+    const lat = initialVenues.reduce((s, v) => s + v.lat, 0) / initialVenues.length;
+    const lon = initialVenues.reduce((s, v) => s + v.lon, 0) / initialVenues.length;
     return { lat, lon };
   });
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
 
-  const handleVenuesData = useCallback(
-    (venues: VenuePin[], c: { lat: number; lon: number }) => {
-      setViewportVenues(venues);
-      setCenter(c);
-    },
-    [],
-  );
+  const handleVenuesData = useCallback((venues: VenuePin[], c: { lat: number; lon: number }) => {
+    setViewportVenues(venues);
+    setCenter(c);
+  }, []);
 
   const handleSelect = useCallback((v: VenuePin) => {
     setFlyTarget({ lat: v.lat, lon: v.lon, zoom: 15, token: Date.now() });
@@ -84,6 +83,7 @@ export function SportVenuesSection({
         sportSlug={sportSlug}
         initialVenues={initialVenues}
         totalSportVenues={totalSportVenues}
+        selectedCriteria={selectedCriteria}
         onVenuesData={handleVenuesData}
         flyTarget={flyTarget}
       />
@@ -115,9 +115,7 @@ export function SportVenuesSection({
             {t("listModeViewport", { count: viewportVenues.length })}
           </button>
         </div>
-        {mode === "view" && (
-          <p className="text-xs text-muted-foreground">{t("viewportHint")}</p>
-        )}
+        {mode === "view" && <p className="text-xs text-muted-foreground">{t("viewportHint")}</p>}
       </div>
 
       <div className="mt-6">
