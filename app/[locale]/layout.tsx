@@ -9,7 +9,7 @@ import { InstallPwaButton } from "@/components/InstallPwaButton";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 import { PostHogProvider } from "@/components/PostHogProvider";
-import { Analytics } from "@vercel/analytics/react";
+import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { routing, type Locale } from "@/i18n/routing";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
@@ -49,18 +49,11 @@ export async function generateMetadata({
       ? t("heroDescription", { count: formatCount(totalSpots) })
       : undefined,
     metadataBase: new URL("https://sporthubmap.com"),
-    // Vérification Google Search Console (#412). No-op si l'env est absent
-    // (la balise <meta google-site-verification> n'est alors pas émise).
-    verification: process.env.GOOGLE_SITE_VERIFICATION
-      ? { google: process.env.GOOGLE_SITE_VERIFICATION }
-      : undefined,
     alternates: {
       canonical: hreflang.canonical,
       languages: hreflang.languages,
     },
-    // PWA iOS (#249) : Next.js génère apple-mobile-web-app-capable,
-    // apple-mobile-web-app-status-bar-style, apple-mobile-web-app-title et
-    // les <link rel="apple-touch-icon"> à partir de ces champs.
+    // PWA iOS (#249)
     appleWebApp: {
       capable: true,
       title: "SportHub",
@@ -69,6 +62,10 @@ export async function generateMetadata({
     icons: {
       apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
     },
+    // Google Search Console (#412). No-op si GOOGLE_SITE_VERIFICATION absent.
+    verification: process.env.GOOGLE_SITE_VERIFICATION
+      ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+      : undefined,
   };
 }
 
@@ -109,11 +106,10 @@ export default async function LocaleLayout({
             {/* Invite à installer la PWA après ≥2 visites (#249). */}
             <InstallPwaButton />
           </PostHogProvider>
-          {/* Observability Vercel (#412). No-op silencieux tant que les
-              toggles ne sont pas activés côté dashboard Vercel. */}
-          <Analytics />
-          <SpeedInsights />
         </NextIntlClientProvider>
+        {/* Vercel Analytics + Speed Insights (#412). */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
