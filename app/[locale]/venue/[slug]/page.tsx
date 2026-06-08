@@ -129,6 +129,13 @@ export default async function VenuePage({ params }: Props) {
   });
   const breadcrumbJsonLd = buildBreadcrumbJsonLd(breadcrumbItems);
 
+  // « Signaler une erreur » (#467) — correction communautaire sans backend :
+  // mailto pré-rempli avec le nom de la venue + l'URL de la fiche.
+  const venueUrl = `${SITE_URL}/${locale}/venue/${venue.slug}`;
+  const reportErrorHref = `mailto:hello@sporthubmap.com?subject=${encodeURIComponent(
+    t("reportErrorSubject", { name: venue.name }),
+  )}&body=${encodeURIComponent(t("reportErrorBody", { url: venueUrl }))}`;
+
   return (
     <article className="container mx-auto max-w-4xl px-6 py-8">
       <script
@@ -208,6 +215,12 @@ export default async function VenuePage({ params }: Props) {
               rel="noopener noreferrer"
             >
               🚗 Waze
+            </a>
+            <a
+              className="ml-auto rounded-md px-3 py-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+              href={reportErrorHref}
+            >
+              ⚠️ {t("reportError")}
             </a>
           </section>
         </div>
