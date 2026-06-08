@@ -329,6 +329,23 @@
     "source": "源代码 (GitHub)",
     "copyright": "© {year} Sport Hub — MIT 许可 — 数据遵循各来源许可"
   },
+  "legal": {
+    "title": "法律声明",
+    "lastUpdated": "最后更新：2026 年 6 月",
+    "editorHeading": "网站发布者",
+    "editorBody": "网站 sporthubmap.com（“SportHub”）由 Gautier Marchand 发布。",
+    "contactHeading": "联系方式",
+    "contactBody": "如有任何问题或需报告错误，请发送邮件至：",
+    "hostHeading": "托管",
+    "hostBody": "本网站由 Vercel Inc.（340 S Lemon Ave #4133, Walnut, CA 91789, 美国，vercel.com）托管。数据库由 Supabase 托管。",
+    "dataHeading": "数据与许可",
+    "dataIntro": "场所信息来自公共数据库，按其各自的许可协议重新使用：",
+    "dataOsm": "OpenStreetMap — © OpenStreetMap 贡献者，采用 ODbL 许可。",
+    "dataWikidata": "Wikidata — 数据采用 CC0 许可。",
+    "dataOverture": "Overture Maps Foundation。",
+    "dataCarto": "底图 © CARTO。",
+    "disclaimer": "SportHub 出于信息目的汇总这些数据。尽管我们尽力而为，仍可能存在错误或不准确之处；数据不具有合同效力。"
+  },
   "admin": {
     "login": {
       "loading": "加载中…",
