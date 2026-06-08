@@ -187,9 +187,10 @@ export async function GET(request: Request) {
     const BATCH = 200;
     for (let i = 0; i < rows.length; i += BATCH) {
       const chunk = rows.slice(i, i + BATCH);
-      const { error } = await sb
+      const { data: upsertedRows, error } = await sb
         .from("venue")
-        .upsert(chunk as never, { onConflict: "slug", ignoreDuplicates: false }); // eslint-disable-line @typescript-eslint/no-explicit-any -- types Supabase régénérés trop stricts vs enrichments Record<string,unknown>
+        .upsert(chunk as never, { onConflict: "slug", ignoreDuplicates: false })
+        .select("id"); // ids pour écrire venue_sport (#476)
       if (error) {
         failed += chunk.length;
         captureException(error, {
@@ -199,6 +200,21 @@ export async function GET(request: Request) {
         });
       } else {
         upserted += chunk.length;
+        // #476 : un partenaire Hyrox est de fait une salle (gym) → écrire les
+        // disciplines (hyrox primaire + gym) dans venue_sport, sinon la fiche
+        // s'affiche « Hyrox seul ». Idempotent (on_conflict venue_id,sport_slug).
+        const sportRows = ((upsertedRows ?? []) as { id: string }[]).flatMap((v) => [
+          { venue_id: v.id, sport_slug: "hyrox", is_primary: true },
+          { venue_id: v.id, sport_slug: "gym", is_primary: false },
+        ]);
+        if (sportRows.length > 0) {
+          const { error: vsErr } = await sb
+            .from("venue_sport")
+            .upsert(sportRows as never, { onConflict: "venue_id,sport_slug", ignoreDuplicates: true });
+          if (vsErr) {
+            captureException(vsErr, { route: "/api/cron/refresh-hyrox", step: "venue_sport" });
+          }
+        }
       }
     }
   } catch (err) {
