@@ -164,7 +164,9 @@
     "h1": "{city}的{sport}",
     "addresses": "{count, plural, =0 {无地址} other {{count} 个地址}}",
     "emptyMessage": "{city} 暂无 {sport} 场所。",
-    "seeOtherCities": "查看其他城市"
+    "seeOtherCities": "查看其他城市",
+    "localIntro": "Sport Hub 收录了在{city}进行{sport}的场所。在地图上查看地址，比较开放时间和设施，找到最近的场地——无需注册。数据来自开放来源（OpenStreetMap、官方登记），并持续完善。",
+    "relatedTitle": "{city}的相关运动"
   },
   "venue": {
     "sportsPracticed": "可练习的运动",
