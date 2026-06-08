@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+# ════════════════════════════════════════════════════════════════════════════
+# ⚠️ DEPRECATED / ARCHIVÉ — #227 (cutover ETL V2-natif, 2026-06-08).
+# NE PLUS EXÉCUTER. La source de vérité des ~371k venues est désormais 100%
+# V2-native (OSM Overpass + Overture + RES → scripts/etl/*, crons hebdo).
+# Vérifié en prod : 0 venue ne porte source='v1-import'/'v1'/'sportpin'.
+# Conservé uniquement pour l'historique du seed initial ; dépend du SQLite V1
+# (sportpin.sqlite) qui n'est plus requis nulle part dans le runtime.
+# ════════════════════════════════════════════════════════════════════════════
 """
 import_v1.py — Migration des données SportHub V1 (SQLite) → Supabase (Postgres).
 

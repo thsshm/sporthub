@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# ════════════════════════════════════════════════════════════════════════════
+# ⚠️ DEPRECATED / ARCHIVÉ — #227 (cutover ETL V2-natif, 2026-06-08).
+# NE PLUS EXÉCUTER. Backfill ponctuel (#312) qui dépend du SQLite V1
+# (sportpin.sqlite), plus requis. La classification est désormais portée par
+# les imports V2-natifs (scripts/etl/*). Conservé pour l'historique.
+# ════════════════════════════════════════════════════════════════════════════
 """Backfill #312 palier 2 — reclasse les venues `family_slug='autre'` +
 `primary_sport_slug IS NULL` (≈887) hors du bucket 'autre'.
 

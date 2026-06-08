@@ -1,9 +1,17 @@
 # ADR #227 — ETL V2-natif : couper le cordon SQLite V1
 
-**Statut** : pipeline OSM + Overture opérationnel (#395 + #397 + #400 + #403 + cette PR)
-**Date** : 2026-06-07
+**Statut** : ✅ **CUTOVER EFFECTUÉ (2026-06-08, #227.7)** — pipeline OSM + Overture + RES opérationnel et **source de vérité unique**. SQLite V1 gelé/archivé.
+**Date** : 2026-06-07 (cutover formalisé le 2026-06-08)
 
-## Contexte
+> **Mise à jour 2026-06-08** — Le contexte ci-dessous décrit l'état *avant* cutover.
+> Vérif live prod (clé anon) : sur ~371 115 venues publiées, **0** ne porte
+> `source='v1-import'`/`'v1'`/`'sportpin'` ; toutes sont `overture`/`osm`/`res-*`.
+> Le `sportpin.sqlite` n'est lu par **aucun cron** ni par le hot-path — seulement
+> par 3 scripts manuels désormais marqués `DEPRECATED` (voir 227.7). Le cordon
+> est coupé. La fraîcheur des enrichissements est native (cron Vercel
+> `app/api/cron/refresh-wikidata`).
+
+## Contexte (avant cutover)
 
 La source de vérité des ~370k venues est un SQLite V1 (`sportpin.sqlite`) importé manuellement depuis `data-pipeline/`. V2 n'a pas d'ingestion native — les données arrivent par `import_v1.py` + `db-push` manuels. Le refresh cron ne couvre que Wikidata, diving, hyrox, paragliding (sources mineures).
 
@@ -43,7 +51,7 @@ RES           ─┘       external_id) DO UPDATE            import_run (traçab
 | **227.6** | Dédup cross-source (géo 50m + nom normalisé) + précédence | TBD |
 | **227.5** (cette PR) | Importeur Overture (DuckDB parquet S3) + workflow GH Actions | #xxx |
 | **227.6** (cette PR) | `deduplicate_records` : dédup géo 50 m dans `etl_upsert` | #xxx |
-| **227.7** | Cutover + `import_v1.py` deprecated (recoupe #343) — décision Gautier | À planifier |
+| **227.7** | Cutover + `import_v1.py` deprecated (recoupe #343) — décision Gautier | ✅ Fait (2026-06-08) : scripts V1 marqués `DEPRECATED` (en-tête « ne plus exécuter »), docs mises à jour. Données déjà 100% V2-natives. |
 
 ## Décisions ouvertes (input de Gautier attendu)
 

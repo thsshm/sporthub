@@ -35,8 +35,11 @@ cp .env.example .env.local
 supabase link --project-ref <ton-ref>
 supabase db push
 
-# 4. (Optionnel) Importer les données V1
-python3 scripts/import_v1.py --mode=clubs-only --limit=1000
+# 4. (Données) — ETL V2-natif, plus de SQLite V1 (#227)
+#    Les venues sont peuplées par les workflows GitHub Actions :
+#    gh workflow run osm-import.yml      -f apply=true
+#    gh workflow run overture-import.yml -f apply=true
+#    (scripts/import_v1.py est DEPRECATED — cutover #227, ne plus l'exécuter)
 
 # 5. Dev server
 pnpm dev
@@ -60,6 +63,8 @@ Actions, déjà configurés) : `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
 
 | Workflow | Quand | Rôle |
 | --- | --- | --- |
+| [`osm-import.yml`](./.github/workflows/osm-import.yml) | dim. 02:00 UTC + manuel | Ingestion V2-native depuis OSM (Overpass) via `scripts/etl/osm_import.py`. **Dry-run par défaut** (`-f apply=true` pour écrire). Source de vérité #227. |
+| [`overture-import.yml`](./.github/workflows/overture-import.yml) | dim. 03:00 UTC + manuel | Ingestion V2-native depuis Overture (DuckDB/S3) via `scripts/etl/overture_import.py`. **Dry-run par défaut.** Source de vérité #227. |
 | [`cluster-clubs.yml`](./.github/workflows/cluster-clubs.yml) | manuel | Regroupe les venues en clubs (`club` + `venue.club_id`) via `scripts/cluster_clubs.py`. **Dry-run par défaut.** |
 | [`regenerate-tiles.yml`](./.github/workflows/regenerate-tiles.yml) | nightly 04:00 UTC + manuel | Régénère les tuiles vectorielles PMTiles (tippecanoe) et les upload dans le bucket `tiles`. |
 
@@ -78,9 +83,11 @@ gh workflow run regenerate-tiles.yml
 gh run watch
 ```
 
-> Non migrés (hors de ce repo) : `import_v1.py` dépend de la SQLite V1 locale
-> (`../data-pipeline/`), `export_clubs_js.py` et `scrape_res_raquette.py` sont
-> des scripts du pipeline V1 (`sporthub-legacy`).
+> **DEPRECATED (cutover #227, 2026-06-08)** : `import_v1.py`,
+> `import_enrichments_v1.py` et `backfill_family_null_sport.py` dépendent de la
+> SQLite V1 locale (`../data-pipeline/`) et **ne doivent plus être exécutés** —
+> les données sont 100% V2-natives (OSM/Overture/RES). `export_clubs_js.py` et
+> `scrape_res_raquette.py` restent des scripts du pipeline V1 (`sporthub-legacy`).
 
 ## Workflow
 
