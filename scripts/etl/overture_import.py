@@ -62,7 +62,8 @@ SOURCE = "overture"
 # Overture release S3 path (mise à jour trimestrielle)
 # Format : s3://overturemaps-us-west-2/release/<release>/theme=places/type=place/
 # La release la plus récente est détectable via le manifeste Overture public.
-DEFAULT_RELEASE = "2025-05-21.0"  # dernière stable connue lors du développement
+DEFAULT_RELEASE = "2026-05-20.0"  # release valide récente (cf. #94 : 2025-05-21.0 périmée → S3 vide)
+# TODO : auto-détecter la plus récente (lister s3://…/release/) pour éviter de re-périmer.
 
 # Bboxes (S, W, N, E) — identiques à osm_import pour cohérence
 COUNTRY_BBOXES: dict[str, tuple[float, float, float, float]] = {
@@ -229,7 +230,10 @@ def fetch_family_records_overture(
     query = build_duckdb_query(s3_path, categories, bbox, limit)
 
     conn = duckdb.connect()
+    # #94 — les DuckDB récents n'auto-chargent plus `spatial` ; ST_X/ST_Y de la
+    # requête échouent ("not in the catalog") sans LOAD explicite.
     conn.execute("INSTALL httpfs; LOAD httpfs;")
+    conn.execute("INSTALL spatial; LOAD spatial;")
     conn.execute("SET s3_region='us-west-2';")
 
     rows_all: list[VenueRecord] = []
