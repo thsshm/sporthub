@@ -329,6 +329,23 @@
     "clubCourts": "{count} courts",
     "clubCourtsLoading": "Loading courts…"
   },
+  "contribute": {
+    "metaTitle": "Contribute — add a place or report an error | Sport Hub",
+    "metaDescription": "Add a missing spot or report wrong information. The map gets better thanks to you.",
+    "title": "Contribute",
+    "intro": "Sport Hub runs on open data — and on you. Missing a place? Something wrong? Tell us, it takes a minute.",
+    "addHeading": "Add a place",
+    "addBody": "A court, gym or spot missing? Send us its name, city and the sport — we'll add it.",
+    "addCta": "Add a place",
+    "addMailSubject": "Add a place to Sport Hub",
+    "addMailBody": "Place name:\nCity / address:\nSport(s):\nWebsite or phone (optional):\nOther useful info:",
+    "reportHeading": "Report an error",
+    "reportBody": "Wrong address, mismatched sport, a duplicate? Tell us which place and what's off.",
+    "reportCta": "Report an error",
+    "reportMailSubject": "Report an error on Sport Hub",
+    "reportMailBody": "Place (name + city, or page link):\nWhat's incorrect:\nThe correct information:",
+    "note": "Reports are handled manually for now. An in-app form is coming soon."
+  },
   "footer": {
     "about": "Sport Hub",
     "aboutText": "One map for every sport. Open data, no ads, no signup.",
@@ -336,6 +353,7 @@
     "dataLicense": "Data & license",
     "legal": "Legal notice",
     "source": "Source code (GitHub)",
+    "contribute": "Contribute",
     "copyright": "© {year} Sport Hub — MIT license — Data under their respective source licenses"
   },
   "legal": {

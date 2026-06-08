@@ -329,6 +329,23 @@
     "clubCourts": "{count} 个场地",
     "clubCourtsLoading": "正在加载场地…"
   },
+  "contribute": {
+    "metaTitle": "贡献 — 添加地点或报告错误 | Sport Hub",
+    "metaDescription": "添加缺失的地点或报告错误信息。地图因你而更完善。",
+    "title": "贡献",
+    "intro": "Sport Hub 依靠开放数据,也依靠你。缺少某个地点?信息有误?告诉我们,只需一分钟。",
+    "addHeading": "添加地点",
+    "addBody": "缺少某个球场、健身房或场地?把它的名称、城市和运动项目发给我们——我们会添加。",
+    "addCta": "添加地点",
+    "addMailSubject": "向 Sport Hub 添加地点",
+    "addMailBody": "地点名称:\n城市／地址:\n运动项目:\n网站或电话(选填):\n其他有用信息:",
+    "reportHeading": "报告错误",
+    "reportBody": "地址错误、运动项目不符、重复条目?告诉我们是哪个地点以及问题所在。",
+    "reportCta": "报告错误",
+    "reportMailSubject": "向 Sport Hub 报告错误",
+    "reportMailBody": "相关地点(名称＋城市,或页面链接):\n错误内容:\n正确信息:",
+    "note": "目前反馈由人工处理。内置表单即将推出。"
+  },
   "footer": {
     "about": "Sport Hub",
     "aboutText": "一张地图,所有运动。开放数据,无广告,无需注册。",
@@ -336,6 +353,7 @@
     "dataLicense": "数据与许可",
     "legal": "法律声明",
     "source": "源代码 (GitHub)",
+    "contribute": "贡献",
     "copyright": "© {year} Sport Hub — MIT 许可 — 数据遵循各来源许可"
   },
   "legal": {
