@@ -74,6 +74,13 @@ const POPULAR_CANDIDATES: PopularCombo[] = [
   { sport: "kitesurf", citySlug: "la-rochelle", cityLabel: "La Rochelle" },
   { sport: "football", citySlug: "lille", cityLabel: "Lille" },
   { sport: "basketball", citySlug: "rennes", cityLabel: "Rennes" },
+  // Combos à fort volume vérifiés en live (2026-06-08) — élargissent le vivier
+  // pour que le filtre ≥5 ait de la matière (sinon la section ne montrait que
+  // ~5 chips alors que ces pages comptent des dizaines à centaines de lieux). #462.
+  { sport: "gym", citySlug: "paris", cityLabel: "Paris" }, // ~579
+  { sport: "tennis", citySlug: "paris", cityLabel: "Paris" }, // ~68
+  { sport: "gym", citySlug: "lyon", cityLabel: "Lyon" }, // ~164
+  { sport: "tennis", citySlug: "bordeaux", cityLabel: "Bordeaux" }, // ~20
 ];
 
 /** Filtre pur (testable) : ne garde que les combos avec ≥ `min` lieux. */
