@@ -57,7 +57,7 @@
     "subtitle": "Everything we get asked the most.",
     "q1": "Is it free?",
     "a1": "Yes, completely and ad-free. The data comes from open sources (OpenStreetMap, RES France, Wikidata, Overture Maps) and browsing is free. No signup, no paywall.",
-    "q2": "Where do the ~250,000 spots come from?",
+    "q2": "Where do the {count} spots come from?",
     "a2": "From cross-referencing four public sources: OpenStreetMap (ODbL), the French Ministry of Sports RES (Etalab), Wikidata (CC0) and Overture Maps. The same spot seen by several sources is automatically deduplicated (50 m + normalized name).",
     "q3": "How do I add my club or spot?",
     "a3": "Three options: (1) fill in our form (1 min, we add it within the week); (2) edit directly on OpenStreetMap — the change arrives here within 24h; (3) email us at hello@sporthubmap.com.",

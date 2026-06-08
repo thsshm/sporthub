@@ -57,7 +57,7 @@
     "subtitle": "我们被问得最多的问题。",
     "q1": "是免费的吗?",
     "a1": "是的,完全免费且无广告。数据来自开放源 (OpenStreetMap、RES France、Wikidata、Overture Maps),浏览免费。无需注册,无付费墙。",
-    "q2": "~250,000 个场所从何而来?",
+    "q2": "{count} 个场所从何而来?",
     "a2": "来自四个公开来源的交叉:OpenStreetMap (ODbL)、法国体育部 RES (Etalab)、Wikidata (CC0) 和 Overture Maps。同一场所被多个来源记录时自动去重 (50 米 + 名称归一化)。",
     "q3": "如何添加我的俱乐部或场所?",
     "a3": "三种方式: (1) 填写我们的表单 (1 分钟,一周内收录); (2) 直接在 OpenStreetMap 上编辑——24 小时内会同步过来; (3) 写信给 hello@sporthubmap.com。",

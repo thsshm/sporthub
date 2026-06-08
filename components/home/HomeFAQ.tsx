@@ -6,6 +6,8 @@
  */
 import { getTranslations } from "next-intl/server";
 import { jsonLdHtml } from "@/lib/seo/metadata";
+import { getTotalSpots } from "@/lib/home-stats";
+import { formatCount } from "@/lib/utils";
 
 const QA_KEYS = [
   ["q1", "a1"],
@@ -23,8 +25,13 @@ type FaqKey = (typeof QA_KEYS)[number][number];
 export async function HomeFAQ() {
   const t = await getTranslations("faq");
 
+  // q2 ("D'où viennent les N spots ?") : même total que le H1/meta de la home
+  // (getTotalSpots, cache partagé tag "home") → home et FAQ ne divergent jamais
+  // (#462 : la FAQ disait "~250 000" alors que la home affiche le vrai total).
+  const totalSpots = formatCount(await getTotalSpots());
+
   const items = QA_KEYS.map(([qKey, aKey]) => ({
-    q: t(qKey as FaqKey),
+    q: qKey === "q2" ? t("q2", { count: totalSpots }) : t(qKey as FaqKey),
     a: t(aKey as FaqKey),
   }));
 
