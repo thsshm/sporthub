@@ -88,6 +88,17 @@ export const SPORTS: SportDef[] = [
 /** Accès rapide par slug */
 export const SPORTS_BY_SLUG = Object.fromEntries(SPORTS.map((s) => [s.slug, s]));
 
+/**
+ * Emoji du sport (le même que sur l'accueil / les pages sport) pour les pins de
+ * la carte. Retourne `null` si le slug n'est pas un sport curé (ex. `spa`,
+ * `dance`, ou `null` en base) → le call site fait alors un fallback sur l'emoji
+ * de la famille (`getFamilyEmoji`). On garde ainsi une icône sur CHAQUE pin.
+ */
+export function getSportEmoji(sportSlug: string | null | undefined): string | null {
+  if (!sportSlug) return null;
+  return SPORTS_BY_SLUG[sportSlug]?.emoji ?? null;
+}
+
 /** Sports groupés par famille */
 export const SPORTS_BY_FAMILY = SPORTS.reduce<Record<string, SportDef[]>>((acc, sport) => {
   if (!acc[sport.family_slug]) acc[sport.family_slug] = [];
