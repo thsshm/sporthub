@@ -65,3 +65,49 @@ credentials Supabase (`SUPABASE_ACCESS_TOKEN` / `DB_PASSWORD`), absents côté
 GitHub Actions (seuls `SUPABASE_URL` + `SERVICE_ROLE_KEY` y sont) et non lisibles
 en local (règle de sécurité sur `.env.local`). La migration `0048` doit donc être
 poussée manuellement (`./scripts/db-push.sh` ou SQL Editor) avant l'apply.
+
+---
+
+## Plan d'implémentation — importer Anybuddy (à lancer dès qu'une clé existe)
+
+Source recommandée pour le volume FR (cf. tableau ci-dessus). Endpoints **confirmés
+en live** (blueprint Apiary `anybuddyapibooking`, host `api.anybuddyapp.com`) :
+
+| Endpoint | Usage | Auth |
+| --- | --- | --- |
+| `GET /v1/centers` | liste de TOUS les centres (un appel ; variante `text/csv`) | `Authorization: Basic …` |
+| `GET /v1/centers/{centerId}` | détail : `location.lat/lon`, `link` (URL résa), `website`, `phoneNumber`, `address`, `amenities`, `photos`, `openingHours` | `Authorization: Bearer …` (ou Basic) |
+| `GET /v2/centers/{centerId}/availabilities` | créneaux (hors scope enrichissement) | idem |
+
+### Pipeline cible (calqué sur `scrape_playtomic_padel_fr.py`)
+1. `GET /v1/centers` → filtrer `address.country == "FR"`.
+2. Pour chaque centre FR → `GET /v1/centers/{id}` pour `location.lat/lon` + `link`.
+3. Matcher à nos venues padel via les **mêmes primitives** que Playtomic
+   (`haversine_m`, `jaro_winkler`, `is_match` à 2 paliers). → réutiliser/extraire
+   ces fonctions dans un module partagé `scripts/padel_match.py`.
+4. `--apply` : `booking_url = center.link`, upsert `external_ref` (source=`anybuddy`,
+   external_id=`center.id`), PATCH venue. Idempotent (même schéma 0048).
+5. Workflow `padel-enrich-anybuddy.yml` derrière le secret **`ANYBUDDY_API_KEY`**
+   (Basic `user:pass`), dry-run par défaut, `--apply` sur coche — comme l'existant.
+
+### ⚠ Questions à lever AU 1er appel avec la clé (non visibles sans auth)
+Ces points ne sont **pas** déterminés par le blueprint (réponses authentifiées) et
+doivent être inspectés sur des réponses réelles **avant** d'écrire le matching :
+1. **Identifier les centres _padel_** : `/v1/centers` ne porte pas le sport ; le
+   détail montre `sites: []` (vide dans l'exemple). Où est la liste des sports /
+   terrains ? (`sites[]` ? un champ `sports[]` ? la variante CSV a une colonne
+   sport+nb courts — peut-être la source la plus simple.)
+2. **Nombre de courts (`courts_indoor/outdoor`)** : présent dans la ligne CSV de
+   `/v1/centers`, absent du JSON détail de l'exemple. Confirmer la colonne CSV ou
+   le champ JSON exact.
+3. **Type d'auth effectif** : le blueprint montre `Basic` (liste) ET `Bearer`
+   (détail) — vérifier lequel la clé partenaire utilise réellement.
+
+Tant que (1) et (2) ne sont pas confirmés sur des données réelles, **ne pas coder
+le matching à l'aveugle** : un mauvais nom de champ ≠ un seuil à régler. Première
+étape dès réception de la clé : `curl -u user:pass …/v1/centers` + un détail, puis
+construire avec certitude.
+
+### Obtention de la clé
+Contact partenaire : `support@anybuddyapp.com`. Une fois reçue → l'ajouter en
+secret GitHub `ANYBUDDY_API_KEY` ; je construis l'importer derrière.
