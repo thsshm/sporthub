@@ -8,8 +8,8 @@ import {
 } from "@/lib/families";
 
 describe("FAMILIES — invariants sur le référentiel", () => {
-  it("contient exactement 14 familles (13 V1 + escalade, cf. CLAUDE.md)", () => {
-    expect(FAMILIES).toHaveLength(14);
+  it("contient exactement 13 familles (canon V1 ; escalade fusionnée dans hike #470)", () => {
+    expect(FAMILIES).toHaveLength(13);
   });
 
   it("a tous les slugs uniques", () => {
@@ -17,7 +17,7 @@ describe("FAMILIES — invariants sur le référentiel", () => {
     expect(new Set(slugs).size).toBe(slugs.length);
   });
 
-  it("inclut les 13 familles canon V1 + escalade (palier 2 #312)", () => {
+  it("inclut les 13 familles canon V1 (escalade fusionnée dans hike #470)", () => {
     const expected = [
       "raquette",
       "ballon",
@@ -30,7 +30,6 @@ describe("FAMILIES — invariants sur le référentiel", () => {
       "glisse",
       "snow",
       "hike",
-      "escalade",
       "retraites",
       "plus",
     ];
@@ -112,9 +111,12 @@ describe("getRelatedSports", () => {
     expect(getRelatedSports("quidditch")).toEqual([]);
   });
 
-  it("retourne [] (et pas de crash) pour une famille à un seul sport", () => {
-    // escalade = ["climbing_indoor"] → aucun voisin
-    expect(getRelatedSports("climbing_indoor")).toEqual([]);
+  it("climbing_indoor est rattaché à hike (Outdoor) → voisins = sports hike (#470)", () => {
+    // Ex-famille escalade fusionnée dans hike : climbing_indoor a maintenant
+    // des voisins (trail, running…), il ne tombe plus dans une famille isolée.
+    const related = getRelatedSports("climbing_indoor");
+    expect(related).toEqual(["trail", "long_trail", "trailrun", "running"]);
+    expect(related).not.toContain("climbing_indoor");
   });
 });
 
