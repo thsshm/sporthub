@@ -6,6 +6,7 @@ import { Link } from "@/i18n/routing";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG, getRelatedSports } from "@/lib/families";
+import { isLowQualityVenue, type ScorableVenue } from "@/lib/venue/quality-score";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -19,9 +20,14 @@ import {
 
 const PAGE_SIZE = 24;
 const SITE_URL = "https://sporthubmap.com";
-/** En-dessous de ce nombre de lieux, la page sport×ville est trop maigre →
- * noindex (thin content, audit SEO #465). */
+/** En-dessous de ce nombre de lieux *indexables* (≥ seuil qualité), la page
+ * sport×ville est trop maigre → noindex (thin content, audit SEO #465). */
 const NOINDEX_MIN_VENUES = 5;
+/** Plafond de venues récupérées pour une paire sport×ville (scope borné : une
+ * ville a au plus quelques centaines de lieux pour un sport). On récupère tout
+ * le scope pour filtrer la qualité + paginer côté JS — #464. Au-delà, on
+ * tronque (cas rarissime) ; la carte reste exhaustive via l'API, indépendante. */
+const MAX_SCOPE_VENUES = 1000;
 
 type Params = { locale: string; sport: string; country: string; city: string };
 
@@ -35,7 +41,13 @@ export const revalidate = 86400; // 24h
 type Ctx = {
   sport: (typeof SPORTS_BY_SLUG)[string];
   city: { id: string; name: string; country_code: string };
+  /** Nombre EXHAUSTIF de venues publiées du sport dans la ville. Alimente
+   * l'overlay de la carte (qui reste exhaustive). */
   total: number;
+  /** Venues *indexables* (publiées ET ≥ seuil qualité, #464). Alimentent la
+   * LISTE, le H1/meta, le compteur « adresses », le noindex et la pagination —
+   * mais PAS la carte. */
+  indexable: DisplayVenue[];
 };
 
 const resolveContext = cache(async (sport: string, country: string, city: string): Promise<Ctx | null> => {
@@ -58,18 +70,24 @@ const resolveContext = cache(async (sport: string, country: string, city: string
   // padel/paris) qui divergeait du vrai nombre de lignes rendues (1) → titre,
   // H1, meta et compteur carte mentaient au crawler/LLM (#335). NB : la page
   // mondiale /sports/[sport] (non bornée par ville) garde "planned" elle.
+  const cityCtx = cityRow as Ctx["city"];
   const { count } = await sb
     .from("venue")
     .select("id", { count: "exact", head: true })
     .eq("primary_sport_slug", sport)
-    .eq("city_id", (cityRow as { id: string }).id)
+    .eq("city_id", cityCtx.id)
     .eq("is_published", true)
     .is("deleted_at", null);
 
+  // Liste indexable (≥ seuil qualité, #464) — partagée entre generateMetadata
+  // (noindex) et la page via le cache() de resolveContext (un seul fetch).
+  const indexable = await fetchIndexableVenues(sb, sport, cityCtx);
+
   return {
     sport: sportDef,
-    city: cityRow as Ctx["city"],
+    city: cityCtx,
     total: count ?? 0,
+    indexable,
   };
 });
 
@@ -84,32 +102,57 @@ type VenueRow = {
   address: string | null;
   courts_count: number | null;
   country_code: string | null;
+  // Champs du score qualité (#464) — pour exclure les fiches sous seuil de la
+  // liste indexable (la même fonction pure isLowQualityVenue que le noindex).
+  city_id: string | null;
+  website_url: string | null;
+  phone: string | null;
+  description: string | null;
+  claim_status: ScorableVenue["claim_status"];
+  enrichments: ScorableVenue["enrichments"];
 };
 
-async function fetchVenues(ctx: Ctx, page: number) {
-  const sb = getSupabaseServerClient();
-  const offset = (page - 1) * PAGE_SIZE;
+type DisplayVenue = Omit<VenueRow, "country_code"> & {
+  city_name: string;
+  country_code?: string;
+  sport_slugs: string[];
+};
 
+/**
+ * Récupère les venues *indexables* du scope sport×ville : publiées, non
+ * supprimées, ET passant le gate qualité `isLowQualityVenue` (#464). On
+ * récupère tout le scope (borné par MAX_SCOPE_VENUES) puis on filtre + on
+ * paginera côté JS — pas de `.range()` SQL, car le filtre qualité décalerait
+ * sinon les compteurs/pagination. La carte n'utilise PAS ceci (elle fetche
+ * l'API, exhaustive).
+ */
+async function fetchIndexableVenues(
+  sb: ReturnType<typeof getSupabaseServerClient>,
+  sportSlug: string,
+  city: Ctx["city"],
+): Promise<DisplayVenue[]> {
   const { data, error } = await sb
     .from("venue")
     .select(
-      "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code",
+      "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code, city_id, website_url, phone, description, claim_status, enrichments",
     )
-    .eq("primary_sport_slug", ctx.sport.slug)
-    .eq("city_id", ctx.city.id)
+    .eq("primary_sport_slug", sportSlug)
+    .eq("city_id", city.id)
     .eq("is_published", true)
     .is("deleted_at", null)
-    .range(offset, offset + PAGE_SIZE - 1)
-    .order("id");
+    .order("id")
+    .limit(MAX_SCOPE_VENUES);
 
-  if (error) return [];
+  if (error || !data) return [];
 
-  return ((data as VenueRow[]) ?? []).map((v) => ({
-    ...v,
-    city_name: ctx.city.name,
-    country_code: v.country_code ?? ctx.city.country_code ?? undefined,
-    sport_slugs: v.primary_sport_slug ? [v.primary_sport_slug] : [],
-  }));
+  return (data as VenueRow[])
+    .filter((v) => !isLowQualityVenue(v))
+    .map((v) => ({
+      ...v,
+      city_name: city.name,
+      country_code: v.country_code ?? city.country_code ?? undefined,
+      sport_slugs: v.primary_sport_slug ? [v.primary_sport_slug] : [],
+    }));
 }
 
 export async function generateMetadata({
@@ -130,20 +173,23 @@ export async function generateMetadata({
   const sportName = tSports.has(ctx.sport.slug)
     ? tSports(ctx.sport.slug)
     : ctx.sport.name_fr;
-  // Titre sans le compteur quand 0 résultat : évite « … (0 adresses) » indexé
-  // (audit SEO #465). Pour ≥ 1, on garde le compteur (chiffre réel utile).
+  // Compteur = venues INDEXABLES (≥ seuil qualité), pas le total exhaustif :
+  // le titre/meta doit refléter ce qui est réellement listé/indexé (#464).
+  const indexableCount = ctx.indexable.length;
+  // Titre sans le compteur quand 0 résultat indexable : évite « … (0 adresses) »
+  // indexé (audit SEO #465). Pour ≥ 1, on garde le compteur (chiffre réel utile).
   const title =
-    ctx.total === 0
+    indexableCount === 0
       ? t("titleNoCount", { sport: sportName, city: ctx.city.name })
-      : t("title", { sport: sportName, city: ctx.city.name, count: ctx.total });
+      : t("title", { sport: sportName, city: ctx.city.name, count: indexableCount });
   const description = t("description", {
     sport: sportName.toLowerCase(),
     city: ctx.city.name,
-    count: ctx.total,
+    count: indexableCount,
   }).slice(0, 160);
-  // noindex des pages trop maigres (< seuil) : thin content non indexable
+  // noindex des pages trop maigres (< seuil de lieux indexables) : thin content
   // (#465). follow:true → on laisse Google suivre les liens internes.
-  const lowQuality = ctx.total < NOINDEX_MIN_VENUES;
+  const lowQuality = indexableCount < NOINDEX_MIN_VENUES;
   const path = `/${sport}/${country}/${city}`;
   // hreflang : page programmatique sport×ville déclinée en FR/EN/ZH (#108).
   const hreflang = buildHreflangAlternates(path);
@@ -173,9 +219,13 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
   const tSports = await getTranslations("sports");
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
-  const venues = await fetchVenues(ctx, page);
+  // Liste = venues indexables (qualité), paginées côté JS. La carte ci-dessous
+  // reste exhaustive (elle fetche l'API, indépendante de cette liste) — #464.
+  const indexableCount = ctx.indexable.length;
+  const offset = (page - 1) * PAGE_SIZE;
+  const venues = ctx.indexable.slice(offset, offset + PAGE_SIZE);
   const family = FAMILIES_BY_SLUG[ctx.sport.family_slug];
-  const totalPages = Math.max(1, Math.ceil(ctx.total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(indexableCount / PAGE_SIZE));
   const basePath = `/${sport}/${country}/${city}`;
   const sportName = tSports.has(ctx.sport.slug) ? tSports(ctx.sport.slug) : ctx.sport.name_fr;
 
@@ -244,7 +294,7 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
           {t("h1", { sport: sportName, city: ctx.city.name })}
         </h1>
         <p className="mt-2 text-muted-foreground">
-          {t("addresses", { count: ctx.total })}
+          {t("addresses", { count: indexableCount })}
           {totalPages > 1 && (
             <span className="text-sm">
               {" "}
@@ -281,7 +331,7 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
         </nav>
       )}
 
-      {venues.length === 0 ? (
+      {ctx.total === 0 ? (
         <div className="mt-12 text-center text-muted-foreground">
           <p>
             {t("emptyMessage", { sport: sportName, city: ctx.city.name })}{" "}
@@ -301,6 +351,9 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
         </div>
       ) : (
         <>
+          {/* Carte TOUJOURS exhaustive : rendue dès qu'il existe ≥ 1 spot
+              (ctx.total), même si la liste indexable filtrée est vide (#464).
+              SportPageMap refetche l'API → la carte ignore le filtre qualité. */}
           <div className="mt-6">
             <SportPageMap
               sportSlug={sport}
@@ -319,13 +372,24 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
             />
           </div>
 
-          <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {venues.map((v) => (
-              <VenueCard key={v.id} venue={v} />
-            ))}
-          </section>
+          {venues.length === 0 ? (
+            /* Des spots existent (carte) mais aucun n'atteint le seuil qualité
+               pour être listé/indexé (#464). On invite à enrichir/contribuer. */
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              {t("addVenuePrompt")}{" "}
+              <Link href="/contribute" className="underline hover:text-foreground">
+                {t("addVenueCta")}
+              </Link>
+            </p>
+          ) : (
+            <>
+              <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {venues.map((v) => (
+                  <VenueCard key={v.id} venue={v} />
+                ))}
+              </section>
 
-          {totalPages > 1 && (
+              {totalPages > 1 && (
             <nav
               className="mt-12 flex items-center justify-center gap-4 text-sm"
               aria-label="Pagination"
@@ -358,6 +422,8 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
                 </span>
               )}
             </nav>
+              )}
+            </>
           )}
         </>
       )}
