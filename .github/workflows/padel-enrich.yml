@@ -1,0 +1,92 @@
+name: Padel enrichment (Playtomic)
+
+# Enrichit les venues padel FR depuis l'API publique Playtomic (#345) :
+# booking_url + courts_indoor/outdoor sur `venue`, traçabilité dans
+# `external_ref`. Matching géo (< 100 m) + Jaro-Winkler nom (≥ 0.85).
+#
+# Stratégie (calquée sur osm-import / overture-import) :
+#   - Dry-run par défaut (aucune écriture tant que `apply` n'est pas coché) :
+#     produit le rapport JSON en artefact à spot-checker.
+#   - --apply : upsert idempotent external_ref (source='playtomic',
+#     external_id=tenant_id) + PATCH venue. Ré-exécutable sans doublon.
+#
+# PRÉREQUIS : la migration 0048 (#345 PR A) doit être pushée en prod AVANT le
+# premier run --apply (colonnes booking_url/courts_* + table external_ref).
+#
+# Secrets requis (déjà configurés) : SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#
+# Déclenché manuellement (workflow_dispatch) ou en cron mensuel (1er du mois,
+# 03:00 UTC — données club peu volatiles, pas besoin d'hebdo).
+
+on:
+  schedule:
+    - cron: "0 3 1 * *"   # 1er du mois, 03:00 UTC (mensuel)
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Cap clubs Playtomic (smoke test ; vide = grille FR complète)"
+        type: string
+        required: false
+        default: ""
+      apply:
+        description: "Écrire réellement en DB (sinon dry-run + rapport en artefact)"
+        type: boolean
+        required: false
+        default: false
+
+# Une seule exécution à la fois (évite deux enrichissements concurrents).
+concurrency:
+  group: padel-enrich
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  enrich:
+    name: scrape_playtomic_padel_fr.py
+    runs-on: ubuntu-latest
+    timeout-minutes: 60   # grille FR (~400 cellules) + détail par club
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run scrape_playtomic_padel_fr.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IN_LIMIT: ${{ inputs.limit || '' }}
+          IN_APPLY: ${{ inputs.apply || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
+            exit 1
+          fi
+          ARGS=(--out /tmp/padel_playtomic_report.json)
+          [ -n "$IN_LIMIT" ] && ARGS+=(--limit "$IN_LIMIT")
+          [ "$IN_APPLY" = "true" ] && ARGS+=(--apply)
+          echo "▶ scrape_playtomic_padel_fr.py ${ARGS[*]}  (apply=$IN_APPLY)"
+          python3 scripts/scrape_playtomic_padel_fr.py "${ARGS[@]}"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: padel-playtomic-report
+          path: /tmp/padel_playtomic_report.json
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Padel enrichment (Playtomic)"
+            echo "- Limite : ${{ inputs.limit || 'aucune (grille FR complète)' }}"
+            echo "- Mode : ${{ (inputs.apply == 'true') && 'APPLY (écriture réelle)' || 'DRY-RUN (rapport en artefact)' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

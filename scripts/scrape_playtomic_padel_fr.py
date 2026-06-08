@@ -9,21 +9,30 @@ de Bright Data) :
   - Détail    : GET api.playtomic.io/v1/tenants/{id}  → resources[] (courts
                indoor/outdoor), properties.WEBSITE_URL / CONTACT_PHONE, slug/url.
 
-Ce script (PR B) tourne en DRY-RUN : il découvre les clubs Playtomic sur une
-grille FR, les apparie à nos venues padel (géo < seuil + Jaro-Winkler nom), et
-écrit un RAPPORT de correspondances (JSON) à spot-checker. AUCUNE écriture DB.
-PR C ajoutera l'UPDATE venue + external_ref derrière --apply.
+Ce script découvre les clubs Playtomic sur une grille FR, les apparie à nos
+venues padel (géo < seuil + Jaro-Winkler nom), et écrit un RAPPORT de
+correspondances (JSON) à spot-checker.
+
+Deux modes :
+  - DRY-RUN (défaut, PR B) : aucune écriture DB. Sert à valider le matching.
+  - --apply (PR C) : pour chaque club matché, upsert idempotent dans
+    `external_ref` (clé source='playtomic', external_id=tenant_id) + PATCH du
+    venue (booking_url / courts_indoor / courts_outdoor). Les colonnes/table
+    proviennent de la migration 0048 (#345 PR A) — qui doit être pushée en prod
+    AVANT le premier --apply, sinon PostgREST renvoie 42703/404.
 
 Usage :
     python3 scripts/scrape_playtomic_padel_fr.py --self-test
     python3 scripts/scrape_playtomic_padel_fr.py --limit 30 --out /tmp/padel.json
-    python3 scripts/scrape_playtomic_padel_fr.py            # grille FR complète
+    python3 scripts/scrape_playtomic_padel_fr.py            # grille FR, dry-run
+    python3 scripts/scrape_playtomic_padel_fr.py --apply    # écrit en DB
 
 Stdlib only (urllib, json, math) — comme osm/overture_import.
 """
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import math
 import os
@@ -249,7 +258,102 @@ def best_match(club: dict, venues: list[dict]) -> dict | None:
     return best
 
 
-# ── Pipeline dry-run ───────────────────────────────────────────────────────────
+# ── Apply : construction des écritures (pur, testable) ─────────────────────────
+def build_external_ref_rows(report: list[dict], now_iso: str) -> list[dict]:
+    """Lignes `external_ref` pour les clubs matchés (upsert sur (source,
+    external_id)). Garde le payload brut utile + la fraîcheur (last_seen_at)."""
+    rows: list[dict] = []
+    for r in report:
+        m = r.get("match")
+        if not m or not r.get("playtomic_id"):
+            continue
+        rows.append({
+            "venue_id": m["venue_id"],
+            "source": "playtomic",
+            "external_id": r["playtomic_id"],
+            "payload_json": {
+                "playtomic_name": r.get("playtomic_name"),
+                "courts_indoor": r.get("courts_indoor"),
+                "courts_outdoor": r.get("courts_outdoor"),
+                "booking_url": r.get("booking_url"),
+                "website_url": r.get("website_url"),
+                "match_distance_m": m.get("distance_m"),
+                "match_score": m.get("score"),
+            },
+            "last_seen_at": now_iso,
+        })
+    return rows
+
+
+def build_venue_patches(report: list[dict]) -> list[tuple[str, dict]]:
+    """(venue_id, patch) d'enrichissement par venue matché. Si plusieurs clubs
+    Playtomic visent le même venue, on garde le meilleur score (un venue = un
+    club résa). `courts_*` = 0 est une info valide → écrite ; booking_url
+    seulement si non vide."""
+    best_by_venue: dict[str, tuple[dict, float]] = {}
+    for r in report:
+        m = r.get("match")
+        if not m:
+            continue
+        vid = m["venue_id"]
+        score = m.get("score") or 0.0
+        prev = best_by_venue.get(vid)
+        if prev is None or score > prev[1]:
+            best_by_venue[vid] = (r, score)
+    patches: list[tuple[str, dict]] = []
+    for vid, (r, _score) in best_by_venue.items():
+        patch: dict[str, Any] = {}
+        if r.get("booking_url"):
+            patch["booking_url"] = r["booking_url"]
+        if r.get("courts_indoor") is not None:
+            patch["courts_indoor"] = r["courts_indoor"]
+        if r.get("courts_outdoor") is not None:
+            patch["courts_outdoor"] = r["courts_outdoor"]
+        if patch:
+            patches.append((vid, patch))
+    return patches
+
+
+def _chunks(seq: list, n: int):
+    for i in range(0, len(seq), n):
+        yield seq[i : i + n]
+
+
+def _write(url: str, key: str, path: str, body: Any, method: str, prefer: str) -> None:
+    req = urllib.request.Request(
+        f"{url}/rest/v1/{path}",
+        data=json.dumps(body).encode(),
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Prefer": prefer,
+        },
+        method=method,
+    )
+    with urllib.request.urlopen(req, timeout=60):
+        pass  # 204 No Content attendu (Prefer: return=minimal)
+
+
+def apply_enrichment(url: str, key: str, report: list[dict], now_iso: str) -> tuple[int, int]:
+    """Écrit les enrichissements en DB. Retourne (refs_upsertés, venues_patchés).
+    Idempotent : ré-exécutable sans doublon (upsert external_ref + PATCH venue)."""
+    refs = build_external_ref_rows(report, now_iso)
+    patches = build_venue_patches(report)
+    for chunk in _chunks(refs, 100):
+        _write(
+            url, key, "external_ref?on_conflict=source,external_id", chunk,
+            method="POST", prefer="return=minimal,resolution=merge-duplicates",
+        )
+    for vid, patch in patches:
+        _write(
+            url, key, f"venue?id=eq.{urllib.parse.quote(str(vid))}", patch,
+            method="PATCH", prefer="return=minimal",
+        )
+    return len(refs), len(patches)
+
+
+# ── Pipeline ───────────────────────────────────────────────────────────────────
 def run(args: argparse.Namespace) -> int:
     url, key = load_env()
     print("▶ chargement des venues padel FR…")
@@ -294,9 +398,17 @@ def run(args: argparse.Namespace) -> int:
 
     out = Path(args.out)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2))
-    print(f"\n✅ DRY-RUN — aucune écriture DB.")
-    print(f"   clubs Playtomic: {len(report)} · matchés à un venue: {matched} "
-          f"({100*matched//max(1,len(report))}%)")
+    pct = 100 * matched // max(1, len(report))
+
+    if args.apply:
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        n_refs, n_venues = apply_enrichment(url, key, report, now_iso)
+        print(f"\n✅ APPLY — écriture DB effectuée.")
+        print(f"   clubs Playtomic: {len(report)} · matchés: {matched} ({pct}%)")
+        print(f"   external_ref upsertés: {n_refs} · venues enrichis: {n_venues}")
+    else:
+        print(f"\n✅ DRY-RUN — aucune écriture DB.")
+        print(f"   clubs Playtomic: {len(report)} · matchés à un venue: {matched} ({pct}%)")
     print(f"   rapport: {out}")
     return 0
 
@@ -327,6 +439,43 @@ def self_test() -> int:
     ]
     m = best_match(club, venues)
     assert m and m["venue_id"] == "a", m
+
+    # ── Apply (PR C) : build des écritures, pur et idempotent ──────────────────
+    report = [
+        {"playtomic_id": "t1", "playtomic_name": "Padel Club Lyon",
+         "courts_indoor": 2, "courts_outdoor": 3, "booking_url": "https://playtomic.io/t1",
+         "website_url": "https://lyon.example", "match": {"venue_id": "v1", "distance_m": 12.0, "score": 0.97}},
+        {"playtomic_id": "t2", "playtomic_name": "Sans Match",
+         "courts_indoor": 0, "courts_outdoor": 1, "booking_url": None,
+         "website_url": None, "match": None},
+        # Doublon : 2 clubs visent v3 → seul le meilleur score patche le venue.
+        {"playtomic_id": "t3", "playtomic_name": "A", "courts_indoor": 1, "courts_outdoor": 0,
+         "booking_url": "https://playtomic.io/t3", "website_url": None,
+         "match": {"venue_id": "v3", "distance_m": 50.0, "score": 0.88}},
+        {"playtomic_id": "t4", "playtomic_name": "B", "courts_indoor": 4, "courts_outdoor": 0,
+         "booking_url": "https://playtomic.io/t4", "website_url": None,
+         "match": {"venue_id": "v3", "distance_m": 20.0, "score": 0.95}},
+    ]
+    refs = build_external_ref_rows(report, "2026-06-08T00:00:00+00:00")
+    # 3 clubs matchés (t1, t3, t4) → 3 lignes external_ref ; t2 (no match) exclu.
+    assert len(refs) == 3, refs
+    assert {r["external_id"] for r in refs} == {"t1", "t3", "t4"}, refs
+    assert all(r["source"] == "playtomic" and r["last_seen_at"] for r in refs)
+    assert refs[0]["payload_json"]["match_score"] == 0.97
+
+    patches = build_venue_patches(report)
+    by_vid = dict(patches)
+    # v1 enrichi ; v3 dédupé → patché par t4 (score 0.95 > 0.88), pas t3.
+    assert set(by_vid) == {"v1", "v3"}, by_vid
+    assert by_vid["v1"] == {"booking_url": "https://playtomic.io/t1",
+                            "courts_indoor": 2, "courts_outdoor": 3}, by_vid["v1"]
+    assert by_vid["v3"]["courts_indoor"] == 4, by_vid["v3"]  # t4 a gagné
+    # courts_* = 0 reste écrit (info valide, pas un None).
+    rep0 = [{"playtomic_id": "z", "courts_indoor": 0, "courts_outdoor": 0,
+             "booking_url": None, "match": {"venue_id": "vz", "score": 0.9}}]
+    p0 = dict(build_venue_patches(rep0))
+    assert p0["vz"] == {"courts_indoor": 0, "courts_outdoor": 0}, p0
+
     print("✓ scrape_playtomic_padel_fr self-test OK")
     return 0
 
@@ -335,6 +484,8 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Enrichissement padel FR via Playtomic (#345)")
     p.add_argument("--limit", type=int, default=None, help="Cap clubs (dry-run/test)")
     p.add_argument("--out", default="/tmp/padel_playtomic_report.json")
+    p.add_argument("--apply", action="store_true",
+                   help="Écrit en DB (external_ref + venue). Sinon dry-run.")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args(argv)
     if args.self_test:
