@@ -53,12 +53,19 @@ Le rendu carte passe de "GeoJSON + Supercluster client" à des **tuiles vectorie
 ### 1.B — Posséder l'ingestion (ETL V2-natif)
 Couper le cordon avec le SQLite V1.
 
-- Pipeline V2 qui lit **OSM (Overpass/planet) + Overture** directement
-- Upsert idempotent par `external_id` dans Postgres (pattern déjà en place côté cron)
-- Orchestration : Vercel cron (léger) ou worker dédié (gros imports)
-- `source` + `external_id` comme clés de traçabilité (déjà au schéma)
+- [x] Pipeline V2 qui lit **OSM (Overpass/planet) + Overture** directement (`scripts/etl/{osm,overture}_import.py`, #301)
+- [x] Upsert idempotent par `external_id` dans Postgres (`scripts/etl_upsert.py`, contrainte `(source, external_id)` migration 0043)
+- [x] **Orchestration** : refresh hebdomadaire autonome `.github/workflows/data-refresh.yml`
+  (#227 slice 2) — dimanche 02:00 UTC, OSM puis Overture, FR+ES+DE+IT+GB, toutes
+  familles, écriture réelle. Régen tuiles à 04:00 (`regenerate-tiles.yml`) derrière.
+  Run manuel ciblé : `gh workflow run data-refresh.yml -f country=FR -f apply=true`
+  (dispatch = dry-run par défaut). `osm-import.yml`/`overture-import.yml` restent
+  pour les runs mono-pays/mono-famille.
+- [x] `source` + `external_id` comme clés de traçabilité (déjà au schéma) + table `import_run`
 
-**Sortie** : fraîcheur des données maîtrisée, ré-import sans downtime, plus de dépendance V1.
+**Sortie** : fraîcheur des données maîtrisée (refresh hebdo), ré-import idempotent
+sans downtime (upsert-in-place + soft-delete scopé), plus de dépendance V1.
+*Reste ouvert* : worker dédié gros imports (monde, hors limites Actions), extension périmètre mondial.
 
 ### 1.C — Clustering correct
 - Remplacer `ST_SnapToGrid` (degrés, artefacts haute latitude) par **H3** si l'extension devient dispo, sinon grille **équi-surface** (projection web-mercator avant snap)

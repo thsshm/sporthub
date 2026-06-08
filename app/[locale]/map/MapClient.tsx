@@ -264,9 +264,16 @@ export default function MapClient({
   // isolés). Plus besoin de restreindre aux familles compatibles — rien ne
   // disparaît, le tri pois↔clubs se fait via `club_id` côté rendu (#311).
   const isClubMode = useMemo(() => {
-    if (presetVenues || useTiles) return false;
+    // selectedSport (page /sports/[sport]) : on désactive le mode club. La RPC
+    // clubs (/api/venues/clubs) ne filtre QUE par `families`, jamais par sport →
+    // en mode club la carte affichait des pins de clubs tous-sports par-dessus
+    // les pois padel filtrés (« la liste est padel mais la carte non », #455).
+    // Sans club mode, on rend tous les pois sport-filtrés (clubbed inclus, cf.
+    // le filtre `club_id == null` ligne ~600 qui ne s'applique qu'en club mode).
+    // Même garde que useTiles (#438) / presetVenues.
+    if (presetVenues || useTiles || selectedSport) return false;
     return zoom >= CLUB_ZOOM_MIN && zoom <= CLUB_ZOOM_MAX;
-  }, [zoom, presetVenues, useTiles]);
+  }, [zoom, presetVenues, useTiles, selectedSport]);
 
   useEffect(() => {
     setFavorites(loadFavorites());

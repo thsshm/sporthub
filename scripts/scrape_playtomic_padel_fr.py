@@ -48,9 +48,18 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 API = "https://api.playtomic.io/v1/tenants"
 UA = "SportHub/1.0 (+https://sporthubmap.com; padel enrichment)"
 
-# Seuils de matching (#345 D4 — ajustables après revue du rapport).
-GEO_THRESHOLD_M = 100.0
-NAME_THRESHOLD = 0.85
+# Matching à 2 paliers (#345 — calibré sur le dry-run run #27139515137, où le
+# seuil unique 100 m / JW 0.85 ne matchait que 4 % et laissait 1 faux positif) :
+#   - nom FORT (JW ≥ NAME_STRONG) : tolère un écart géo jusqu'à GEO_FAR_M — les
+#     coords OSM/Overture vs Playtomic divergent souvent de 100-250 m pour le
+#     même club (géocodages différents).
+#   - nom FAIBLE (JW ≥ NAME_WEAK)  : exige la proximité (≤ GEO_NEAR_M) — garde-fou
+#     contre les noms génériques ("Tennis Club …") qui gonflent le JW.
+# Ajustables après revue du rapport de dry-run.
+GEO_NEAR_M = 120.0
+GEO_FAR_M = 300.0
+NAME_STRONG = 0.92
+NAME_WEAK = 0.88
 
 # Grille de découverte couvrant la France métropolitaine (bbox), pas ~0.5°
 # (~55 km) avec un rayon de recherche de 40 km → recouvrement. Le dédup par
@@ -169,6 +178,15 @@ def search_tenants(lat: float, lon: float, radius: int, size: int = 100) -> list
         return []
 
 
+def is_fr_club(t: dict) -> bool:
+    """Vrai si le club Playtomic est en France (address.country_code == 'FR').
+    La recherche par rayon (40 km) déborde des frontières → Playtomic renvoie
+    des clubs ES/BE/DE/IT/CH près des bords de la bbox. On ne garde que la FR
+    (sinon on enrichirait nos venues avec des clubs étrangers, et un --limit
+    se remplit de clubs espagnols dans le coin SO avant d'atteindre la France)."""
+    return ((t.get("address") or {}).get("country_code") or "").upper() == "FR"
+
+
 def tenant_detail(tenant_id: str) -> dict | None:
     try:
         return _get(f"{API}/{urllib.parse.quote(tenant_id)}")
@@ -210,36 +228,66 @@ def load_env() -> tuple[str, str]:
     return url, key
 
 
+def _rest_get(url: str, key: str, path: str) -> list[dict]:
+    req = urllib.request.Request(
+        f"{url}/rest/v1/{path}",
+        headers={"apikey": key, "Authorization": f"Bearer {key}"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read())
+    return data if isinstance(data, list) else []
+
+
 def load_padel_venues_fr(url: str, key: str) -> list[dict]:
-    """Charge les venues padel FR (id, name, lat, lon) via PostgREST (keyset)."""
-    venues: list[dict] = []
+    """Charge les venues padel FR (id, name, lat, lon) via PostgREST, en DEUX
+    requêtes simples et indexées (évite le scan de `venue` 267k+ qui timeout en
+    500, cf. run #27138981141) :
+
+      1. venue_ids padel via `venue_sport` filtré sur sport_slug='padel'
+         (index sélectif), en keyset sur venue_id.
+      2. détails venue par lots d'ids (PK index) + filtres résiduels FR/publié.
+
+    Pas de jointure latérale `venue!inner` → coût borné par le nombre de venues
+    padel, pas par la taille de `venue`.
+    """
+    # 1) tous les venue_id padel (monde), keyset sur venue_id.
+    vids: list[str] = []
     last = ""
     while True:
-        path = (
-            f"venue?select=id,name,lat,lon,venue_sport!inner(sport_slug)"
-            f"&venue_sport.sport_slug=eq.padel&country_code=eq.FR"
-            f"&is_published=eq.true&deleted_at=is.null"
-            f"&order=id.asc&limit=1000"
-        )
+        path = "venue_sport?select=venue_id&sport_slug=eq.padel&order=venue_id.asc&limit=2000"
         if last:
-            path += f"&id=gt.{last}"
-        req = urllib.request.Request(
-            f"{url}/rest/v1/{path}",
-            headers={"apikey": key, "Authorization": f"Bearer {key}"},
-        )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            rows = json.loads(resp.read())
+            path += f"&venue_id=gt.{last}"
+        rows = _rest_get(url, key, path)
         if not rows:
             break
-        venues.extend(rows)
-        last = rows[-1]["id"]
-        if len(rows) < 1000:
+        vids.extend(r["venue_id"] for r in rows)
+        last = rows[-1]["venue_id"]
+        if len(rows) < 2000:
             break
+
+    # 2) détails par lots d'ids ; filtres FR/publié appliqués côté serveur.
+    venues: list[dict] = []
+    for chunk in _chunks(vids, 200):
+        ids = ",".join(urllib.parse.quote(str(i)) for i in chunk)
+        path = (
+            f"venue?select=id,name,lat,lon&id=in.({ids})"
+            f"&country_code=eq.FR&is_published=eq.true&deleted_at=is.null"
+        )
+        venues.extend(_rest_get(url, key, path))
     return venues
 
 
+def is_match(score: float, dist_m: float) -> bool:
+    """Règle d'acceptation à 2 paliers (pure, testée)."""
+    return (
+        (score >= NAME_STRONG and dist_m <= GEO_FAR_M)
+        or (score >= NAME_WEAK and dist_m <= GEO_NEAR_M)
+    )
+
+
 def best_match(club: dict, venues: list[dict]) -> dict | None:
-    """Meilleur venue pour un club Playtomic : géo < seuil ET Jaro-Winkler max."""
+    """Meilleur venue pour un club Playtomic selon la règle is_match. Priorité
+    au meilleur Jaro-Winkler, puis à la plus petite distance."""
     addr = club.get("address") or {}
     coord = addr.get("coordinate") or {}
     clat, clon = coord.get("lat"), coord.get("lon")
@@ -249,10 +297,13 @@ def best_match(club: dict, venues: list[dict]) -> dict | None:
     best = None
     for v in venues:
         d = haversine_m(clat, clon, v["lat"], v["lon"])
-        if d > GEO_THRESHOLD_M:
+        if d > GEO_FAR_M:
             continue
         score = jaro_winkler(cname, v.get("name") or "")
-        if score >= NAME_THRESHOLD and (best is None or score > best["score"]):
+        if not is_match(score, d):
+            continue
+        if (best is None or score > best["score"]
+                or (score == best["score"] and d < best["distance_m"])):
             best = {"venue_id": v["id"], "venue_name": v.get("name"),
                     "distance_m": round(d, 1), "score": round(score, 3)}
     return best
@@ -365,7 +416,7 @@ def run(args: argparse.Namespace) -> int:
     for i, (lat, lon) in enumerate(fr_grid()):
         for t in search_tenants(lat, lon, SEARCH_RADIUS_M):
             tid = t.get("tenant_id")
-            if tid and tid not in seen:
+            if tid and tid not in seen and is_fr_club(t):
                 seen[tid] = t
         if args.limit and len(seen) >= args.limit:
             break
@@ -439,6 +490,19 @@ def self_test() -> int:
     ]
     m = best_match(club, venues)
     assert m and m["venue_id"] == "a", m
+
+    # is_match : 2 paliers. Nom fort tolère l'écart géo ; nom faible exige la
+    # proximité ; le faux positif observé (JW 0.856 @ 82 m) est rejeté.
+    assert is_match(0.95, 250.0) is True      # nom fort, géo moyen → OK
+    assert is_match(0.95, 320.0) is False     # nom fort mais trop loin
+    assert is_match(0.89, 110.0) is True      # nom faible mais proche → OK
+    assert is_match(0.89, 200.0) is False     # nom faible + écart → rejeté
+    assert is_match(0.856, 82.0) is False     # faux positif "Tennis …" rejeté
+
+    # is_fr_club : ne garde que la France (clubs frontaliers exclus).
+    assert is_fr_club({"address": {"country_code": "FR"}}) is True
+    assert is_fr_club({"address": {"country_code": "es"}}) is False  # casse + ES
+    assert is_fr_club({}) is False  # pas d'adresse → exclu
 
     # ── Apply (PR C) : build des écritures, pur et idempotent ──────────────────
     report = [
