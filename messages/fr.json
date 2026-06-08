@@ -187,6 +187,12 @@
     "addPlaceCta": "Ajoutez-le en 1 minute",
     "reportError": "Signaler une erreur",
     "addVenueCta": "Ajouter un lieu",
+    "quality": {
+      "verified": "Vérifié",
+      "verifiedHint": "Fiche revendiquée et vérifiée par un responsable du lieu.",
+      "complete": "Fiche complète",
+      "completeHint": "Fiche riche en informations : adresse, contact, description…"
+    },
     "reportErrorSubject": "Signalement — {name}",
     "reportErrorBody": "Page : {url}\n\nMerci de décrire l'erreur (lieu fermé, mauvaise adresse, doublon, mauvais sport…) :\n",
     "openingHours": "Horaires d'ouverture",

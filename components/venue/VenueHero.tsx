@@ -13,6 +13,7 @@ import { getTranslations } from "next-intl/server";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenueDetail } from "@/lib/supabase/types";
 import { wikimediaThumb } from "@/lib/venue/wikimedia";
+import { venueQualityBadge } from "@/lib/venue/quality-score";
 
 type Props = {
   venue: VenueDetail;
@@ -23,6 +24,8 @@ type Props = {
 
 export async function VenueHero({ venue, cityName, locale }: Props) {
   const tFamilies = await getTranslations("families");
+  const t = await getTranslations("venue");
+  const qualityBadge = venueQualityBadge(venue);
   const family = FAMILIES_BY_SLUG[venue.family_slug];
   const emoji = family?.emoji ?? "🏟️";
   const color = family?.color ?? "#6b7280";
@@ -84,8 +87,25 @@ export async function VenueHero({ venue, cityName, locale }: Props) {
         )}
       </nav>
 
-      {/* Titre + description */}
-      <h1 className="mt-2 text-3xl font-bold tracking-tight">{venue.name}</h1>
+      {/* Titre + badge qualité (#467) */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <h1 className="text-3xl font-bold tracking-tight">{venue.name}</h1>
+        {qualityBadge && (
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+              qualityBadge === "verified"
+                ? "border-emerald-600/30 text-emerald-700 dark:text-emerald-400"
+                : "border-sky-600/30 text-sky-700 dark:text-sky-400"
+            }`}
+            title={t(`quality.${qualityBadge}Hint`)}
+          >
+            <span aria-hidden="true">
+              {qualityBadge === "verified" ? "✓" : "★"}
+            </span>
+            {t(`quality.${qualityBadge}`)}
+          </span>
+        )}
+      </div>
       {venue.description && (
         <p className="mt-3 text-muted-foreground">{venue.description}</p>
       )}

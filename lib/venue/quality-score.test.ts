@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   venueQualityScore,
   isLowQualityVenue,
+  venueQualityBadge,
   LOW_QUALITY_THRESHOLD,
+  HIGH_QUALITY_THRESHOLD,
   type ScorableVenue,
 } from "./quality-score";
 
@@ -99,5 +101,39 @@ describe("isLowQualityVenue", () => {
 
   it("est cohérent avec le seuil exporté", () => {
     expect(LOW_QUALITY_THRESHOLD).toBe(25);
+  });
+});
+
+describe("venueQualityBadge", () => {
+  const rich: ScorableVenue = {
+    address: "1 rue X",
+    city_name: "Lyon",
+    website_url: "https://club.example",
+    phone: "0102030405",
+    description: "Club de tennis avec 6 courts.",
+  };
+
+  it("verified quand la fiche est revendiquée et vérifiée", () => {
+    expect(venueQualityBadge({ claim_status: "verified" })).toBe("verified");
+  });
+
+  it("verified l'emporte même avec un score faible", () => {
+    expect(
+      venueQualityBadge({ claim_status: "verified", address: "1 rue X" }),
+    ).toBe("verified");
+  });
+
+  it("complete quand le score atteint le seuil haut", () => {
+    expect(venueQualityScore(rich)).toBeGreaterThanOrEqual(HIGH_QUALITY_THRESHOLD);
+    expect(venueQualityBadge(rich)).toBe("complete");
+  });
+
+  it("null pour une fiche pauvre (pas de badge négatif)", () => {
+    expect(venueQualityBadge({ address: "1 rue X" })).toBe(null);
+    expect(venueQualityBadge(empty)).toBe(null);
+  });
+
+  it("seuil haut exporté = 60", () => {
+    expect(HIGH_QUALITY_THRESHOLD).toBe(60);
   });
 });

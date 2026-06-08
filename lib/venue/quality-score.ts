@@ -85,3 +85,25 @@ export function venueQualityScore(venue: ScorableVenue): number {
 export function isLowQualityVenue(venue: ScorableVenue): boolean {
   return venueQualityScore(venue) < LOW_QUALITY_THRESHOLD;
 }
+
+/**
+ * Seuil de « fiche complète » : à partir de ce score, la fiche est assez riche
+ * pour porter un badge qualité positif. 60 = typiquement adresse + ville + au
+ * moins deux signaux de contact/contenu (ex. site + téléphone + description).
+ */
+export const HIGH_QUALITY_THRESHOLD = 60;
+
+/** Badge qualité positif à afficher sur la fiche, ou null si aucun. */
+export type VenueQualityBadge = "verified" | "complete" | null;
+
+/**
+ * Badge qualité POSITIF d'une venue (on n'affiche jamais de badge « négatif ») :
+ *  - "verified" : fiche revendiquée et vérifiée par un responsable du lieu ;
+ *  - "complete" : score de complétude ≥ HIGH_QUALITY_THRESHOLD ;
+ *  - null       : rien à afficher (on ne stigmatise pas les fiches pauvres).
+ */
+export function venueQualityBadge(venue: ScorableVenue): VenueQualityBadge {
+  if (venue.claim_status === "verified") return "verified";
+  if (venueQualityScore(venue) >= HIGH_QUALITY_THRESHOLD) return "complete";
+  return null;
+}
