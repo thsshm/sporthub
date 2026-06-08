@@ -324,6 +324,23 @@
     "clubCourts": "{count} courts",
     "clubCourtsLoading": "Chargement des courts…"
   },
+  "contribute": {
+    "metaTitle": "Contribuer — ajouter un lieu ou signaler une erreur | Sport Hub",
+    "metaDescription": "Ajoutez un spot manquant ou signalez une information erronée. La carte s'améliore grâce à vous.",
+    "title": "Contribuer",
+    "intro": "Sport Hub s'appuie sur des données ouvertes et sur vous. Il manque un lieu ? Une info est fausse ? Dites-le-nous, ça prend une minute.",
+    "addHeading": "Ajouter un lieu",
+    "addBody": "Un terrain, une salle ou un spot manque à l'appel ? Envoyez-nous son nom, sa ville et le sport pratiqué — on l'ajoute.",
+    "addCta": "Ajouter un lieu",
+    "addMailSubject": "Ajouter un lieu sur Sport Hub",
+    "addMailBody": "Nom du lieu :\nVille / adresse :\nSport(s) pratiqué(s) :\nSite web ou téléphone (facultatif) :\nAutres infos utiles :",
+    "reportHeading": "Signaler une erreur",
+    "reportBody": "Une adresse fausse, un sport qui ne correspond pas, un doublon ? Indiquez le lieu concerné et ce qui cloche.",
+    "reportCta": "Signaler une erreur",
+    "reportMailSubject": "Signaler une erreur sur Sport Hub",
+    "reportMailBody": "Lieu concerné (nom + ville, ou lien de la page) :\nCe qui est incorrect :\nLa bonne information :",
+    "note": "Vos retours sont traités manuellement pour le moment. Un formulaire intégré arrivera bientôt."
+  },
   "footer": {
     "about": "Sport Hub",
     "aboutText": "Une seule carte pour tous tes sports. Données ouvertes, sans pub, sans inscription.",
@@ -331,6 +348,7 @@
     "dataLicense": "Données & licence",
     "legal": "Mentions légales",
     "source": "Code source (GitHub)",
+    "contribute": "Contribuer",
     "copyright": "© {year} Sport Hub — Licence MIT — Données sous licences respectives des sources"
   },
   "legal": {

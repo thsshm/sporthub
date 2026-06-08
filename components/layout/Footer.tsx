@@ -35,6 +35,11 @@ export function Footer() {
                   </Link>
                 </li>
               ))}
+              <li>
+                <Link href="/contribute" className="hover:text-foreground">
+                  {t("contribute")}
+                </Link>
+              </li>
             </ul>
           </div>
 
