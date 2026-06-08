@@ -16,6 +16,7 @@ Module PUR (aucune I/O) → testable via `--self-test`.
 
 from __future__ import annotations
 
+import re
 import unicodedata
 
 
@@ -56,11 +57,20 @@ _NAME_SIGNALS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Frontières de MOT (sur la chaîne normalisée, déjà en minuscules ASCII) — PAS
+# de simple sous-chaîne, sinon faux positifs : « golf » ⊂ « montgolfière »,
+# « peche » ⊂ « pêchers » (lieu-dit), etc. (#463 — vérifié en prod).
+_SIGNAL_PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    sport: [re.compile(r"(?<![a-z])" + re.escape(t) + r"(?![a-z])") for t in terms]
+    for sport, terms in _NAME_SIGNALS.items()
+}
+
+
 def _signaled_sports(name_norm: str) -> set[str]:
-    """Sports dont au moins un terme-signal apparaît dans le nom normalisé."""
+    """Sports dont au moins un terme-signal apparaît comme MOT dans le nom normalisé."""
     out: set[str] = set()
-    for sport, terms in _NAME_SIGNALS.items():
-        if any(t in name_norm for t in terms):
+    for sport, pats in _SIGNAL_PATTERNS.items():
+        if any(p.search(name_norm) for p in pats):
             out.add(sport)
     return out
 
@@ -111,6 +121,10 @@ def self_test() -> int:
         ("Salle omnisport", "padel"),  # aucun signal → garde
         ("Dojo du Centre", "judo"),  # sport non surveillé → garde
         ("Tennis de Table Annecy", "table_tennis"),  # signale assigné → garde
+        # #463 — frontières de mot : ne PAS matcher ces sous-chaînes innocentes :
+        ("Jardin de la Montgolfière", "padel"),  # 'golf' ⊂ montgolfière → garde
+        ("Complexe sportif des Grands Pêchers", "tennis"),  # 'peche' ⊂ pêchers → garde
+        ("Salle Decathlon", "padel"),  # 'cathlon'… aucun terme entier → garde
     ]
     drop = [
         ("Étang de pêche du Moulin", "padel"),  # pêche → padel : inter-familles
