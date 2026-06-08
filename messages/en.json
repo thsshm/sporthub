@@ -186,6 +186,12 @@
     "addPlaceCta": "Add it in 1 minute",
     "reportError": "Report an error",
     "addVenueCta": "Add a place",
+    "quality": {
+      "verified": "Verified",
+      "verifiedHint": "Listing claimed and verified by a venue manager.",
+      "complete": "Complete listing",
+      "completeHint": "Rich listing: address, contact, description…"
+    },
     "reportErrorSubject": "Report — {name}",
     "reportErrorBody": "Page: {url}\n\nPlease describe the error (closed venue, wrong address, duplicate, wrong sport…):\n",
     "openingHours": "Opening hours",

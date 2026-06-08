@@ -186,6 +186,12 @@
     "addPlaceCta": "1 分钟内添加",
     "reportError": "报告错误",
     "addVenueCta": "添加地点",
+    "quality": {
+      "verified": "已验证",
+      "verifiedHint": "由场馆负责人认领并验证的页面。",
+      "complete": "信息完整",
+      "completeHint": "信息丰富的页面:地址、联系方式、描述……"
+    },
     "reportErrorSubject": "错误报告 — {name}",
     "reportErrorBody": "页面：{url}\n\n请描述错误（场所已关闭、地址错误、重复、运动类型错误等）：\n",
     "openingHours": "营业时间",
