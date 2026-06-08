@@ -10,12 +10,12 @@ name: OSM import
 # Secrets requis (déjà configurés) :
 #   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 #
-# Déclenché manuellement (workflow_dispatch) ou en cron hebdomadaire
-# (dimanche 02:00 UTC, avant les autres crons data du lundi).
+# Outil de run CIBLÉ (manuel) : un pays / une famille à la fois, dry-run par
+# défaut. Le refresh hebdomadaire autonome (toutes familles, FR+ES+DE+IT+GB,
+# apply réel) est piloté par data-refresh.yml (#227 slice 2) — ce workflow n'a
+# donc plus de `schedule` propre (il tournait en no-op dry-run).
 
 on:
-  schedule:
-    - cron: "0 2 * * 0"   # dimanche 02:00 UTC (hebdomadaire)
   workflow_dispatch:
     inputs:
       family:

@@ -1,0 +1,144 @@
+name: Data refresh (ETL orchestration)
+
+# Orchestration autonome de l'ingestion V2-native (#227, slice 2).
+#
+# Pourquoi : avant ce workflow, osm-import.yml / overture-import.yml avaient un
+# `schedule` mais tournaient en --dry-run (inputs.apply vide → no-op) et ne
+# couvraient qu'une famille / un pays. Résultat : la fraîcheur des données
+# n'était pas réellement assurée. Ce workflow écrit RÉELLEMENT, chaque semaine,
+# sur FR + ES + DE + IT + GB, pour TOUTES les familles, OSM puis Overture.
+#
+# Stratégie :
+#   - 1 job par pays avec `--family all` (pas une matrice 115 jobs qui se ferait
+#     bannir par Overpass). run() boucle les familles en interne et fait une
+#     réconciliation soft-delete COMPLÈTE scopée au pays (osm_import.py, #426).
+#   - OSM d'abord, Overture ensuite (la dédup proximité protège les venues
+#     OSM/V1 existantes ; seuls les POI Overture nouveaux sont ajoutés).
+#   - Écriture réelle UNIQUEMENT sur le cron (schedule) ou si apply=true.
+#     Le dispatch manuel est dry-run par défaut (sécurité).
+#   - Les tuiles sont régénérées par regenerate-tiles.yml (04:00 UTC), après
+#     ce refresh (02:00 → ~04:00).
+#
+# Secrets requis (déjà configurés) : SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+
+on:
+  schedule:
+    - cron: "0 2 * * 0" # dimanche 02:00 UTC (avant la régen tuiles de 04:00)
+  workflow_dispatch:
+    inputs:
+      country:
+        description: "Pays ISO-2 ciblé (vide = FR+ES+DE+IT+GB)"
+        type: string
+        required: false
+        default: ""
+      apply:
+        description: "Écrire réellement en DB (sinon dry-run)"
+        type: boolean
+        required: false
+        default: false
+
+# Un seul refresh à la fois (jamais deux imports concurrents sur la même DB).
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  osm:
+    name: "OSM · ${{ matrix.country }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120 # Overpass + upsert par pays peut être long
+    strategy:
+      max-parallel: 1 # Overpass : une seule grosse requête à la fois (anti-ban)
+      fail-fast: false
+      matrix:
+        country: [FR, ES, DE, IT, GB]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: "osm_import.py --family all --country ${{ matrix.country }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          M_COUNTRY: ${{ matrix.country }}
+          IN_COUNTRY: ${{ inputs.country }}
+          IN_APPLY: ${{ inputs.apply }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # Dispatch ciblé sur un seul pays : les autres entrées de matrice no-op.
+          if [ -n "${IN_COUNTRY:-}" ] && [ "${IN_COUNTRY}" != "${M_COUNTRY}" ]; then
+            echo "↷ skip ${M_COUNTRY} (dispatch ciblé sur ${IN_COUNTRY})"
+            exit 0
+          fi
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
+            exit 1
+          fi
+          # Cron → toujours apply ; dispatch → apply seulement si demandé.
+          if [ "${EVENT}" = "schedule" ] || [ "${IN_APPLY:-false}" = "true" ]; then
+            APPLY=true
+          else
+            APPLY=false
+          fi
+          ARGS=(--family all --country "${M_COUNTRY}")
+          [ "${APPLY}" = "true" ] || ARGS+=(--dry-run)
+          echo "▶ osm_import.py ${ARGS[*]}  (apply=${APPLY})"
+          python3 scripts/etl/osm_import.py "${ARGS[@]}"
+          {
+            echo "### OSM · ${M_COUNTRY}"
+            echo "- Mode : $([ "${APPLY}" = "true" ] && echo 'APPLY (écriture réelle)' || echo 'DRY-RUN')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  overture:
+    name: "Overture · ${{ matrix.country }}"
+    needs: osm # Overture après OSM : la dédup proximité protège l'existant
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      max-parallel: 2 # DuckDB/S3 : pas de rate-limit, on peut paralléliser un peu
+      fail-fast: false
+      matrix:
+        country: [FR, ES, DE, IT, GB]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install DuckDB
+        run: pip install duckdb --quiet
+      - name: "overture_import.py --family all --country ${{ matrix.country }}"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          M_COUNTRY: ${{ matrix.country }}
+          IN_COUNTRY: ${{ inputs.country }}
+          IN_APPLY: ${{ inputs.apply }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ -n "${IN_COUNTRY:-}" ] && [ "${IN_COUNTRY}" != "${M_COUNTRY}" ]; then
+            echo "↷ skip ${M_COUNTRY} (dispatch ciblé sur ${IN_COUNTRY})"
+            exit 0
+          fi
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
+            exit 1
+          fi
+          if [ "${EVENT}" = "schedule" ] || [ "${IN_APPLY:-false}" = "true" ]; then
+            APPLY=true
+          else
+            APPLY=false
+          fi
+          ARGS=(--family all --country "${M_COUNTRY}")
+          [ "${APPLY}" = "true" ] || ARGS+=(--dry-run)
+          echo "▶ overture_import.py ${ARGS[*]}  (apply=${APPLY})"
+          python3 scripts/etl/overture_import.py "${ARGS[@]}"
+          {
+            echo "### Overture · ${M_COUNTRY}"
+            echo "- Mode : $([ "${APPLY}" = "true" ] && echo 'APPLY (écriture réelle)' || echo 'DRY-RUN')"
+          } >> "$GITHUB_STEP_SUMMARY"
