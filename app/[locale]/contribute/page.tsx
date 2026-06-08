@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
 
-// Boîte de contact communautaire (même alias que la page légale #472).
-const CONTACT_EMAIL = "contact@sporthubmap.com";
+// Adresse de contact unique du site (même que la FAQ, les fiches lieu et la
+// page légale) — voir #467. Une seule boîte à créer côté hébergeur.
+const CONTACT_EMAIL = "hello@sporthubmap.com";
 
 // Page quasi statique → revalidate long.
 export const revalidate = 86400;
