@@ -15,6 +15,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
 import { routing } from "@/i18n/routing";
 import { shardIdRange, type SitemapEntry } from "@/lib/seo/sitemap-render";
+import { isLowQualityVenue, type ScorableVenue } from "@/lib/venue/quality-score";
 
 export const SITE_URL = "https://sporthubmap.com";
 
@@ -68,7 +69,23 @@ export const TOTAL_SHARD_COUNT = VENUE_SHARD_COUNT + 2;
  */
 const DISCIPLINE_SPORTS = ["tennis", "padel", "table_tennis", "badminton", "squash"] as const;
 
-type VenueRow = { id: string; slug: string; updated_at: string | null };
+type VenueRow = {
+  id: string;
+  slug: string;
+  updated_at: string | null;
+  // Champs du score qualité (#464/#465) : permettent d'exclure du sitemap les
+  // fiches déjà passées en `noindex` par buildVenueMetadata (#490). Sans ça, le
+  // sitemap listait des URLs noindexées → signal contradictoire + crawl budget
+  // gâché sur ~371k fiches dont beaucoup de squelettes OSM/Overture.
+  address: string | null;
+  city_id: string | null;
+  website_url: string | null;
+  phone: string | null;
+  description: string | null;
+  primary_sport_slug: string | null;
+  claim_status: ScorableVenue["claim_status"];
+  enrichments: ScorableVenue["enrichments"];
+};
 type ComboRow = {
   primary_sport_slug: string | null;
   country_code: string | null;
@@ -191,7 +208,9 @@ export async function buildVenueShard(shardIndex: number): Promise<SitemapEntry[
   while (venues.length < URLS_PER_SHARD) {
     let q = sb
       .from("venue")
-      .select("id, slug, updated_at")
+      .select(
+        "id, slug, updated_at, address, city_id, website_url, phone, description, primary_sport_slug, claim_status, enrichments",
+      )
       .eq("is_published", true)
       .is("deleted_at", null)
       .order("id", { ascending: true })
@@ -209,13 +228,21 @@ export async function buildVenueShard(shardIndex: number): Promise<SitemapEntry[
     if (data.length < PAGE_SIZE) break;
   }
 
-  return venues.slice(0, URLS_PER_SHARD).map((v) =>
-    localized(`/venue/${v.slug}`, {
-      lastmod: v.updated_at ?? now,
-      changefreq: "weekly",
-      priority: 0.8,
-    })
-  );
+  // Exclut les fiches trop pauvres (noindex côté page, #490) : on ne met dans
+  // le sitemap QUE des URLs indexables. Filtre via la même fonction pure que le
+  // gate noindex → cohérence garantie (une fiche noindexée n'est jamais listée).
+  // Recalcul à la volée (0 migration) ; la carte reste exhaustive (elle ne passe
+  // pas par le sitemap). Cf. #464/#465.
+  return venues
+    .filter((v) => !isLowQualityVenue(v))
+    .slice(0, URLS_PER_SHARD)
+    .map((v) =>
+      localized(`/venue/${v.slug}`, {
+        lastmod: v.updated_at ?? now,
+        changefreq: "weekly",
+        priority: 0.8,
+      })
+    );
 }
 
 type ClubRow = { id: string; slug: string; updated_at: string | null };
