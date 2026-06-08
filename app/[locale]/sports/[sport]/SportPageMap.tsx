@@ -72,11 +72,15 @@ export function SportPageMap({
 
   useEffect(() => {
     let cancelled = false;
-    // Filet : si /api/geo traîne (>800 ms), on ouvre sur la France plutôt que de
-    // bloquer l'affichage de la carte indéfiniment.
+    // Filet : si /api/geo traîne vraiment (réseau lent / edge à froid), on ouvre
+    // sur la France plutôt que de bloquer l'affichage indéfiniment. Délai large
+    // (2 s) car en pratique /api/geo répond en <300 ms ; on préfère attendre un
+    // peu pour atterrir sur la ville du visiteur plutôt que retomber sur une vue
+    // France large. En dev (headers absents) /api/geo renvoie {geo:null} vite →
+    // on bascule sur le fallback sans attendre ce timer.
     const timer = setTimeout(() => {
       if (!cancelled) setInitialView((v) => v ?? { ...FRANCE_FALLBACK });
-    }, 800);
+    }, 2000);
     (async () => {
       try {
         const res = await fetch("/api/geo");
