@@ -71,9 +71,9 @@ describe("SPORTS_BY_FAMILY", () => {
     ).toBe(true);
   });
 
-  it("couvre les 14 familles", () => {
+  it("couvre les 13 familles (escalade fusionnée dans hike #470)", () => {
     const families = Object.keys(SPORTS_BY_FAMILY);
-    expect(families.length).toBe(14);
+    expect(families.length).toBe(13);
   });
 });
 
