@@ -12,6 +12,7 @@ import { Search, Star } from "lucide-react";
 import type { VenuePin, ClubPin } from "@/lib/supabase/types";
 import type { FacetCounts } from "@/lib/facets";
 import { getFamilyColor, getFamilyEmoji, FAMILIES } from "@/lib/families";
+import { getSportEmoji } from "@/lib/sports";
 import ClubMarker from "@/components/map/ClubMarker";
 import VenueTilesLayer from "./VenueTilesLayer";
 import { publicEnv } from "@/lib/env";
@@ -932,9 +933,13 @@ export default function MapClient({
               );
             }
 
-            // Pin individuel
+            // Pin individuel — pastille colorée par famille portant l'emoji du
+            // sport (même icône que l'accueil / les pages sport). Fallback sur
+            // l'emoji de famille si le sport n'est pas curé (ex. spa, dance).
             const pf = feature as PointFeature<PointProps>;
             const v = pf.properties.venue;
+            const pinEmoji =
+              getSportEmoji(v.primary_sport_slug) ?? getFamilyEmoji(v.family_slug);
             return (
               <Marker
                 key={v.id}
@@ -950,13 +955,17 @@ export default function MapClient({
                   type="button"
                   aria-label={v.name}
                   title={v.name}
-                  className="block h-3 w-3 cursor-pointer rounded-full border-2 border-white shadow-md transition-all hover:scale-150"
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-2 border-white shadow-md transition-transform hover:scale-125"
                   style={{
                     backgroundColor: getFamilyColor(v.family_slug),
                     opacity: poiOpacity,
                     transition: `opacity ${FADE_TRANSITION_MS}ms ease-in, transform 150ms`,
                   }}
-                />
+                >
+                  <span aria-hidden="true" className="text-[12px] leading-none">
+                    {pinEmoji}
+                  </span>
+                </button>
               </Marker>
             );
           })}

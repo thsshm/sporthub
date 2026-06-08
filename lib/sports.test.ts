@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import {
+  getSportEmoji,
   MAIN_SPORT_SLUGS,
   SPORTS,
   SPORTS_BY_FAMILY,
@@ -88,5 +89,25 @@ describe("MAIN_SPORT_SLUGS", () => {
         `main sport ${slug} introuvable dans SPORTS`,
       ).toBeDefined();
     }
+  });
+});
+
+describe("getSportEmoji — emoji du pin carte", () => {
+  it("retourne l'emoji d'un sport curé", () => {
+    expect(getSportEmoji("padel")).toBe(SPORTS_BY_SLUG["padel"].emoji);
+    expect(getSportEmoji("tennis")).toBe(SPORTS_BY_SLUG["tennis"].emoji);
+  });
+
+  it("retourne un emoji non vide pour CHAQUE sport curé", () => {
+    for (const s of SPORTS) {
+      expect(getSportEmoji(s.slug), `emoji manquant pour ${s.slug}`).toBeTruthy();
+    }
+  });
+
+  it("retourne null pour un slug inconnu ou vide (→ fallback famille au call site)", () => {
+    expect(getSportEmoji("sport_inexistant_xyz")).toBeNull();
+    expect(getSportEmoji(null)).toBeNull();
+    expect(getSportEmoji(undefined)).toBeNull();
+    expect(getSportEmoji("")).toBeNull();
   });
 });
