@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/routing";
 import { getEmptyState } from "@/lib/empty-state";
 
 /**
@@ -50,9 +51,15 @@ export function EmptyStateOverlay({
     >
       <div className="pointer-events-auto max-w-sm rounded-lg border bg-background/95 px-5 py-4 text-center shadow-lg backdrop-blur">
         <p className="text-sm font-semibold text-foreground">{t(result.titleKey)}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t(result.descriptionKey)}
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{t(result.descriptionKey)}</p>
+        {/* CTA « ajouter un lieu » sur chaque état vide (#467) : quand la zone
+            est vide, on transforme la déception en contribution → /contribute. */}
+        <Link
+          href="/contribute"
+          className="mt-3 inline-block text-xs font-medium text-primary underline-offset-2 hover:underline"
+        >
+          {t("addCta")}
+        </Link>
       </div>
     </div>
   );

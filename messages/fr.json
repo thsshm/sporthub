@@ -181,6 +181,8 @@
     "notFoundTitle": "Venue introuvable",
     "courtsCount": "{count, plural, =0 {aucun terrain} one {1 terrain} other {{count} terrains}}",
     "infoCardTitle": "Informations pratiques",
+    "addPlacePrompt": "Un lieu manque sur la carte ?",
+    "addPlaceCta": "Ajoutez-le en 1 minute",
     "reportError": "Signaler une erreur",
     "reportErrorSubject": "Signalement — {name}",
     "reportErrorBody": "Page : {url}\n\nMerci de décrire l'erreur (lieu fermé, mauvaise adresse, doublon, mauvais sport…) :\n",
@@ -287,7 +289,8 @@
       "filtersEmptyTitle": "Aucun résultat avec ces filtres",
       "filtersEmptyDescription": "Essayez de retirer un filtre ou de déplacer la carte.",
       "genericTitle": "Aucun spot dans cette zone",
-      "genericDescription": "Déplacez la carte ou zoomez sur une autre région."
+      "genericDescription": "Déplacez la carte ou zoomez sur une autre région.",
+      "addCta": "Un lieu manque ici ? Ajoutez-le"
     },
     "viewMode": {
       "toggleLabel": "Mode d'affichage",

@@ -181,6 +181,8 @@
     "notFoundTitle": "场所未找到",
     "courtsCount": "{count, plural, =0 {无场地} other {{count} 个场地}}",
     "infoCardTitle": "实用信息",
+    "addPlacePrompt": "地图上缺少某个场所？",
+    "addPlaceCta": "1 分钟内添加",
     "reportError": "报告错误",
     "reportErrorSubject": "错误报告 — {name}",
     "reportErrorBody": "页面：{url}\n\n请描述错误（场所已关闭、地址错误、重复、运动类型错误等）：\n",
@@ -287,7 +289,8 @@
       "filtersEmptyTitle": "在这些筛选条件下没有结果",
       "filtersEmptyDescription": "请尝试移除一个筛选条件或移动地图。",
       "genericTitle": "此区域没有场所",
-      "genericDescription": "请移动地图或缩放到其他区域。"
+      "genericDescription": "请移动地图或缩放到其他区域。",
+      "addCta": "缺少某个场所？添加它"
     },
     "viewMode": {
       "toggleLabel": "显示模式",
