@@ -329,6 +329,23 @@
     "source": "Source code (GitHub)",
     "copyright": "© {year} Sport Hub — MIT license — Data under their respective source licenses"
   },
+  "legal": {
+    "title": "Legal notice",
+    "lastUpdated": "Last updated: June 2026",
+    "editorHeading": "Site publisher",
+    "editorBody": "The website sporthubmap.com (“SportHub”) is published by Gautier Marchand.",
+    "contactHeading": "Contact",
+    "contactBody": "For any question or to report an error, email us:",
+    "hostHeading": "Hosting",
+    "hostBody": "The site is hosted by Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, USA (vercel.com). The database is hosted by Supabase.",
+    "dataHeading": "Data & licenses",
+    "dataIntro": "Venue information comes from public databases, reused under their respective licenses:",
+    "dataOsm": "OpenStreetMap — © OpenStreetMap contributors, under the ODbL license.",
+    "dataWikidata": "Wikidata — data under the CC0 license.",
+    "dataOverture": "Overture Maps Foundation.",
+    "dataCarto": "Basemaps © CARTO.",
+    "disclaimer": "SportHub aggregates this data for informational purposes. Despite our efforts, errors or inaccuracies may remain; the data has no contractual value."
+  },
   "admin": {
     "login": {
       "loading": "Loading…",

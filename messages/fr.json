@@ -329,6 +329,23 @@
     "source": "Code source (GitHub)",
     "copyright": "© {year} Sport Hub — Licence MIT — Données sous licences respectives des sources"
   },
+  "legal": {
+    "title": "Mentions légales",
+    "lastUpdated": "Dernière mise à jour : juin 2026",
+    "editorHeading": "Éditeur du site",
+    "editorBody": "Le site sporthubmap.com (« SportHub ») est édité par Gautier Marchand.",
+    "contactHeading": "Contact",
+    "contactBody": "Pour toute question ou pour signaler une erreur, écrivez-nous :",
+    "hostHeading": "Hébergement",
+    "hostBody": "Le site est hébergé par Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis (vercel.com). La base de données est hébergée par Supabase.",
+    "dataHeading": "Données & licences",
+    "dataIntro": "Les informations sur les lieux proviennent de bases de données publiques, réutilisées selon leurs licences respectives :",
+    "dataOsm": "OpenStreetMap — © les contributeurs OpenStreetMap, sous licence ODbL.",
+    "dataWikidata": "Wikidata — données sous licence CC0.",
+    "dataOverture": "Overture Maps Foundation.",
+    "dataCarto": "Fonds cartographiques © CARTO.",
+    "disclaimer": "SportHub agrège ces données à titre informatif. Malgré nos efforts, des erreurs ou inexactitudes peuvent subsister ; les données n'ont aucune valeur contractuelle."
+  },
   "admin": {
     "login": {
       "loading": "Chargement…",
