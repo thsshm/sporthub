@@ -169,6 +169,15 @@ def search_tenants(lat: float, lon: float, radius: int, size: int = 100) -> list
         return []
 
 
+def is_fr_club(t: dict) -> bool:
+    """Vrai si le club Playtomic est en France (address.country_code == 'FR').
+    La recherche par rayon (40 km) déborde des frontières → Playtomic renvoie
+    des clubs ES/BE/DE/IT/CH près des bords de la bbox. On ne garde que la FR
+    (sinon on enrichirait nos venues avec des clubs étrangers, et un --limit
+    se remplit de clubs espagnols dans le coin SO avant d'atteindre la France)."""
+    return ((t.get("address") or {}).get("country_code") or "").upper() == "FR"
+
+
 def tenant_detail(tenant_id: str) -> dict | None:
     try:
         return _get(f"{API}/{urllib.parse.quote(tenant_id)}")
@@ -386,7 +395,7 @@ def run(args: argparse.Namespace) -> int:
     for i, (lat, lon) in enumerate(fr_grid()):
         for t in search_tenants(lat, lon, SEARCH_RADIUS_M):
             tid = t.get("tenant_id")
-            if tid and tid not in seen:
+            if tid and tid not in seen and is_fr_club(t):
                 seen[tid] = t
         if args.limit and len(seen) >= args.limit:
             break
@@ -460,6 +469,11 @@ def self_test() -> int:
     ]
     m = best_match(club, venues)
     assert m and m["venue_id"] == "a", m
+
+    # is_fr_club : ne garde que la France (clubs frontaliers exclus).
+    assert is_fr_club({"address": {"country_code": "FR"}}) is True
+    assert is_fr_club({"address": {"country_code": "es"}}) is False  # casse + ES
+    assert is_fr_club({}) is False  # pas d'adresse → exclu
 
     # ── Apply (PR C) : build des écritures, pur et idempotent ──────────────────
     report = [
