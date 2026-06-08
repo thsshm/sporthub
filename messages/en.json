@@ -167,6 +167,8 @@
     "addresses": "{count, plural, =0 {No address} one {1 address} other {{count} addresses}}",
     "emptyMessage": "No venue yet for {sport} in {city}.",
     "seeOtherCities": "See other cities",
+    "addVenuePrompt": "Know a spot here?",
+    "addVenueCta": "Add it.",
     "localIntro": "Sport Hub lists where to play {sport} in {city}. Spot venues on the map, compare opening hours and facilities, and find the closest one — no sign-up. Data comes from open sources (OpenStreetMap, official registries) and is continuously enriched.",
     "relatedTitle": "Related sports in {city}"
   },
@@ -184,6 +186,7 @@
     "addPlacePrompt": "A spot missing from the map?",
     "addPlaceCta": "Add it in 1 minute",
     "reportError": "Report an error",
+    "addVenueCta": "Add a place",
     "reportErrorSubject": "Report — {name}",
     "reportErrorBody": "Page: {url}\n\nPlease describe the error (closed venue, wrong address, duplicate, wrong sport…):\n",
     "openingHours": "Opening hours",
