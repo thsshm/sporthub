@@ -159,6 +159,7 @@
   },
   "programmatic": {
     "title": "{city}的{sport}俱乐部({count} 个地址)",
+    "titleNoCount": "{city}的{sport}：在哪里运动",
     "description": "{city} 的 {count} 个 {sport} 俱乐部和场地完整列表 — 地址、联系方式、开放时间。",
     "h1": "{city}的{sport}",
     "addresses": "{count, plural, =0 {无地址} other {{count} 个地址}}",

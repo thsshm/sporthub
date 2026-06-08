@@ -159,6 +159,7 @@
   },
   "programmatic": {
     "title": "Clubs de {sport} à {city} ({count} adresses)",
+    "titleNoCount": "{sport} à {city} : où pratiquer",
     "description": "Liste complète des {count} clubs et terrains de {sport} à {city} — adresses, contacts, horaires.",
     "h1": "{sport} à {city}",
     "addresses": "{count, plural, =0 {Aucune adresse} one {1 adresse} other {{count} adresses}}",

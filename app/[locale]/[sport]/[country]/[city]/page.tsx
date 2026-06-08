@@ -19,6 +19,9 @@ import {
 
 const PAGE_SIZE = 24;
 const SITE_URL = "https://sporthubmap.com";
+/** En-dessous de ce nombre de lieux, la page sport×ville est trop maigre →
+ * noindex (thin content, audit SEO #465). */
+const NOINDEX_MIN_VENUES = 5;
 
 type Params = { locale: string; sport: string; country: string; city: string };
 
@@ -127,12 +130,20 @@ export async function generateMetadata({
   const sportName = tSports.has(ctx.sport.slug)
     ? tSports(ctx.sport.slug)
     : ctx.sport.name_fr;
-  const title = t("title", { sport: sportName, city: ctx.city.name, count: ctx.total });
+  // Titre sans le compteur quand 0 résultat : évite « … (0 adresses) » indexé
+  // (audit SEO #465). Pour ≥ 1, on garde le compteur (chiffre réel utile).
+  const title =
+    ctx.total === 0
+      ? t("titleNoCount", { sport: sportName, city: ctx.city.name })
+      : t("title", { sport: sportName, city: ctx.city.name, count: ctx.total });
   const description = t("description", {
     sport: sportName.toLowerCase(),
     city: ctx.city.name,
     count: ctx.total,
   }).slice(0, 160);
+  // noindex des pages trop maigres (< seuil) : thin content non indexable
+  // (#465). follow:true → on laisse Google suivre les liens internes.
+  const lowQuality = ctx.total < NOINDEX_MIN_VENUES;
   const path = `/${sport}/${country}/${city}`;
   // hreflang : page programmatique sport×ville déclinée en FR/EN/ZH (#108).
   const hreflang = buildHreflangAlternates(path);
@@ -140,6 +151,7 @@ export async function generateMetadata({
   return {
     title,
     description,
+    ...(lowQuality ? { robots: { index: false, follow: true } } : {}),
     alternates: {
       canonical: hreflang.canonical,
       languages: hreflang.languages,
