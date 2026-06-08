@@ -154,6 +154,18 @@ def parse_padel_courts(resources: list[dict[str, Any]]) -> tuple[int, int]:
     return indoor, outdoor
 
 
+def playtomic_booking_url(detail: dict) -> str | None:
+    """Page de réservation publique Playtomic du club (pure, testable).
+
+    On N'UTILISE PAS `detail['url']` : pour beaucoup de clubs il pointe vers
+    l'API backend de leur logiciel de résa (ex. `https://api.syltek.com`),
+    inexploitable pour un utilisateur. La page club Playtomic
+    `https://playtomic.io/tenant/<tenant_id>` redirige vers l'interface de résa.
+    """
+    tid = detail.get("tenant_id")
+    return f"https://playtomic.io/tenant/{tid}" if tid else None
+
+
 # ── HTTP Playtomic ─────────────────────────────────────────────────────────────
 def _get(url: str) -> Any:
     req = urllib.request.Request(
@@ -440,9 +452,7 @@ def run(args: argparse.Namespace) -> int:
             "courts_indoor": indoor,
             "courts_outdoor": outdoor,
             "website_url": props.get("WEBSITE_URL") or None,
-            "booking_url": detail.get("url") or (
-                f"https://playtomic.io/{detail.get('slug')}" if detail.get("slug") else None
-            ),
+            "booking_url": playtomic_booking_url(detail),
             "match": m,
         })
         time.sleep(0.15)
@@ -481,6 +491,13 @@ def self_test() -> int:
         {"sport_id": "PADEL", "is_active": False, "properties": {"resource_type": "indoor"}},
     ]
     assert parse_padel_courts(res) == (1, 2), parse_padel_courts(res)
+
+    # playtomic_booking_url : page club Playtomic, jamais le host api.* du détail.
+    assert (
+        playtomic_booking_url({"tenant_id": "abc", "url": "https://api.syltek.com"})
+        == "https://playtomic.io/tenant/abc"
+    )
+    assert playtomic_booking_url({"url": "https://api.syltek.com"}) is None  # pas d'id
     # best_match : géo + nom
     club = {"tenant_name": "Padel Club Lyon",
             "address": {"coordinate": {"lat": 45.75, "lon": 4.85}}}
