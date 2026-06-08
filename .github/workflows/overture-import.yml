@@ -19,7 +19,7 @@ on:
         type: choice
         required: false
         default: "fitness"
-        options: [fitness, yoga, baignade, nautique, ballon, raquette, escalade, glisse, snow, plus, all]
+        options: [fitness, yoga, baignade, nautique, ballon, raquette, escalade, glisse, snow, plus, combat, all]
       country:
         description: "Pays ISO-2 ou EU"
         type: string
