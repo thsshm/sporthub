@@ -78,16 +78,29 @@ def _headers(key: str, extra: dict | None = None) -> dict:
     return h
 
 
-def count_targets(url: str, key: str, flt: str) -> int:
+def _open(req: urllib.request.Request, timeout: int) -> bytes:
+    """urlopen avec affichage du corps d'erreur (sinon les 4xx/5xx sont opaques)."""
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace")[:500]
+        print(f"❌ HTTP {e.code} sur {req.get_method()} {req.full_url}\n   {body}",
+              file=sys.stderr)
+        raise
+
+
+def find_target_ids(url: str, key: str, flt: str, cap: int) -> list[str]:
+    """Récupère les id ciblés (sans count=exact : les lignes soft-deletées ne
+    sont pas couvertes par les index partiels `WHERE deleted_at IS NULL`, donc
+    on évite un COUNT plein-scan ; on borne par limit=cap+1)."""
     req = urllib.request.Request(
-        f"{url}/rest/v1/venue?select=id&{flt}",
-        headers=_headers(key, {"Prefer": "count=exact", "Range": "0-0"}),
+        f"{url}/rest/v1/venue?select=id&{flt}&limit={cap + 1}",
+        headers=_headers(key),
         method="GET",
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        cr = resp.headers.get("content-range", "")
-    # format "0-N/TOTAL" ou "*/TOTAL"
-    return int(cr.split("/")[-1]) if "/" in cr else 0
+    rows = json.loads(_open(req, timeout=120) or b"[]")
+    return [r["id"] for r in rows]
 
 
 def restore(url: str, key: str, flt: str) -> int:
@@ -98,8 +111,7 @@ def restore(url: str, key: str, flt: str) -> int:
         headers=_headers(key, {"Prefer": "return=representation"}),
         method="PATCH",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        rows = json.loads(resp.read() or b"[]")
+    rows = json.loads(_open(req, timeout=120) or b"[]")
     return len(rows)
 
 
@@ -122,14 +134,17 @@ def main() -> int:
     scope = f"{args.family}/{args.source}" + (f"/{args.country}" if args.country else "")
     print(f"▶ restore soft-deleted · {scope} · deleted_at>={args.since}")
 
-    n = count_targets(url, key, flt)
-    print(f"  cibles (deleted_at non null, dans la fenêtre) : {n}")
+    ids = find_target_ids(url, key, flt, args.max)
+    n = len(ids)
+    capped = n > args.max
+    print(f"  cibles (deleted_at non null, dans la fenêtre) : "
+          f"{'>' if capped else ''}{min(n, args.max)}")
     if n == 0:
         print("  ✓ rien à restaurer.")
         return 0
-    if n > args.max:
-        print(f"❌ {n} > --max {args.max} : filtre trop large, abandon "
-              f"(resserre --since / --country, ou augmente --max si volontaire).",
+    if capped:
+        print(f"❌ plus de --max {args.max} lignes ciblées : filtre trop large, "
+              f"abandon (resserre --since / --country, ou augmente --max si voulu).",
               file=sys.stderr)
         return 1
 
