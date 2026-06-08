@@ -155,6 +155,8 @@
     "listModeAll": "Tous les venues",
     "listModeViewport": "Dans cette vue ({count})",
     "viewportHint": "La liste suit la carte — déplacez-la pour découvrir d'autres venues.",
+    "mapVisibleOfTotal": "{visible} dans la vue · {total} au total",
+    "mapInView": "{count} dans la vue",
     "metaDescription": "Carte et liste des clubs et terrains de {sport} partout dans le monde — Sport Hub."
   },
   "programmatic": {
@@ -346,6 +348,23 @@
     "reportMailBody": "Lieu concerné (nom + ville, ou lien de la page) :\nCe qui est incorrect :\nLa bonne information :",
     "note": "Vos retours sont traités manuellement pour le moment. Un formulaire intégré arrivera bientôt."
   },
+  "partners": {
+    "metaTitle": "Clubs & partenaires — référencez votre établissement | Sport Hub",
+    "metaDescription": "Votre club, salle ou spot est listé gratuitement sur Sport Hub. Corrigez votre fiche ou devenez partenaire.",
+    "title": "Clubs & partenaires",
+    "intro": "Sport Hub aide les sportifs à trouver où pratiquer. Votre établissement y est référencé gratuitement à partir de données ouvertes — voici comment en tirer parti.",
+    "b1Title": "Référencement gratuit",
+    "b1Body": "Votre club apparaît sans frais auprès des sportifs qui cherchent votre sport dans votre ville. Pas de pub, pas d'inscription requise.",
+    "b2Title": "Corrigez ou complétez votre fiche",
+    "b2Body": "Horaires, contact, activités, photos : signalez une info erronée ou manquante, on met votre fiche à jour.",
+    "b3Title": "Partenariats & affiliations",
+    "b3Body": "Réservation en ligne, mises en avant, collaborations : parlons de la meilleure façon de travailler ensemble.",
+    "contactCta": "Devenir partenaire",
+    "contactSubject": "Partenariat / club — Sport Hub",
+    "contactBody": "Nom de l'établissement :\nVille :\nVotre rôle :\nCe que vous recherchez (référencement, correction, partenariat…) :",
+    "contributeCta": "Corriger une fiche",
+    "note": "Les demandes sont traitées manuellement pour le moment. Réponse sous quelques jours."
+  },
   "footer": {
     "about": "Sport Hub",
     "aboutText": "Une seule carte pour tous tes sports. Données ouvertes, sans pub, sans inscription.",
@@ -354,6 +373,7 @@
     "legal": "Mentions légales",
     "source": "Code source (GitHub)",
     "contribute": "Contribuer",
+    "partners": "Clubs & partenaires",
     "copyright": "© {year} Sport Hub — Licence MIT — Données sous licences respectives des sources"
   },
   "legal": {

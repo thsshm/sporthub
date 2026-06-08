@@ -155,6 +155,8 @@
     "listModeAll": "All venues",
     "listModeViewport": "In this view ({count})",
     "viewportHint": "The list follows the map — move it to discover other venues.",
+    "mapVisibleOfTotal": "{visible} in view · {total} total",
+    "mapInView": "{count} in view",
     "metaDescription": "Map and list of {sport} clubs and courts worldwide — Sport Hub."
   },
   "programmatic": {
@@ -346,6 +348,23 @@
     "reportMailBody": "Place (name + city, or page link):\nWhat's incorrect:\nThe correct information:",
     "note": "Reports are handled manually for now. An in-app form is coming soon."
   },
+  "partners": {
+    "metaTitle": "Clubs & partners — list your venue | Sport Hub",
+    "metaDescription": "Your club, gym or spot is listed for free on Sport Hub. Correct your listing or become a partner.",
+    "title": "Clubs & partners",
+    "intro": "Sport Hub helps athletes find where to play. Your venue is listed for free from open data — here's how to make the most of it.",
+    "b1Title": "Free listing",
+    "b1Body": "Your club appears at no cost to athletes searching for your sport in your city. No ads, no signup required.",
+    "b2Title": "Correct or complete your listing",
+    "b2Body": "Hours, contact, activities, photos: report wrong or missing info and we'll update your listing.",
+    "b3Title": "Partnerships & affiliations",
+    "b3Body": "Online booking, featured placements, collaborations: let's find the best way to work together.",
+    "contactCta": "Become a partner",
+    "contactSubject": "Partnership / club — Sport Hub",
+    "contactBody": "Venue name:\nCity:\nYour role:\nWhat you're looking for (listing, correction, partnership…):",
+    "contributeCta": "Fix a listing",
+    "note": "Requests are handled manually for now. We reply within a few days."
+  },
   "footer": {
     "about": "Sport Hub",
     "aboutText": "One map for every sport. Open data, no ads, no signup.",
@@ -354,6 +373,7 @@
     "legal": "Legal notice",
     "source": "Source code (GitHub)",
     "contribute": "Contribute",
+    "partners": "Clubs & partners",
     "copyright": "© {year} Sport Hub — MIT license — Data under their respective source licenses"
   },
   "legal": {

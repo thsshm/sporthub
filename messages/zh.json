@@ -155,6 +155,8 @@
     "listModeAll": "全部场所",
     "listModeViewport": "当前视图({count})",
     "viewportHint": "列表随地图变化 — 移动地图以查看其他场所。",
+    "mapVisibleOfTotal": "视图中 {visible} · 共 {total}",
+    "mapInView": "视图中 {count}",
     "metaDescription": "全球 {sport} 俱乐部和场地的地图与列表 — Sport Hub。"
   },
   "programmatic": {
@@ -346,6 +348,23 @@
     "reportMailBody": "相关地点(名称＋城市,或页面链接):\n错误内容:\n正确信息:",
     "note": "目前反馈由人工处理。内置表单即将推出。"
   },
+  "partners": {
+    "metaTitle": "俱乐部与合作伙伴 — 收录你的场馆 | Sport Hub",
+    "metaDescription": "你的俱乐部、健身房或场地已免费收录在 Sport Hub。更正你的信息或成为合作伙伴。",
+    "title": "俱乐部与合作伙伴",
+    "intro": "Sport Hub 帮助运动者找到练习场所。你的场馆已基于开放数据免费收录——以下是如何充分利用它。",
+    "b1Title": "免费收录",
+    "b1Body": "搜索你所在城市相关运动的人会免费看到你的俱乐部。无广告,无需注册。",
+    "b2Title": "更正或完善你的信息",
+    "b2Body": "营业时间、联系方式、项目、照片:报告错误或缺失的信息,我们会更新你的页面。",
+    "b3Title": "合作与联盟",
+    "b3Body": "在线预订、重点推荐、合作:让我们找到最合适的合作方式。",
+    "contactCta": "成为合作伙伴",
+    "contactSubject": "合作 / 俱乐部 — Sport Hub",
+    "contactBody": "场馆名称:\n城市:\n你的角色:\n你的需求(收录、更正、合作……):",
+    "contributeCta": "更正信息",
+    "note": "目前请求由人工处理。我们会在几天内回复。"
+  },
   "footer": {
     "about": "Sport Hub",
     "aboutText": "一张地图,所有运动。开放数据,无广告,无需注册。",
@@ -354,6 +373,7 @@
     "legal": "法律声明",
     "source": "源代码 (GitHub)",
     "contribute": "贡献",
+    "partners": "俱乐部与合作伙伴",
     "copyright": "© {year} Sport Hub — MIT 许可 — 数据遵循各来源许可"
   },
   "legal": {
