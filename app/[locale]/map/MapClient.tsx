@@ -181,6 +181,10 @@ type Props = {
    * dans cette zone" apparaît à la place, et c'est le user qui décide quand
    * recharger. Cf. #124. */
   autoUpdate?: boolean;
+  /** Position GPS de l'utilisateur → affiche un point bleu "vous êtes ici"
+   * (orientation). Renseignée par la géoloc navigateur (bouton Ma position /
+   * auto-géoloc au mount). null = pas de position connue. */
+  userLocation?: { lat: number; lon: number } | null;
 };
 
 export default function MapClient({
@@ -202,6 +206,7 @@ export default function MapClient({
   selectedCriteria,
   selectedSurfaces,
   autoUpdate = true,
+  userLocation,
 }: Props) {
   const tMap = useTranslations("map");
   const mapRef = useRef<MapRef | null>(null);
@@ -264,9 +269,16 @@ export default function MapClient({
   // isolés). Plus besoin de restreindre aux familles compatibles — rien ne
   // disparaît, le tri pois↔clubs se fait via `club_id` côté rendu (#311).
   const isClubMode = useMemo(() => {
-    if (presetVenues || useTiles) return false;
+    // selectedSport (page /sports/[sport]) : on désactive le mode club. La RPC
+    // clubs (/api/venues/clubs) ne filtre QUE par `families`, jamais par sport →
+    // en mode club la carte affichait des pins de clubs tous-sports par-dessus
+    // les pois padel filtrés (« la liste est padel mais la carte non », #455).
+    // Sans club mode, on rend tous les pois sport-filtrés (clubbed inclus, cf.
+    // le filtre `club_id == null` ligne ~600 qui ne s'applique qu'en club mode).
+    // Même garde que useTiles (#438) / presetVenues.
+    if (presetVenues || useTiles || selectedSport) return false;
     return zoom >= CLUB_ZOOM_MIN && zoom <= CLUB_ZOOM_MAX;
-  }, [zoom, presetVenues, useTiles]);
+  }, [zoom, presetVenues, useTiles, selectedSport]);
 
   useEffect(() => {
     setFavorites(loadFavorites());
@@ -1155,6 +1167,24 @@ export default function MapClient({
               </Popup>
             );
           })()}
+
+        {/* Point "vous êtes ici" (#feedback Gautier) — rendu en dernier pour
+            passer au-dessus des pins. Point bleu cerclé de blanc + halo pulsé. */}
+        {userLocation && (
+          <Marker
+            latitude={userLocation.lat}
+            longitude={userLocation.lon}
+            anchor="center"
+          >
+            <div
+              className="pointer-events-none relative flex h-5 w-5 items-center justify-center"
+              aria-label={tMap("myLocation")}
+            >
+              <span className="absolute inline-flex h-5 w-5 animate-ping rounded-full bg-blue-500/40" />
+              <span className="relative inline-block h-3.5 w-3.5 rounded-full border-2 border-white bg-blue-600 shadow-[0_0_0_1px_rgba(0,0,0,0.25)]" />
+            </div>
+          </Marker>
+        )}
       </Map>
     </div>
   );
