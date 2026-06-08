@@ -99,23 +99,23 @@ export const FAMILIES: Family[] = [
     sports: ["skiing", "snowboarding", "cross_country"],
   },
   {
-    // Slug "hike" = "Plein air & endurance" côté UI — héritage V1
+    // Slug "hike" = "Plein air & endurance" côté UI — héritage V1.
+    // L'escalade (climbing_indoor) y est rattachée depuis #470 : l'ex-famille
+    // « escalade » (#312) est fusionnée ici (Outdoor) plutôt que d'être isolée.
     slug: "hike",
     name_fr: "Plein air & endurance",
     name_en: "Outdoor & endurance",
     emoji: "🥾",
     color: "#16a34a",
-    sports: ["trail", "long_trail", "trailrun", "running", "cycling", "mtb"],
-  },
-  {
-    // Famille ajoutée au palier 2 de #312 : l'escalade/bloc (627 spots V1 sous
-    // 'autre') n'avait pas de famille dédiée et tombait dans 'plus'.
-    slug: "escalade",
-    name_fr: "Escalade",
-    name_en: "Climbing",
-    emoji: "🧗",
-    color: "#ea580c",
-    sports: ["climbing_indoor"],
+    sports: [
+      "trail",
+      "long_trail",
+      "trailrun",
+      "running",
+      "cycling",
+      "mtb",
+      "climbing_indoor",
+    ],
   },
   {
     slug: "retraites",
