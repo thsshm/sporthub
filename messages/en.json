@@ -590,6 +590,7 @@
       "title": "Retreats & camps",
       "description": "Map and list of sports retreats, camps and wellness stays worldwide — Sport Hub.",
       "lead": "Discover yoga retreats, surf camps, wellness stages and sports getaways around the world.",
+      "empty": "No retreat indexed yet — upcoming camps and stays are listed below.",
       "mapLabel": "Map of retreats & camps",
       "listLabel": "List of retreats & camps",
       "stagesPlaceholder": "Upcoming stages — coming soon",
