@@ -377,6 +377,33 @@ def build_venue_patches(report: list[dict]) -> list[tuple[str, dict]]:
     return patches
 
 
+def build_booking_link_rows(report: list[dict]) -> list[dict]:
+    """Lignes `booking_link` (partner='playtomic', sport='padel') pour les venues
+    matchés — c'est CE QUE LA FICHE AFFICHE (composant VenueBookingLinks, via
+    /api/go), pas la colonne venue.booking_url. Upsert sur la clé unique
+    (venue_id, partner, sport_slug). Dédup par venue (meilleur score)."""
+    best_by_venue: dict[str, tuple[dict, float]] = {}
+    for r in report:
+        m = r.get("match")
+        if not m or not r.get("booking_url"):
+            continue
+        vid = m["venue_id"]
+        score = m.get("score") or 0.0
+        prev = best_by_venue.get(vid)
+        if prev is None or score > prev[1]:
+            best_by_venue[vid] = (r, score)
+    return [
+        {
+            "venue_id": vid,
+            "partner": "playtomic",
+            "url": r["booking_url"],
+            "sport_slug": "padel",
+            "is_active": True,
+        }
+        for vid, (r, _s) in best_by_venue.items()
+    ]
+
+
 def _chunks(seq: list, n: int):
     for i in range(0, len(seq), n):
         yield seq[i : i + n]
@@ -398,11 +425,18 @@ def _write(url: str, key: str, path: str, body: Any, method: str, prefer: str) -
         pass  # 204 No Content attendu (Prefer: return=minimal)
 
 
-def apply_enrichment(url: str, key: str, report: list[dict], now_iso: str) -> tuple[int, int]:
-    """Écrit les enrichissements en DB. Retourne (refs_upsertés, venues_patchés).
-    Idempotent : ré-exécutable sans doublon (upsert external_ref + PATCH venue)."""
+def apply_enrichment(
+    url: str, key: str, report: list[dict], now_iso: str
+) -> tuple[int, int, int]:
+    """Écrit les enrichissements en DB. Retourne (refs, venues_patchés, booking_links).
+    Idempotent : ré-exécutable sans doublon.
+      - external_ref : traçabilité (source, external_id).
+      - venue : colonnes booking_url / courts_* (data brute).
+      - booking_link : CE QUE LA FICHE AFFICHE (partner=playtomic, sport=padel),
+        upsert sur (venue_id, partner, sport_slug)."""
     refs = build_external_ref_rows(report, now_iso)
     patches = build_venue_patches(report)
+    links = build_booking_link_rows(report)
     for chunk in _chunks(refs, 100):
         _write(
             url, key, "external_ref?on_conflict=source,external_id", chunk,
@@ -413,7 +447,12 @@ def apply_enrichment(url: str, key: str, report: list[dict], now_iso: str) -> tu
             url, key, f"venue?id=eq.{urllib.parse.quote(str(vid))}", patch,
             method="PATCH", prefer="return=minimal",
         )
-    return len(refs), len(patches)
+    for chunk in _chunks(links, 100):
+        _write(
+            url, key, "booking_link?on_conflict=venue_id,partner,sport_slug", chunk,
+            method="POST", prefer="return=minimal,resolution=merge-duplicates",
+        )
+    return len(refs), len(patches), len(links)
 
 
 # ── Pipeline ───────────────────────────────────────────────────────────────────
@@ -463,10 +502,11 @@ def run(args: argparse.Namespace) -> int:
 
     if args.apply:
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        n_refs, n_venues = apply_enrichment(url, key, report, now_iso)
+        n_refs, n_venues, n_links = apply_enrichment(url, key, report, now_iso)
         print(f"\n✅ APPLY — écriture DB effectuée.")
         print(f"   clubs Playtomic: {len(report)} · matchés: {matched} ({pct}%)")
-        print(f"   external_ref upsertés: {n_refs} · venues enrichis: {n_venues}")
+        print(f"   external_ref: {n_refs} · venues enrichis: {n_venues} · "
+              f"booking_link (affichés sur la fiche): {n_links}")
     else:
         print(f"\n✅ DRY-RUN — aucune écriture DB.")
         print(f"   clubs Playtomic: {len(report)} · matchés à un venue: {matched} ({pct}%)")
@@ -548,6 +588,16 @@ def self_test() -> int:
     by_vid = dict(patches)
     # v1 enrichi ; v3 dédupé → patché par t4 (score 0.95 > 0.88), pas t3.
     assert set(by_vid) == {"v1", "v3"}, by_vid
+
+    # build_booking_link_rows : ce que la fiche affiche (table booking_link).
+    links = build_booking_link_rows(report)
+    by_v = {l["venue_id"]: l for l in links}
+    assert set(by_v) == {"v1", "v3"}, by_v  # t2 (no match) + dédup v3 → 2 liens
+    assert by_v["v1"] == {
+        "venue_id": "v1", "partner": "playtomic",
+        "url": "https://playtomic.io/t1", "sport_slug": "padel", "is_active": True,
+    }, by_v["v1"]
+    assert by_v["v3"]["url"] == "https://playtomic.io/t4"  # meilleur score gagne
     assert by_vid["v1"] == {"booking_url": "https://playtomic.io/t1",
                             "courts_indoor": 2, "courts_outdoor": 3}, by_vid["v1"]
     assert by_vid["v3"]["courts_indoor"] == 4, by_vid["v3"]  # t4 a gagné
