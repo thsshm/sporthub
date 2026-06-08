@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
 
-// Email de contact affiché sur la page légale. À confirmer/ajuster par Gautier
-// (alias professionnel sur le domaine plutôt qu'une adresse perso).
-const CONTACT_EMAIL = "contact@sporthubmap.com";
+// Adresse de contact unique du site — la même que celle annoncée dans la FAQ
+// et utilisée par le lien « Signaler une erreur » des fiches lieu (#467).
+// Une seule boîte à créer côté hébergeur, pas de divergence possible.
+const CONTACT_EMAIL = "hello@sporthubmap.com";
 
 // Page statique (contenu quasi fixe) — revalidate long.
 export const revalidate = 86400;
