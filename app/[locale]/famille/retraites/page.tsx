@@ -89,6 +89,10 @@ async function fetchRetraites(page: number, type: string | null) {
       city:city_id ( name, country_code ),
       venue_sport ( sport_slug )
     `,
+      // count "estimated" : rapide (lit les stats du planner). Un count exact
+      // scannerait les 267k venues faute d'index partiel sur retreat_type →
+      // build/ISR > 60s. La cohérence en-tête/liste est gérée à l'affichage
+      // (cf. displayTotal plus bas), pas par un count coûteux. (#470)
       { count: "estimated" }
     )
     .eq("is_published", true)
@@ -135,6 +139,11 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
 
   const { venues, total } = await fetchRetraites(page, activeType);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Cohérence en-tête ↔ grille : le count "estimated" peut renvoyer un nombre
+  // non nul alors qu'aucune venue réelle n'est retournée (estimation du
+  // planner). Si la grille est vide, l'en-tête affiche donc 0 — fini le
+  // « 1 venue indexé » au-dessus d'un « aucune retraite » (#470).
+  const displayTotal = venues.length === 0 ? 0 : total;
 
   // Venues pour la carte (pin minimal VenuePin)
   const initialVenues: VenuePin[] = venues.map((v) => ({
@@ -179,7 +188,7 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{t("retraites.title")}</h1>
             <p className="mt-1 text-muted-foreground">
-              {tSport("venuesIndexed", { count: total })}
+              {tSport("venuesIndexed", { count: displayTotal })}
             </p>
           </div>
         </div>
@@ -231,7 +240,7 @@ export default async function FamilleRetraitesPage({ params, searchParams }: Pro
 
       {/* Grille venues */}
       {venues.length === 0 ? (
-        <p className="py-12 text-center text-muted-foreground">{tSport("emptyMessage")}</p>
+        <p className="py-12 text-center text-muted-foreground">{t("retraites.empty")}</p>
       ) : (
         <section aria-label={t("retraites.listLabel")}>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
