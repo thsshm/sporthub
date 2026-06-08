@@ -9,6 +9,8 @@ import { InstallPwaButton } from "@/components/InstallPwaButton";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 import { PostHogProvider } from "@/components/PostHogProvider";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { routing, type Locale } from "@/i18n/routing";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
 import { getTotalSpots } from "@/lib/home-stats";
@@ -47,6 +49,11 @@ export async function generateMetadata({
       ? t("heroDescription", { count: formatCount(totalSpots) })
       : undefined,
     metadataBase: new URL("https://sporthubmap.com"),
+    // Vérification Google Search Console (#412). No-op si l'env est absent
+    // (la balise <meta google-site-verification> n'est alors pas émise).
+    verification: process.env.GOOGLE_SITE_VERIFICATION
+      ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+      : undefined,
     alternates: {
       canonical: hreflang.canonical,
       languages: hreflang.languages,
@@ -102,6 +109,10 @@ export default async function LocaleLayout({
             {/* Invite à installer la PWA après ≥2 visites (#249). */}
             <InstallPwaButton />
           </PostHogProvider>
+          {/* Observability Vercel (#412). No-op silencieux tant que les
+              toggles ne sont pas activés côté dashboard Vercel. */}
+          <Analytics />
+          <SpeedInsights />
         </NextIntlClientProvider>
       </body>
     </html>
