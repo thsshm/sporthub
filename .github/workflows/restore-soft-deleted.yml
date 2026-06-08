@@ -1,0 +1,83 @@
+name: Restore soft-deleted
+
+# Annule des soft-deletes ciblés (deleted_at → NULL) pour réparer une
+# réconciliation erronée (cf. incident combat #494). Outil de maintenance
+# MANUEL, borné : family + source + since obligatoires, dry-run par défaut.
+#
+# Secrets requis (déjà configurés) : SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      family:
+        description: "family_slug (obligatoire)"
+        type: string
+        required: true
+      source:
+        description: "source, ex. osm (obligatoire)"
+        type: string
+        required: true
+        default: "osm"
+      since:
+        description: "ISO timestamp — ne restaure que deleted_at >= since (obligatoire)"
+        type: string
+        required: true
+      country:
+        description: "country_code ISO-2 (optionnel)"
+        type: string
+        required: false
+        default: ""
+      apply:
+        description: "Écrire réellement (sinon dry-run)"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: restore-soft-deleted
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: restore_soft_deleted.py
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run restore_soft_deleted.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IN_FAMILY: ${{ inputs.family }}
+          IN_SOURCE: ${{ inputs.source }}
+          IN_SINCE: ${{ inputs.since }}
+          IN_COUNTRY: ${{ inputs.country || '' }}
+          IN_APPLY: ${{ inputs.apply || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
+            exit 1
+          fi
+          ARGS=(--family "$IN_FAMILY" --source "$IN_SOURCE" --since "$IN_SINCE")
+          [ -n "$IN_COUNTRY" ] && ARGS+=(--country "$IN_COUNTRY")
+          [ "$IN_APPLY" = "true" ] && ARGS+=(--apply) || ARGS+=(--dry-run)
+          echo "▶ restore_soft_deleted.py ${ARGS[*]}  (apply=$IN_APPLY)"
+          python3 scripts/etl/restore_soft_deleted.py "${ARGS[@]}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Restore soft-deleted"
+            echo "- Scope : ${{ inputs.family }} / ${{ inputs.source }} ${{ inputs.country && format('/ {0}', inputs.country) || '' }}"
+            echo "- Depuis : ${{ inputs.since }}"
+            echo "- Mode : ${{ (inputs.apply == true) && 'APPLY (écriture réelle)' || 'DRY-RUN (aucune écriture)' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
