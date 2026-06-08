@@ -2,9 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { VenuePin } from "@/lib/supabase/types";
 import type { FlyTarget } from "@/app/[locale]/map/MapClient";
 import { formatCount } from "@/lib/utils";
+import { SPORTS_BY_SLUG } from "@/lib/sports";
 
 const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ssr: false,
@@ -56,6 +58,10 @@ export function SportPageMap({
   onVenuesData,
   flyTarget,
 }: Props) {
+  const tSport = useTranslations("sport");
+  const tSports = useTranslations("sports");
+  const sportName = tSports.has(sportSlug) ? tSports(sportSlug) : sportSlug;
+  const sportEmoji = SPORTS_BY_SLUG[sportSlug]?.emoji ?? "📍";
   const [visibleCount, setVisibleCount] = useState(initialVenues.length);
 
   // flyTarget géoloc auto (interne). Le flyTarget explicite du parent (clic sur
@@ -162,14 +168,21 @@ export function SportPageMap({
         onVenuesData={onVenuesData}
         flyTarget={effectiveFlyTarget}
       />
+      {/* Chip de scope : rend visible le filtre sport actif (#466) — sinon la
+          carte paraissait montrer "tout" sans indiquer qu'elle est filtrée. */}
+      <div className="pointer-events-none absolute left-2 top-2 z-10 inline-flex items-center gap-1.5 rounded-full bg-background/95 px-3 py-1 text-xs font-medium shadow backdrop-blur">
+        <span aria-hidden="true">{sportEmoji}</span>
+        <span>{sportName}</span>
+      </div>
+
+      {/* Compteur "N dans la vue / M au total" — i18n (#466 : était hardcodé EN). */}
       <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-background/90 px-2 py-1 text-[11px] shadow backdrop-blur">
-        <span className="font-semibold">{formatCount(visibleCount)}</span> visible
-        {totalSportVenues != null && (
-          <>
-            {" "}
-            / <span>{formatCount(totalSportVenues)}</span> total
-          </>
-        )}
+        {totalSportVenues != null
+          ? tSport("mapVisibleOfTotal", {
+              visible: formatCount(visibleCount),
+              total: formatCount(totalSportVenues),
+            })
+          : tSport("mapInView", { count: formatCount(visibleCount) })}
       </div>
     </div>
   );

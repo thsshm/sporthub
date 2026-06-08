@@ -155,6 +155,8 @@
     "listModeAll": "全部场所",
     "listModeViewport": "当前视图({count})",
     "viewportHint": "列表随地图变化 — 移动地图以查看其他场所。",
+    "mapVisibleOfTotal": "视图中 {visible} · 共 {total}",
+    "mapInView": "视图中 {count}",
     "metaDescription": "全球 {sport} 俱乐部和场地的地图与列表 — Sport Hub。"
   },
   "programmatic": {
