@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# ════════════════════════════════════════════════════════════════════════════
+# ⚠️ DEPRECATED / ARCHIVÉ — #227 (cutover ETL V2-natif, 2026-06-08).
+# NE PLUS EXÉCUTER. Les enrichissements (Wikipédia/photos) sont déjà en DB
+# (venue.enrichments) et leur rafraîchissement est désormais natif via la route
+# cron Vercel `app/api/cron/refresh-wikidata`. Ce script dépend du SQLite V1
+# (sportpin.sqlite), qui n'est plus requis. Conservé pour l'historique (#106).
+# ════════════════════════════════════════════════════════════════════════════
 """
 import_enrichments_v1.py — Migration des enrichissements Wikidata V1 (SQLite) → venue.enrichments Supabase (#106).
 
