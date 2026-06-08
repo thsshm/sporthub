@@ -20,6 +20,7 @@ import { VenueBookingLinks } from "@/components/venue/VenueBookingLinks";
 import { VenueRelated } from "@/components/venue/VenueRelated";
 import { VenueMiniMap } from "@/components/venue/VenueMiniMap";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
+import { telHref } from "@/lib/venue/cta";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenueDetail } from "@/lib/supabase/types";
 
@@ -104,6 +105,7 @@ export default async function VenuePage({ params }: Props) {
   if (!venue) notFound();
 
   const sportSlugs = (venue.sports ?? []).map((s) => s.sport_slug).filter(Boolean);
+  const phoneHref = telHref(venue.phone);
   const jsonLd = buildVenueJsonLd(venue, venue.city_name);
   const safeLocale: "fr" | "en" | "zh" =
     locale === "en" || locale === "zh" ? locale : "fr";
@@ -163,8 +165,26 @@ export default async function VenuePage({ params }: Props) {
 
           <VenueAccessibility venue={venue} />
 
-          {/* CTAs maps */}
+          {/* CTAs d'action : Appeler / Site officiel (si dispo) + itinéraires (#467) */}
           <section className="flex flex-wrap gap-2 border-t pt-4 text-sm">
+            {phoneHref && (
+              <a
+                className="rounded-md border px-3 py-2 hover:bg-accent"
+                href={phoneHref}
+              >
+                📞 {t("callCta")}
+              </a>
+            )}
+            {venue.website_url && (
+              <a
+                className="rounded-md border px-3 py-2 hover:bg-accent"
+                href={venue.website_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                🌐 {t("websiteCta")}
+              </a>
+            )}
             <a
               className="rounded-md border px-3 py-2 hover:bg-accent"
               href={googleMapsUrl(venue.lat, venue.lon, venue.name)}
