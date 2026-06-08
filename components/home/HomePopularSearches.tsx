@@ -2,37 +2,21 @@
  * Section "Recherches populaires" — liens vers les pages programmatiques
  * sport × ville (boost SEO interne + utile pour l'user).
  *
- * Liste statique des combinaisons les plus pertinentes (héritée du POC V1
- * `scripts/programmatic/build.py`). Évite une query DB — on assume que ces
- * combos existent ; le clic mène à la page qui se chargera de rendre.
+ * DATA-DRIVEN (#462) : la liste éditoriale est filtrée par le vrai nombre de
+ * lieux publiés (≥ MIN_VENUES_FOR_POPULAR) via getPopularCombos → on n'affiche
+ * jamais un lien menant à une page vide (« No address »). Si aucun combo ne
+ * qualifie, la section entière est masquée.
  *
  * Server Component, i18n via "popularSearches" + "sports".
  */
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/routing";
-
-type Combo = {
-  sport: string;
-  citySlug: string;
-  cityLabel: string;
-};
-
-const POPULAR_COMBOS: Combo[] = [
-  { sport: "padel", citySlug: "paris", cityLabel: "Paris" },
-  { sport: "tennis", citySlug: "lyon", cityLabel: "Lyon" },
-  { sport: "petanque", citySlug: "marseille", cityLabel: "Marseille" },
-  { sport: "yoga", citySlug: "bordeaux", cityLabel: "Bordeaux" },
-  { sport: "gym", citySlug: "toulouse", cityLabel: "Toulouse" },
-  { sport: "boxing", citySlug: "nantes", cityLabel: "Nantes" },
-  { sport: "padel", citySlug: "nice", cityLabel: "Nice" },
-  { sport: "tennis", citySlug: "strasbourg", cityLabel: "Strasbourg" },
-  { sport: "surf", citySlug: "biarritz", cityLabel: "Biarritz" },
-  { sport: "kitesurf", citySlug: "la-rochelle", cityLabel: "La Rochelle" },
-  { sport: "football", citySlug: "lille", cityLabel: "Lille" },
-  { sport: "basketball", citySlug: "rennes", cityLabel: "Rennes" },
-];
+import { getPopularCombos } from "@/lib/home-stats";
 
 export async function HomePopularSearches() {
+  const combos = await getPopularCombos();
+  if (combos.length === 0) return null;
+
   const t = await getTranslations("popularSearches");
   const tSports = await getTranslations("sports");
 
@@ -56,7 +40,7 @@ export async function HomePopularSearches() {
           </Link>
         </div>
         <ul className="mt-6 flex flex-wrap gap-2">
-          {POPULAR_COMBOS.map((c) => {
+          {combos.map((c) => {
             const sportLabel = tSports.has(c.sport) ? tSports(c.sport) : c.sport;
             return (
               <li key={`${c.sport}-${c.citySlug}`}>
