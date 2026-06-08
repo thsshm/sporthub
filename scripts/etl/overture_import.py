@@ -55,6 +55,7 @@ from etl_upsert import (  # noqa: E402
     upsert_venues_batch,
     soft_delete_missing,
 )
+from cleaning import is_misclassified  # noqa: E402  (sibling, scripts/etl sur sys.path)
 
 SOURCE = "overture"
 
@@ -178,6 +179,11 @@ def rows_to_records(
         except (TypeError, ValueError):
             continue
         if not (-90 <= lat_f <= 90 and -180 <= lon_f <= 180):
+            continue
+        # #463 — écarte les POI Overture visiblement mal classés (catégorie
+        # Overture grossière → nom signalant un sport d'une autre famille,
+        # ex. pêche/golf/boules sur un sport de raquette).
+        if is_misclassified(name, sport_slug):
             continue
         records.append(VenueRecord(
             source=SOURCE,

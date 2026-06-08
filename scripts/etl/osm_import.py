@@ -58,6 +58,7 @@ from etl_upsert import (  # noqa: E402
     upsert_venues_batch,
     soft_delete_missing,
 )
+from cleaning import is_misclassified  # noqa: E402  (sibling, scripts/etl sur sys.path)
 
 # ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -312,6 +313,7 @@ def fetch_family_records(
     tags = FAMILY_TAGS[family]
     seen_extids: set[str] = set()
     records: list[VenueRecord] = []
+    dropped = 0  # #463 — écartés car visiblement mal classés (nom ≠ sport)
 
     for tag_key, tag_value in tags:
         if limit and len(records) >= limit:
@@ -329,11 +331,20 @@ def fetch_family_records(
             r = element_to_record(el, family_slug, sport_slug)
             if r is None or r.external_id in seen_extids:
                 continue
+            # #463 — filtre anti-mauvaise-classif (nom signalant un autre sport
+            # d'une autre famille, ex. pêche/golf/boules sur un sport de raquette).
+            if is_misclassified(r.name, r.primary_sport_slug):
+                dropped += 1
+                continue
             seen_extids.add(r.external_id)
             records.append(r)
             if limit and len(records) >= limit:
                 break
-        print(f"      → {len(elements)} éléments, {len(records)} records total", flush=True)
+        suffix = f", {dropped} écartés (mauvaise classif)" if dropped else ""
+        print(
+            f"      → {len(elements)} éléments, {len(records)} records total{suffix}",
+            flush=True,
+        )
 
     return records
 
