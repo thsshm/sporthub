@@ -167,6 +167,8 @@
     "addresses": "{count, plural, =0 {Aucune adresse} one {1 adresse} other {{count} adresses}}",
     "emptyMessage": "Pas encore de venue pour {sport} à {city}.",
     "seeOtherCities": "Voir les autres villes",
+    "addVenuePrompt": "Vous connaissez un spot ici ?",
+    "addVenueCta": "Ajoutez-le.",
     "localIntro": "Sport Hub référence où pratiquer le {sport} à {city}. Repère les adresses sur la carte, compare horaires et équipements, et trouve le spot le plus proche — sans inscription. Les données proviennent de sources ouvertes (OpenStreetMap, référentiels officiels) et sont enrichies en continu.",
     "relatedTitle": "Sports proches à {city}"
   },
@@ -182,6 +184,7 @@
     "courtsCount": "{count, plural, =0 {aucun terrain} one {1 terrain} other {{count} terrains}}",
     "infoCardTitle": "Informations pratiques",
     "reportError": "Signaler une erreur",
+    "addVenueCta": "Ajouter un lieu",
     "reportErrorSubject": "Signalement — {name}",
     "reportErrorBody": "Page : {url}\n\nMerci de décrire l'erreur (lieu fermé, mauvaise adresse, doublon, mauvais sport…) :\n",
     "openingHours": "Horaires d'ouverture",
