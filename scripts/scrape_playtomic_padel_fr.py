@@ -48,9 +48,18 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 API = "https://api.playtomic.io/v1/tenants"
 UA = "SportHub/1.0 (+https://sporthubmap.com; padel enrichment)"
 
-# Seuils de matching (#345 D4 — ajustables après revue du rapport).
-GEO_THRESHOLD_M = 100.0
-NAME_THRESHOLD = 0.85
+# Matching à 2 paliers (#345 — calibré sur le dry-run run #27139515137, où le
+# seuil unique 100 m / JW 0.85 ne matchait que 4 % et laissait 1 faux positif) :
+#   - nom FORT (JW ≥ NAME_STRONG) : tolère un écart géo jusqu'à GEO_FAR_M — les
+#     coords OSM/Overture vs Playtomic divergent souvent de 100-250 m pour le
+#     même club (géocodages différents).
+#   - nom FAIBLE (JW ≥ NAME_WEAK)  : exige la proximité (≤ GEO_NEAR_M) — garde-fou
+#     contre les noms génériques ("Tennis Club …") qui gonflent le JW.
+# Ajustables après revue du rapport de dry-run.
+GEO_NEAR_M = 120.0
+GEO_FAR_M = 300.0
+NAME_STRONG = 0.92
+NAME_WEAK = 0.88
 
 # Grille de découverte couvrant la France métropolitaine (bbox), pas ~0.5°
 # (~55 km) avec un rayon de recherche de 40 km → recouvrement. Le dédup par
@@ -268,8 +277,17 @@ def load_padel_venues_fr(url: str, key: str) -> list[dict]:
     return venues
 
 
+def is_match(score: float, dist_m: float) -> bool:
+    """Règle d'acceptation à 2 paliers (pure, testée)."""
+    return (
+        (score >= NAME_STRONG and dist_m <= GEO_FAR_M)
+        or (score >= NAME_WEAK and dist_m <= GEO_NEAR_M)
+    )
+
+
 def best_match(club: dict, venues: list[dict]) -> dict | None:
-    """Meilleur venue pour un club Playtomic : géo < seuil ET Jaro-Winkler max."""
+    """Meilleur venue pour un club Playtomic selon la règle is_match. Priorité
+    au meilleur Jaro-Winkler, puis à la plus petite distance."""
     addr = club.get("address") or {}
     coord = addr.get("coordinate") or {}
     clat, clon = coord.get("lat"), coord.get("lon")
@@ -279,10 +297,13 @@ def best_match(club: dict, venues: list[dict]) -> dict | None:
     best = None
     for v in venues:
         d = haversine_m(clat, clon, v["lat"], v["lon"])
-        if d > GEO_THRESHOLD_M:
+        if d > GEO_FAR_M:
             continue
         score = jaro_winkler(cname, v.get("name") or "")
-        if score >= NAME_THRESHOLD and (best is None or score > best["score"]):
+        if not is_match(score, d):
+            continue
+        if (best is None or score > best["score"]
+                or (score == best["score"] and d < best["distance_m"])):
             best = {"venue_id": v["id"], "venue_name": v.get("name"),
                     "distance_m": round(d, 1), "score": round(score, 3)}
     return best
@@ -469,6 +490,14 @@ def self_test() -> int:
     ]
     m = best_match(club, venues)
     assert m and m["venue_id"] == "a", m
+
+    # is_match : 2 paliers. Nom fort tolère l'écart géo ; nom faible exige la
+    # proximité ; le faux positif observé (JW 0.856 @ 82 m) est rejeté.
+    assert is_match(0.95, 250.0) is True      # nom fort, géo moyen → OK
+    assert is_match(0.95, 320.0) is False     # nom fort mais trop loin
+    assert is_match(0.89, 110.0) is True      # nom faible mais proche → OK
+    assert is_match(0.89, 200.0) is False     # nom faible + écart → rejeté
+    assert is_match(0.856, 82.0) is False     # faux positif "Tennis …" rejeté
 
     # is_fr_club : ne garde que la France (clubs frontaliers exclus).
     assert is_fr_club({"address": {"country_code": "FR"}}) is True
