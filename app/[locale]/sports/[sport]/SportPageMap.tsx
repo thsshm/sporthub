@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { VenuePin } from "@/lib/supabase/types";
 import type { FlyTarget } from "@/app/[locale]/map/MapClient";
@@ -30,6 +30,9 @@ type Props = {
   initialVenues: VenuePin[];
   /** Total venues du sport (pour l'overlay info). */
   totalSportVenues?: number;
+  /** Critères de filtre actifs (indoor / lit) → /api/venues?feat=… : la carte
+   * suit le même filtre que la liste SSR (#467). */
+  selectedCriteria?: string[];
   /** Reporte au parent la liste des venues visibles + le centre courant,
    * pour la liste viewport-synced (#98). */
   onVenuesData?: (venues: VenuePin[], center: { lat: number; lon: number }) => void;
@@ -55,6 +58,7 @@ export function SportPageMap({
   sportSlug,
   initialVenues,
   totalSportVenues,
+  selectedCriteria,
   onVenuesData,
   flyTarget,
 }: Props) {
@@ -63,6 +67,15 @@ export function SportPageMap({
   const sportName = tSports.has(sportSlug) ? tSports(sportSlug) : sportSlug;
   const sportEmoji = SPORTS_BY_SLUG[sportSlug]?.emoji ?? "📍";
   const [visibleCount, setVisibleCount] = useState(initialVenues.length);
+
+  // Set mémoïsé sur une clé primitive : indispensable car SportPageMap re-render
+  // à chaque changement de visibleCount → un `new Set()` inline relancerait en
+  // boucle les fetchs de MapClient (selectedCriteria est dans ses deps d'effet).
+  const criteriaKey = (selectedCriteria ?? []).join(",");
+  const criteriaSet = useMemo(
+    () => (criteriaKey ? new Set(criteriaKey.split(",")) : undefined),
+    [criteriaKey]
+  );
 
   // flyTarget géoloc auto (interne). Le flyTarget explicite du parent (clic sur
   // un item de la liste) reste prioritaire — cf. effectiveFlyTarget plus bas.
@@ -105,7 +118,7 @@ export function SportPageMap({
         });
       },
       () => markPrompted(),
-      { timeout: 8000, maximumAge: 60_000 },
+      { timeout: 8000, maximumAge: 60_000 }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -152,8 +165,7 @@ export function SportPageMap({
     const centerLat = (minLat + maxLat) / 2;
     const centerLon = (minLon + maxLon) / 2;
     const span = Math.max(maxLat - minLat, maxLon - minLon);
-    const zoom =
-      span > 50 ? 2 : span > 20 ? 4 : span > 8 ? 6 : span > 3 ? 8 : span > 0.5 ? 11 : 13;
+    const zoom = span > 50 ? 2 : span > 20 ? 4 : span > 8 ? 6 : span > 3 ? 8 : span > 0.5 ? 11 : 13;
     return { lat: centerLat, lon: centerLon, zoom };
   })();
 
@@ -164,6 +176,7 @@ export function SportPageMap({
         initialLon={initial.lon}
         initialZoom={initial.zoom}
         selectedSport={sportSlug}
+        selectedCriteria={criteriaSet}
         onVenuesChange={setVisibleCount}
         onVenuesData={onVenuesData}
         flyTarget={effectiveFlyTarget}

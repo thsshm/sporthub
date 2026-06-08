@@ -211,8 +211,14 @@ export default async function VenuePage({ params }: Props) {
             >
               🚗 Waze
             </a>
-            <a
+            <Link
               className="ml-auto rounded-md px-3 py-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+              href="/contribute"
+            >
+              ➕ {t("addVenueCta")}
+            </Link>
+            <a
+              className="rounded-md px-3 py-2 text-muted-foreground hover:bg-accent hover:text-foreground"
               href={reportErrorHref}
             >
               ⚠️ {t("reportError")}

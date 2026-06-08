@@ -282,15 +282,23 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
       )}
 
       {venues.length === 0 ? (
-        <p className="mt-12 text-center text-muted-foreground">
-          {t("emptyMessage", { sport: sportName, city: ctx.city.name })}{" "}
-          <Link
-            href={`/sports/${sport}`}
-            className="underline hover:text-foreground"
-          >
-            {t("seeOtherCities")}
-          </Link>
-        </p>
+        <div className="mt-12 text-center text-muted-foreground">
+          <p>
+            {t("emptyMessage", { sport: sportName, city: ctx.city.name })}{" "}
+            <Link
+              href={`/sports/${sport}`}
+              className="underline hover:text-foreground"
+            >
+              {t("seeOtherCities")}
+            </Link>
+          </p>
+          <p className="mt-3 text-sm">
+            {t("addVenuePrompt")}{" "}
+            <Link href="/contribute" className="underline hover:text-foreground">
+              {t("addVenueCta")}
+            </Link>
+          </p>
+        </div>
       ) : (
         <>
           <div className="mt-6">
