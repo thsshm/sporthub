@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { VenuePin } from "@/lib/supabase/types";
 import type { FlyTarget } from "@/app/[locale]/map/MapClient";
 import { formatCount } from "@/lib/utils";
@@ -15,20 +15,16 @@ const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ),
 });
 
-/** Vue de repli quand la géoloc IP est indisponible (dev local, headers Vercel
- * absents) : France entière. Volontairement PAS une vue monde — cf. #455. */
-const FRANCE_FALLBACK = { lat: 46.5, lon: 2.5, zoom: 5 } as const;
-/** Zoom d'ouverture quand on connaît la région du visiteur : assez serré pour
- * être en mode POI (pins individuels du sport), pas en agrégats. */
-const GEO_ZOOM = 12;
-
-type View = { lat: number; lon: number; zoom: number };
+// Ne jamais redemander la permission de géoloc navigateur en auto. Clé partagée
+// avec la carte principale (/map, cf. MapWithSearch #214) : si l'utilisateur a
+// déjà été sollicité là-bas, on ne le re-sollicite pas ici.
+const GEO_PROMPTED_KEY = "sporthub_geo_prompted";
 
 type Props = {
   /** Slug du sport pour le filtrage côté API (mode bbox-aware) */
   sportSlug: string;
-  /** Venues initiaux (les 24 de la page courante) — alimentent le compteur
-   * « visible » avant le premier fetch bbox-aware. */
+  /** Venues initiaux (les 24 de la page courante) — utilisés pour calculer
+   * un bbox de départ raisonnable + affichés instantanément. */
   initialVenues: VenuePin[];
   /** Total venues du sport (pour l'overlay info). */
   totalSportVenues?: number;
@@ -40,22 +36,18 @@ type Props = {
 };
 
 /**
- * Carte filtrée par sport sur /sports/[sport], avec bbox-aware fetch
- * (`/api/venues?sport=X&bbox=…`).
+ * Carte avec bbox-aware fetch filtré par sport. Sur /sports/[sport].
+ * Au mount, affiche les venues initiaux fournis. Dès que l'user pan/zoom,
+ * refetch via /api/venues?sport=X&bbox=... pour tous les venues du sport
+ * dans la nouvelle vue.
  *
- * Vue initiale (fix #455) : on résout la géoloc IP (`/api/geo`, edge, rapide)
- * AVANT de monter MapLibre, puis on ouvre la carte directement sur la région du
- * visiteur au zoom POI → les pins du sport sont visibles d'emblée.
- *
- * Pourquoi pas l'ancien calcul « span des venues SSR » + flyTo de recentrage :
- *   - les 24 venues SSR (premiers par `id`) sont dispersés sur ~86° de longitude
- *     → `span > 50 → zoom 2` → la carte ouvrait sur une vue MONDE en agrégats,
- *     indistinguable d'un « tous sports » (l'utilisateur croyait le filtre cassé).
- *   - le recentrage géoloc passait bien `flyTarget` à MapClient mais le `flyTo`
- *     initial était perdu dans la course au chargement (carte jamais recentrée).
- * La carte principale /map n'a pas ce souci car elle reçoit sa vue initiale
- * depuis la géoloc IP SSR ; ici on fait l'équivalent côté client (la page sport
- * est en ISR, on ne veut pas la rendre dynamique pour lire les headers).
+ * Géolocalisation auto au mount : la page sport ouvrait sur la France entière
+ * (bbox des venues initiaux, vue agrégats PMTiles tous-sports) sans recentrage.
+ * On géolocalise donc l'utilisateur et on zoome chez lui — ce qui, en plus de
+ * recentrer, fait basculer l'affichage sur la couche API filtrée par sport
+ * (les pins deviennent ceux du sport, près de l'utilisateur). Même logique que
+ * la carte principale, mais SportPageMap utilise MapClient en direct (sans
+ * MapWithSearch qui portait jusqu'ici toute la logique #214).
  */
 export function SportPageMap({
   sportSlug,
@@ -66,62 +58,110 @@ export function SportPageMap({
 }: Props) {
   const [visibleCount, setVisibleCount] = useState(initialVenues.length);
 
-  // Vue d'ouverture résolue depuis /api/geo. `null` = pas encore résolue → on
-  // n'a pas encore monté MapLibre (évite d'ouvrir sur une vue monde puis sauter).
-  const [initialView, setInitialView] = useState<View | null>(null);
+  // flyTarget géoloc auto (interne). Le flyTarget explicite du parent (clic sur
+  // un item de la liste) reste prioritaire — cf. effectiveFlyTarget plus bas.
+  const [geoFlyTarget, setGeoFlyTarget] = useState<FlyTarget | null>(null);
 
+  // Dès qu'une intention explicite du parent recentre la carte, la géoloc auto
+  // ne doit plus écraser ce choix (anti-race, comme userMovedRef dans #214).
+  const parentMovedRef = useRef(false);
+  useEffect(() => {
+    if (flyTarget) parentMovedRef.current = true;
+  }, [flyTarget]);
+
+  // Géoloc précise (navigateur) → recentre en zoom 12 si l'utilisateur autorise.
+  // Gardée par GEO_PROMPTED_KEY : on ne redemande jamais la permission en auto.
+  const precisePosRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !("geolocation" in navigator)) return;
+    try {
+      if (window.localStorage.getItem(GEO_PROMPTED_KEY) === "1") return;
+    } catch {
+      /* localStorage inaccessible → on tente une fois quand même */
+    }
+    const markPrompted = () => {
+      try {
+        window.localStorage.setItem(GEO_PROMPTED_KEY, "1");
+      } catch {
+        /* silent */
+      }
+    };
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        markPrompted();
+        if (parentMovedRef.current) return;
+        precisePosRef.current = true; // position précise : prime sur la géoloc IP
+        setGeoFlyTarget({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          zoom: 12,
+          token: Date.now(),
+        });
+      },
+      () => markPrompted(),
+      { timeout: 8000, maximumAge: 60_000 },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Géoloc approximative par IP (/api/geo, edge Vercel, SANS permission) →
+  // recentrage instantané sur la région du visiteur dès le mount. La géoloc
+  // précise ci-dessus raffine ensuite (zoom 12) si elle est autorisée.
   useEffect(() => {
     let cancelled = false;
-    // Filet : si /api/geo traîne vraiment (réseau lent / edge à froid), on ouvre
-    // sur la France plutôt que de bloquer l'affichage indéfiniment. Délai large
-    // (2 s) car en pratique /api/geo répond en <300 ms ; on préfère attendre un
-    // peu pour atterrir sur la ville du visiteur plutôt que retomber sur une vue
-    // France large. En dev (headers absents) /api/geo renvoie {geo:null} vite →
-    // on bascule sur le fallback sans attendre ce timer.
-    const timer = setTimeout(() => {
-      if (!cancelled) setInitialView((v) => v ?? { ...FRANCE_FALLBACK });
-    }, 2000);
     (async () => {
       try {
         const res = await fetch("/api/geo");
-        const data = res.ok
-          ? ((await res.json()) as { geo: { lat: number; lon: number } | null })
-          : { geo: null };
-        if (cancelled) return;
-        setInitialView(
-          data.geo
-            ? { lat: data.geo.lat, lon: data.geo.lon, zoom: GEO_ZOOM }
-            : { ...FRANCE_FALLBACK },
-        );
+        if (!res.ok) return;
+        const { geo } = (await res.json()) as {
+          geo: { lat: number; lon: number } | null;
+        };
+        if (cancelled || !geo || parentMovedRef.current || precisePosRef.current) return;
+        setGeoFlyTarget({ lat: geo.lat, lon: geo.lon, zoom: 11, token: Date.now() });
       } catch {
-        if (!cancelled) setInitialView({ ...FRANCE_FALLBACK });
-      } finally {
-        clearTimeout(timer);
+        /* /api/geo indispo (dev local) → on garde la vue par défaut */
       }
     })();
     return () => {
       cancelled = true;
-      clearTimeout(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Priorité : intention explicite du parent (clic liste) > géoloc auto.
+  const effectiveFlyTarget = flyTarget ?? geoFlyTarget;
+
+  // Calc initial center + zoom depuis les venues initiaux (fallback si géoloc
+  // indisponible / refusée → on garde une vue France raisonnable).
+  const initial = (() => {
+    if (initialVenues.length === 0) {
+      return { lat: 46.5, lon: 2.5, zoom: 5 };
+    }
+    const lats = initialVenues.map((v) => v.lat);
+    const lons = initialVenues.map((v) => v.lon);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLon = (minLon + maxLon) / 2;
+    const span = Math.max(maxLat - minLat, maxLon - minLon);
+    const zoom =
+      span > 50 ? 2 : span > 20 ? 4 : span > 8 ? 6 : span > 3 ? 8 : span > 0.5 ? 11 : 13;
+    return { lat: centerLat, lon: centerLon, zoom };
+  })();
 
   return (
     <div className="relative h-[400px] w-full overflow-hidden rounded-lg border">
-      {initialView ? (
-        <MapClient
-          initialLat={initialView.lat}
-          initialLon={initialView.lon}
-          initialZoom={initialView.zoom}
-          selectedSport={sportSlug}
-          onVenuesChange={setVisibleCount}
-          onVenuesData={onVenuesData}
-          flyTarget={flyTarget}
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-muted/20 text-sm text-muted-foreground">
-          Chargement de la carte…
-        </div>
-      )}
+      <MapClient
+        initialLat={initial.lat}
+        initialLon={initial.lon}
+        initialZoom={initial.zoom}
+        selectedSport={sportSlug}
+        onVenuesChange={setVisibleCount}
+        onVenuesData={onVenuesData}
+        flyTarget={effectiveFlyTarget}
+      />
       <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-background/90 px-2 py-1 text-[11px] shadow backdrop-blur">
         <span className="font-semibold">{formatCount(visibleCount)}</span> visible
         {totalSportVenues != null && (
