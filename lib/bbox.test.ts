@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseBbox } from "@/lib/bbox";
+import { parseBbox, snapBboxMax, snapBboxMin } from "@/lib/bbox";
 
 describe("parseBbox — validation d'entrée", () => {
   it("rejette une bbox vide", () => {
@@ -134,6 +134,53 @@ describe("parseBbox — clamping aux pôles", () => {
       expect(r.north).toBeLessThan(90);
       expect(r.south).toBeCloseTo(-89.9);
       expect(r.north).toBeCloseTo(89.9);
+    }
+  });
+});
+
+describe("snapBboxMin / snapBboxMax — snap directionnel anti-collapse (#442)", () => {
+  it("snapBboxMin floore sur la grille 0.01°", () => {
+    expect(snapBboxMin(2.3515)).toBeCloseTo(2.35, 5);
+    expect(snapBboxMin(2.3599)).toBeCloseTo(2.35, 5);
+    // Négatif : floor descend vers -∞ → 2.341 → 2.34.
+    expect(snapBboxMin(-2.341)).toBeCloseTo(-2.35, 5);
+  });
+
+  it("snapBboxMax ceile sur la grille 0.01°", () => {
+    expect(snapBboxMax(2.3501)).toBeCloseTo(2.36, 5);
+    expect(snapBboxMax(2.3529)).toBeCloseTo(2.36, 5);
+    expect(snapBboxMax(-2.349)).toBeCloseTo(-2.34, 5);
+  });
+
+  it("préserve une valeur déjà sur la grille", () => {
+    expect(snapBboxMin(2.35)).toBeCloseTo(2.35, 5);
+    expect(snapBboxMax(2.35)).toBeCloseTo(2.35, 5);
+  });
+
+  it("GARANTIT une largeur snappée ≥ 0.01° même sur une bbox ultra-étroite (cœur du bug)", () => {
+    // À zoom ≥ 16 sur Paris (lon 2.3522), la vue fait < 0.01° de large.
+    // Math.round symétrique collait west et east sur 2.35 → enveloppe d'aire
+    // nulle → 0 venue. Le snap directionnel garde la box ouverte.
+    const west = 2.35205;
+    const east = 2.35235; // span réel ~0.0003°
+    const sw = snapBboxMin(west);
+    const se = snapBboxMax(east);
+    expect(se - sw).toBeGreaterThanOrEqual(0.01 - 1e-9);
+    // La box snappée contient bien la vue réelle (jamais de rétrécissement).
+    expect(sw).toBeLessThanOrEqual(west);
+    expect(se).toBeGreaterThanOrEqual(east);
+  });
+
+  it("ne s'effondre jamais sur 1000 fenêtres étroites balayant la grille", () => {
+    for (let i = 0; i < 1000; i++) {
+      const center = -180 + i * 0.36; // balaie tout le globe
+      const west = center - 0.0001;
+      const east = center + 0.0001;
+      const sw = snapBboxMin(west);
+      const se = snapBboxMax(east);
+      expect(se).toBeGreaterThan(sw); // jamais d'aire nulle
+      expect(sw).toBeLessThanOrEqual(west);
+      expect(se).toBeGreaterThanOrEqual(east);
     }
   });
 });
