@@ -62,7 +62,7 @@
     "q3": "如何添加我的俱乐部或场所?",
     "a3": "三种方式: (1) 填写我们的表单 (1 分钟,一周内收录); (2) 直接在 OpenStreetMap 上编辑——24 小时内会同步过来; (3) 写信给 hello@sporthubmap.com。",
     "q4": "如何预订课程或找到教练?",
-    "a4": "Sport Hub 不直接处理预订。根据运动类型,我们会推荐相应的合作伙伴:Anybuddy (网球/帕德尔)、ClassPass 和 Mindbody (健身/瑜伽)、Superprof (私人教练) 等。",
+    "a4": "Sport Hub 不直接处理预订。根据运动类型,我们会为你推荐最合适的预订服务(例如网球/帕德尔用 Anybuddy,健身/瑜伽用 ClassPass 或 Mindbody,私人教练用 Superprof)。",
     "q5": "数据是最新的吗?",
     "a5": "数据源自动刷新:OSM 接近实时,RES France 每月,Overture 每季度。Google 评分按需获取,缓存 30 天。",
     "q6": "接下来会添加哪些家族?",
