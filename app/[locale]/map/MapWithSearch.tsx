@@ -740,7 +740,10 @@ export function MapWithSearch({
           className={
             effectiveMode === "split"
               ? "absolute right-0 top-0 z-10 h-full w-[380px] border-l bg-background shadow-xl"
-              : "absolute inset-0 z-10 bg-background"
+              : // Mode list : cantonné à droite de la sidebar filtres sur desktop
+                // (overlay flottant w-56 en z-20), sinon elle recouvre la liste
+                // (#483). Mobile : sidebar = tiroir → plein écran OK.
+                "absolute inset-0 z-10 border-l bg-background md:left-64"
           }
         />
       )}
