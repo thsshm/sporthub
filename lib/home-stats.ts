@@ -49,3 +49,83 @@ export function sumFamilyCounts(counts: Record<string, number>): number {
 export async function getTotalSpots(): Promise<number> {
   return sumFamilyCounts(await getFamilyCounts());
 }
+
+// ─── Recherches populaires (sport × ville) — #462 ──────────────────────────
+
+export type PopularCombo = { sport: string; citySlug: string; cityLabel: string };
+
+/** Seuil minimum de lieux pour qu'un combo sport×ville soit affiché sur la home.
+ * En dessous, la page programmatique est trop maigre (« No address ») → on la
+ * retire des « recherches populaires » (audit produit #462). */
+export const MIN_VENUES_FOR_POPULAR = 5;
+
+/** Liste éditoriale de combos candidats (villes FR pertinentes). Filtrée à
+ * l'exécution par le vrai nombre de lieux publiés (cf. getPopularCombos). */
+const POPULAR_CANDIDATES: PopularCombo[] = [
+  { sport: "padel", citySlug: "paris", cityLabel: "Paris" },
+  { sport: "tennis", citySlug: "lyon", cityLabel: "Lyon" },
+  { sport: "petanque", citySlug: "marseille", cityLabel: "Marseille" },
+  { sport: "yoga", citySlug: "bordeaux", cityLabel: "Bordeaux" },
+  { sport: "gym", citySlug: "toulouse", cityLabel: "Toulouse" },
+  { sport: "boxing", citySlug: "nantes", cityLabel: "Nantes" },
+  { sport: "padel", citySlug: "nice", cityLabel: "Nice" },
+  { sport: "tennis", citySlug: "strasbourg", cityLabel: "Strasbourg" },
+  { sport: "surf", citySlug: "biarritz", cityLabel: "Biarritz" },
+  { sport: "kitesurf", citySlug: "la-rochelle", cityLabel: "La Rochelle" },
+  { sport: "football", citySlug: "lille", cityLabel: "Lille" },
+  { sport: "basketball", citySlug: "rennes", cityLabel: "Rennes" },
+];
+
+/** Filtre pur (testable) : ne garde que les combos avec ≥ `min` lieux. */
+export function keepPopularCombos(
+  withCount: { combo: PopularCombo; count: number }[],
+  min: number,
+): PopularCombo[] {
+  return withCount.filter((x) => x.count >= min).map((x) => x.combo);
+}
+
+/**
+ * Recherches populaires DATA-DRIVEN : on part d'une liste éditoriale puis on
+ * NE GARDE QUE les combos sport×ville réellement peuplés (≥ MIN_VENUES_FOR_POPULAR
+ * lieux publiés). Évite d'envoyer l'utilisateur sur des pages vides (#462).
+ *
+ * count=exact ici : la requête est bornée par city_id → l'index composite
+ * (primary_sport_slug, city_id) (migration 0005) rend le COUNT trivial. Client
+ * static + unstable_cache → la home reste ISR.
+ */
+export const getPopularCombos = unstable_cache(
+  async (): Promise<PopularCombo[]> => {
+    const sb = getSupabaseStaticClient();
+    const citySlugs = [...new Set(POPULAR_CANDIDATES.map((c) => c.citySlug))];
+    const { data: cities } = await sb
+      .from("city")
+      .select("id, slug")
+      .in("slug", citySlugs);
+    const cityIdBySlug = new Map(
+      (cities ?? []).map((c) => [c.slug, c.id] as const),
+    );
+
+    const withCount = await Promise.all(
+      POPULAR_CANDIDATES.map(async (combo) => {
+        const cityId = cityIdBySlug.get(combo.citySlug);
+        if (!cityId) return { combo, count: 0 };
+        try {
+          const { count } = await sb
+            .from("venue")
+            .select("id", { count: "exact", head: true })
+            .eq("primary_sport_slug", combo.sport)
+            .eq("city_id", cityId)
+            .eq("is_published", true)
+            .is("deleted_at", null);
+          return { combo, count: count ?? 0 };
+        } catch {
+          return { combo, count: 0 };
+        }
+      }),
+    );
+
+    return keepPopularCombos(withCount, MIN_VENUES_FOR_POPULAR);
+  },
+  ["home-popular-combos"],
+  { revalidate: 300, tags: ["home"] },
+);
