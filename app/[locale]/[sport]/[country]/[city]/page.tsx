@@ -5,7 +5,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/routing";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
-import { FAMILIES_BY_SLUG } from "@/lib/families";
+import { FAMILIES_BY_SLUG, getRelatedSports } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -179,6 +179,12 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
   const basePath = `/${sport}/${country}/${city}`;
   const sportName = tSports.has(ctx.sport.slug) ? tSports(ctx.sport.slug) : ctx.sport.name_fr;
 
+  // Sports voisins (même famille) → maillage interne SEO « sports proches
+  // à {ville} » (#465). On lie la même ville pour chaque sport voisin.
+  const relatedSports = getRelatedSports(ctx.sport.slug).filter((s) =>
+    tSports.has(s),
+  );
+
   // ── Schema.org JSON-LD : BreadcrumbList + Place (ville) + ItemList (venues).
   //    Trois marqueurs distincts pour aider Google à comprendre que la page
   //    parle d'un sport ET d'un lieu géographique ET liste des venues.
@@ -247,6 +253,33 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
           )}
         </p>
       </header>
+
+      {/* Contenu local : court paragraphe descriptif pour donner du texte
+          indexable à la page (au-delà de la simple liste), audit SEO #465. */}
+      <p className="mt-6 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+        {t("localIntro", { sport: sportName.toLowerCase(), city: ctx.city.name })}
+      </p>
+
+      {/* Sports proches dans la même ville → maillage interne (#465). */}
+      {relatedSports.length > 0 && (
+        <nav
+          className="mt-4 flex flex-wrap items-center gap-2 text-sm"
+          aria-label={t("relatedTitle", { city: ctx.city.name })}
+        >
+          <span className="font-medium text-foreground">
+            {t("relatedTitle", { city: ctx.city.name })} :
+          </span>
+          {relatedSports.map((s) => (
+            <Link
+              key={s}
+              href={`/${s}/${country}/${city}`}
+              className="rounded-full border px-3 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              {tSports(s)}
+            </Link>
+          ))}
+        </nav>
+      )}
 
       {venues.length === 0 ? (
         <p className="mt-12 text-center text-muted-foreground">

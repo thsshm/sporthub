@@ -164,7 +164,9 @@
     "h1": "{sport} à {city}",
     "addresses": "{count, plural, =0 {Aucune adresse} one {1 adresse} other {{count} adresses}}",
     "emptyMessage": "Pas encore de venue pour {sport} à {city}.",
-    "seeOtherCities": "Voir les autres villes"
+    "seeOtherCities": "Voir les autres villes",
+    "localIntro": "Sport Hub référence où pratiquer le {sport} à {city}. Repère les adresses sur la carte, compare horaires et équipements, et trouve le spot le plus proche — sans inscription. Les données proviennent de sources ouvertes (OpenStreetMap, référentiels officiels) et sont enrichies en continu.",
+    "relatedTitle": "Sports proches à {city}"
   },
   "venue": {
     "sportsPracticed": "Sports pratiqués",

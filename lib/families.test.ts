@@ -4,6 +4,7 @@ import {
   FAMILIES_BY_SLUG,
   getFamilyColor,
   getFamilyEmoji,
+  getRelatedSports,
 } from "@/lib/families";
 
 describe("FAMILIES — invariants sur le référentiel", () => {
@@ -84,6 +85,36 @@ describe("getFamilyEmoji", () => {
 
   it("fallback stadium pour un slug inconnu", () => {
     expect(getFamilyEmoji("inconnu")).toBe("🏟️");
+  });
+});
+
+describe("getRelatedSports", () => {
+  it("retourne les autres sports de la même famille, sans le sport courant", () => {
+    const related = getRelatedSports("tennis");
+    expect(related).not.toContain("tennis");
+    expect(related).toEqual(["padel", "table_tennis", "badminton", "squash"]);
+  });
+
+  it("respecte la limite `max`", () => {
+    expect(getRelatedSports("tennis", 2)).toEqual(["padel", "table_tennis"]);
+  });
+
+  it("préserve l'ordre déclaré dans FAMILIES", () => {
+    expect(getRelatedSports("padel")).toEqual([
+      "tennis",
+      "table_tennis",
+      "badminton",
+      "squash",
+    ]);
+  });
+
+  it("retourne [] pour un sport inconnu", () => {
+    expect(getRelatedSports("quidditch")).toEqual([]);
+  });
+
+  it("retourne [] (et pas de crash) pour une famille à un seul sport", () => {
+    // escalade = ["climbing_indoor"] → aucun voisin
+    expect(getRelatedSports("climbing_indoor")).toEqual([]);
   });
 });
 

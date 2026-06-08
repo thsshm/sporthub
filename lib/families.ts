@@ -147,3 +147,18 @@ export function getFamilyColor(familySlug: string): string {
 export function getFamilyEmoji(familySlug: string): string {
   return FAMILIES_BY_SLUG[familySlug]?.emoji ?? "🏟️";
 }
+
+/**
+ * Sports « voisins » d'un sport donné = les autres sports de sa famille.
+ * Alimente le maillage interne SEO des pages sport×ville (« sports proches
+ * à {ville} », #465) : depuis la page tennis d'une ville, on lie padel /
+ * squash / badminton de la même ville.
+ *
+ * Préserve l'ordre déclaré dans `FAMILIES`. Retourne `[]` si le sport est
+ * introuvable (ex. slug d'une discipline non rattachée à une famille).
+ */
+export function getRelatedSports(sportSlug: string, max = 4): string[] {
+  const family = FAMILIES.find((f) => f.sports.includes(sportSlug));
+  if (!family) return [];
+  return family.sports.filter((s) => s !== sportSlug).slice(0, max);
+}
