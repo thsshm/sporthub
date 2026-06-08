@@ -404,9 +404,18 @@ def run(args: argparse.Namespace) -> int:
     # Seul pour un pays précis (pas pour "all" global, évite les faux positifs).
     soft_deleted = 0
     if run_id and args.country.upper() != "EU" and all_seen_extids:
-        print(f"\n  🗑 réconciliation soft-delete ({args.country.upper()}) …", flush=True)
+        # #426 — scope par famille pour un import mono-famille (sinon on
+        # soft-delete les autres familles, source+pays, absentes de ce batch).
+        # `None` pour --family all = réconciliation complète.
+        fam_scope = None if args.family == "all" else args.family
+        print(
+            f"\n  🗑 réconciliation soft-delete "
+            f"({args.country.upper()}/{fam_scope or 'all'}) …",
+            flush=True,
+        )
         soft_deleted = soft_delete_missing(
-            client, SOURCE, args.country.upper(), all_seen_extids
+            client, SOURCE, args.country.upper(), all_seen_extids,
+            family_slug=fam_scope,
         )
         print(f"  ✓ soft-deleted={soft_deleted}")
 

@@ -1,13 +1,24 @@
 "use client";
 
-import { MapPin, Heart, Globe } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { MapPin, Heart, Globe, Check } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { Link, usePathname, useRouter, type Locale } from "@/i18n/routing";
+import {
+  Link,
+  usePathname,
+  useRouter,
+  routing,
+  type Locale,
+} from "@/i18n/routing";
 import { FAMILIES } from "@/lib/families";
 import { MobileNav } from "./MobileNav";
 
 const LANG_LABEL: Record<Locale, string> = { fr: "FR", en: "EN", zh: "中" };
-const LANG_CYCLE: Record<Locale, Locale> = { fr: "en", en: "zh", zh: "fr" };
+const LANG_NATIVE: Record<Locale, string> = {
+  fr: "Français",
+  en: "English",
+  zh: "中文",
+};
 
 export function Nav() {
   const t = useTranslations("nav");
@@ -16,10 +27,30 @@ export function Nav() {
   const locale = useLocale() as Locale;
   const pathname = usePathname();
   const router = useRouter();
+  const langRef = useRef<HTMLDetailsElement>(null);
 
-  const toggleLang = () => {
-    router.replace(pathname, { locale: LANG_CYCLE[locale] });
+  const selectLang = (loc: Locale) => {
+    if (langRef.current) langRef.current.open = false;
+    if (loc !== locale) router.replace(pathname, { locale: loc });
   };
+
+  // Ferme le menu langue au clic à l'extérieur ou sur Échap.
+  useEffect(() => {
+    const el = langRef.current;
+    if (!el) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (el.open && !el.contains(e.target as Node)) el.open = false;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") el.open = false;
+    };
+    document.addEventListener("click", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   /** Tagline = jusqu'à 3 sports principaux concaténés. Évite d'ajouter
    * 13×3 clés i18n statiques pour un sous-titre éditorial. Cf. #131. */
@@ -139,16 +170,55 @@ export function Nav() {
             <span className="hidden md:inline">{t("favorites")}</span>
           </Link>
 
-          <button
-            type="button"
-            onClick={toggleLang}
-            className="flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={t("changeLang")}
-            title={`${LANG_LABEL[locale]} → ${LANG_LABEL[LANG_CYCLE[locale]]}`}
-          >
-            <Globe className="h-4 w-4" aria-hidden="true" />
-            <span>{LANG_LABEL[locale]}</span>
-          </button>
+          <details ref={langRef} className="group relative">
+            <summary
+              className="flex cursor-pointer list-none items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-haspopup="menu"
+              aria-label={t("changeLang")}
+              title={t("changeLang")}
+            >
+              <Globe className="h-4 w-4" aria-hidden="true" />
+              <span>{LANG_LABEL[locale]}</span>
+              <svg
+                className="h-4 w-4 transition-transform group-open:rotate-180"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </summary>
+            <div
+              className="absolute right-0 top-full z-50 mt-1 w-40 rounded-md border bg-popover p-1 shadow-md"
+              role="menu"
+              aria-label={t("changeLang")}
+            >
+              {routing.locales.map((loc) => (
+                <button
+                  key={loc}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={loc === locale}
+                  onClick={() => selectLang(loc)}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-sm text-foreground hover:bg-accent"
+                >
+                  <span className="w-7 shrink-0 text-xs font-semibold text-muted-foreground">
+                    {LANG_LABEL[loc]}
+                  </span>
+                  <span className="flex-1 text-left">{LANG_NATIVE[loc]}</span>
+                  {loc === locale && (
+                    <Check className="h-4 w-4 text-primary" aria-hidden="true" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </details>
         </div>
       </nav>
     </header>

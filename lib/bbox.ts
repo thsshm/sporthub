@@ -134,3 +134,23 @@ export function parseBbox(raw: string): NormalizedBbox | BboxParseError {
     north,
   };
 }
+
+/**
+ * Snap d'une coordonnée sur la grille 0.01° (~1.1 km) avant l'appel RPC, pour
+ * que des pans/zooms micro tombent dans le même bucket de cache HTTP edge (#113).
+ *
+ * Snap DIRECTIONNEL — c'est le cœur du correctif #442 :
+ *   - `snapBboxMin` (floor) pour les bords min (west, south)
+ *   - `snapBboxMax` (ceil)  pour les bords max (east, north)
+ *
+ * La bbox snappée CONTIENT donc toujours la vue réelle. Conséquence : sa
+ * largeur snappée est ≥ 0.01° quoi qu'il arrive, donc elle ne peut JAMAIS
+ * s'effondrer en aire nulle — contrairement à `Math.round` symétrique qui,
+ * à fort zoom (vue < 0.01° de large), collait west et east sur la même valeur,
+ * produisait une enveloppe `ST_MakeEnvelope` dégénérée et faisait retourner 0
+ * venue à `venues_in_bbox` (le spot central disparaissait → overlay
+ * "No spots in this area" à zoom ≥ 16). Le snap n'exclut par ailleurs jamais
+ * un spot visible, puisque la box ne rétrécit pas.
+ */
+export const snapBboxMin = (n: number) => Math.floor(n * 100) / 100;
+export const snapBboxMax = (n: number) => Math.ceil(n * 100) / 100;

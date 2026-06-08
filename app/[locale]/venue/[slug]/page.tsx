@@ -18,6 +18,7 @@ import { VenueSportsList } from "@/components/venue/VenueSportsList";
 import { VenueAccessibility } from "@/components/venue/VenueAccessibility";
 import { VenueBookingLinks } from "@/components/venue/VenueBookingLinks";
 import { VenueRelated } from "@/components/venue/VenueRelated";
+import { VenueMiniMap } from "@/components/venue/VenueMiniMap";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenueDetail } from "@/lib/supabase/types";
@@ -154,7 +155,7 @@ export default async function VenuePage({ params }: Props) {
             </section>
           )}
 
-          <VenueAbout venue={venue} />
+          <VenueAbout venue={venue} cityName={venue.city_name} locale={locale} />
 
           <VenueSportsList venue={venue} locale={safeLocale} />
 
@@ -191,8 +192,15 @@ export default async function VenuePage({ params }: Props) {
           </section>
         </div>
 
-        {/* Sidebar : réservation + review + infos — sticky desktop (#layout) */}
+        {/* Sidebar : mini-carte + réservation + review + infos — sticky desktop */}
         <aside className="space-y-4 lg:sticky lg:top-[calc(4rem+1rem)] lg:self-start">
+          {/* Mini-carte MapLibre centrée sur la venue (#414) */}
+          <VenueMiniMap
+            lat={venue.lat}
+            lon={venue.lon}
+            name={venue.name}
+            color={FAMILIES_BY_SLUG[venue.family_slug]?.color ?? "#2d7a3e"}
+          />
           <VenueBookingLinks bookingLinks={venue.booking_links} />
           <VenueReviewBadge venue={venue} />
           <VenueInfoCard venue={venue} locale={safeLocale} />

@@ -72,3 +72,4 @@ jobs:
           python3 scripts/etl_upsert.py --self-test
           python3 scripts/etl/osm_import.py --self-test
           python3 scripts/etl/overture_import.py --self-test
+          python3 scripts/scrape_playtomic_padel_fr.py --self-test

@@ -43,6 +43,24 @@ export type Viewport = {
   zoom: number;
 };
 
+/**
+ * Zoom minimal pour qu'un viewport sauvegardé soit considéré comme une position
+ * CHOISIE par l'utilisateur (ville/quartier) → restaurée au 1er chargement.
+ * En dessous (pays/continent, ex. France entière ≈ z5), c'est une vue « trop
+ * large / par défaut » : on ne la restaure PAS, on laisse la géoloc recentrer
+ * sur la ville du visiteur (#439). 7 ≈ grande région ; ville ≈ 10-12.
+ */
+export const MIN_MEANINGFUL_RESTORE_ZOOM = 7;
+
+/**
+ * Un viewport sauvegardé est « informatif » (= à restaurer tel quel) s'il est
+ * assez zoomé pour refléter un lieu choisi. Sinon (zoom faible), la géoloc doit
+ * primer au 1er chargement.
+ */
+export function isMeaningfulViewport(v: Viewport): boolean {
+  return v.zoom >= MIN_MEANINGFUL_RESTORE_ZOOM;
+}
+
 function isValidViewport(v: unknown): v is Viewport {
   if (!v || typeof v !== "object") return false;
   const obj = v as Record<string, unknown>;

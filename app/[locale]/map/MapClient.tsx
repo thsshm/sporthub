@@ -209,7 +209,14 @@ export default function MapClient({
   // venues via tuiles PMTiles (coût O(1)) au lieu de fetch /api/venues +
   // Supercluster. Inactif sur les pages presetVenues (sport) qui passent leurs
   // propres venues. Flag absent → comportement carte inchangé.
-  const useTiles = Boolean(publicEnv.tilesUrl) && !presetVenues;
+  //
+  // Inactif aussi quand un sport unique est sélectionné (page /sports/[sport] ou
+  // filtre mono-sport sur /map) : les tuiles PMTiles ne portent qu'un filtre
+  // FAMILLE (cf. venueTilesFilter), pas le sport — les afficher montrerait tous
+  // les sports de la famille. On bascule alors sur le fetch /api/venues?sport=…
+  // qui filtre par sport côté DB (POI à zoom ≥ 10, agrégats venues_aggregates à
+  // zoom < 10). Sans ce garde, selectedSport était silencieusement ignoré.
+  const useTiles = Boolean(publicEnv.tilesUrl) && !presetVenues && !selectedSport;
   const [fetchedVenues, setFetchedVenues] = useState<VenuePin[]>(() => initialVenues ?? []);
   // Cellules d'agrégat retournées quand zoom < 10 (#114). Vide en mode POI.
   // En mode presetVenues, jamais utilisé (la page passe les venues directement).
@@ -652,21 +659,97 @@ export default function MapClient({
   // repaint quand le container atteint sa taille finale. Résultat : style chargé,
   // tiles chargées, mais canvas WebGL jamais peint → carte blanche (cf. #100).
   //
-  // Le fix : au onLoad, on force resize() + triggerRepaint() pour s'assurer
-  // que le 1er frame est dessiné avec les bonnes dimensions.
-  const handleLoad = () => {
+  // Le fix : forcer resize() + triggerRepaint() pour dessiner le 1er frame avec
+  // les bonnes dimensions. Un SEUL appel au onLoad ne suffit pas en build de
+  // PROD (#100 réapparu) : le onLoad arrive avant que le layout flex/CSS soit
+  // stabilisé, le resize capte une taille transitoire et le canvas WebGL ne
+  // peint jamais → carte blanche (reproduit en prod ; en dev le double-mount /
+  // timing masque le bug). On « kicke » donc le resize sur plusieurs frames
+  // (effet ci-dessous) + un ResizeObserver pour tout changement de taille.
+  // kickResize ne fait QUE resize/repaint (appelé en boucle) — pas de jumpTo.
+  const kickResize = () => {
     const map = mapRef.current?.getMap();
     if (!map) return;
     map.resize();
     map.triggerRepaint();
+  };
+
+  // Ref toujours à jour vers le flyTarget courant : `handleLoad` est un closure
+  // attaché à <Map onLoad> ; sans ref il capturerait une valeur périmée (#408).
+  const flyTargetRef = useRef(flyTarget);
+  flyTargetRef.current = flyTarget;
+
+  const handleLoad = () => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    map.resize();
+    // #408 — Deep-link / restauration : un flyTarget posé AVANT que la carte
+    // soit prête (MapClient ssr:false → monté après l'effet de restauration de
+    // MapWithSearch) a no-opé dans l'effet flyTo (mapRef vide) et n'est jamais
+    // re-tenté (token inchangé). On l'applique ici au load en `jumpTo`
+    // (instantané), AVANT triggerRepaint pour peindre l'état final (cible) et
+    // pas l'état France pré-jump (sinon canvas blanc jusqu'à interaction, #100).
+    const pending = flyTargetRef.current;
+    if (pending) {
+      map.jumpTo({
+        center: [pending.lon, pending.lat],
+        zoom: pending.zoom ?? 12,
+      });
+    }
+    map.triggerRepaint();
+    // #100 réapparu en build prod : ce resize au onLoad est trop précoce → on
+    // relance sur les frames suivantes (le filet échelonné complet est l'effet
+    // ci-dessous, indépendant de onLoad).
+    requestAnimationFrame(kickResize);
+    setTimeout(kickResize, 250);
     updateViewport();
   };
+
+  // ResizeObserver sur le container : garantit que MapLibre suit toujours la
+  // taille réelle de son conteneur — y compris au settle initial (le RO se
+  // déclenche une fois à l'observe) et aux changements de vue (map/list/split).
+  // C'est la protection robuste contre la classe de bugs « canvas blanc ».
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = mapContainerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => kickResize());
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Filet de sécurité INDÉPENDANT de onLoad : en build prod, le canvas WebGL ne
+  // peint jamais le 1er frame et reste blanc jusqu'à un resize externe (vérifié :
+  // un window 'resize' débloque instantanément le rendu). Des setTimeout fixes
+  // ne suffisent pas : l'instance MapLibre peut n'être prête qu'après leur
+  // fenêtre (init lente en prod) → kickResize no-ope. On POLL donc à intervalle
+  // régulier jusqu'à ce que la map existe, puis on force encore quelques
+  // resize/repaint après, avant d'arrêter. resize() est idempotent (no-op si la
+  // taille est inchangée) → coût négligeable.
+  useEffect(() => {
+    let ticks = 0;
+    let afterReady = 0;
+    const id = setInterval(() => {
+      ticks += 1;
+      const map = mapRef.current?.getMap();
+      if (map) {
+        map.resize();
+        map.triggerRepaint();
+        afterReady += 1;
+      }
+      // Stop : 4 resize après que la map soit prête, ou garde-fou ~6 s.
+      if (afterReady >= 4 || ticks >= 40) clearInterval(id);
+    }, 150);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Empty filter (l'user a tout décoché) — pas la peine de fetch
   const emptyFilter = selectedFamilies !== undefined && selectedFamilies.size === 0;
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={mapContainerRef} className="relative h-full w-full">
       {/* Bouton "Rechercher dans cette zone" — visible quand autoUpdate=off
           ET le bbox courant diffère du dernier fetch. Pattern Airbnb/Google Maps. */}
       {isStale && !loading && (
@@ -693,7 +776,11 @@ export default function MapClient({
         onMoveEnd={debouncedUpdateViewport}
         onZoomEnd={debouncedUpdateViewport}
       >
-        <NavigationControl position="top-right" />
+        {/* Zoom +/- en BAS-droite : le haut-droite est occupé par la barre de
+            recherche + le toggle Map/List/Side + le bouton Partager (overlays
+            de MapWithSearch) qui masquaient le contrôle. Empilé au-dessus du
+            bouton géoloc via CSS (cf. globals.css). showCompass off : carte 2D. */}
+        <NavigationControl position="bottom-right" showCompass={false} />
 
         {/* Vector tiles (#226) — quand NEXT_PUBLIC_TILES_URL est défini, le rendu
           des venues vient des tuiles PMTiles (coût O(1)), et les blocs markers

@@ -10,16 +10,52 @@
 import { getTranslations } from "next-intl/server";
 import { ExternalLink } from "lucide-react";
 import type { VenueDetail, VenueEnrichments } from "@/lib/supabase/types";
+import { generateVenueDescription } from "@/lib/venue/description";
+import type { DescriptionContext, DescriptionStrings } from "@/lib/venue/description";
 
 type Props = {
   venue: VenueDetail;
+  cityName?: string | null;
+  locale?: string;
 };
 
-export async function VenueAbout({ venue }: Props) {
+export async function VenueAbout({ venue, cityName, locale = "fr" }: Props) {
   const t = await getTranslations("venue");
+  const tSports = await getTranslations("sports");
   const enrichments = (venue.enrichments ?? {}) as VenueEnrichments;
 
-  const description = enrichments.description?.trim() || null;
+  // Description Wikipedia si présente, sinon description générée (#414).
+  const wikiDescription = enrichments.description?.trim() || null;
+  const sportSlug = venue.primary_sport_slug;
+  const sportName = sportSlug && tSports.has(sportSlug) ? tSports(sportSlug) : sportSlug;
+  const courtsCount = venue.courts_count;
+
+  // Construit la description générée si aucune description Wikipedia.
+  let description = wikiDescription;
+  if (!description && sportName) {
+    const ctx: DescriptionContext = {
+      sportName,
+      cityName: cityName ?? null,
+      countryCode: venue.country_code ?? null,
+      courtsCount: courtsCount ?? null,
+      isIndoor: venue.is_indoor ?? null,
+      hasLighting: venue.has_lighting ?? null,
+      feeRequired: venue.fee_required ?? null,
+    };
+    const strings: DescriptionStrings = {
+      venueType: sportName,
+      indoor: t("amenity.indoor"),
+      outdoor: t("outdoor"),
+      inCity: locale === "zh" ? "的" : locale === "en" ? "in" : "à",
+      courtsPattern:
+        locale === "zh" ? "{n} 片球场" : locale === "en" ? "{n} courts" : "{n} terrains",
+      lit: locale === "zh" ? "有照明" : locale === "en" ? "lit" : "éclairé",
+      freeAccess: locale === "zh" ? "免费进入" : locale === "en" ? "free access" : "accès libre",
+      paidAccess: locale === "zh" ? "收费" : locale === "en" ? "paid" : "payant",
+    };
+    description = generateVenueDescription(ctx, strings);
+  }
+
   const wikipediaUrl = enrichments.wikipedia_url?.trim() || null;
   const wikipediaLabel = enrichments.wikipedia_label?.trim() || null;
   const websiteUrl = venue.website_url?.trim() || null;

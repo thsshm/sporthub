@@ -6,10 +6,12 @@ name: Overture import
 #
 # Dépendance : `pip install duckdb` (DuckDB + httpfs lit les parquet S3 public).
 # Secrets : SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (déjà configurés).
+#
+# Outil de run CIBLÉ (manuel), dry-run par défaut. Le refresh hebdomadaire
+# autonome est piloté par data-refresh.yml (#227 slice 2) — plus de `schedule`
+# propre ici (il tournait en no-op dry-run).
 
 on:
-  schedule:
-    - cron: "0 3 * * 0"   # dimanche 03:00 UTC (après l'import OSM à 02:00)
   workflow_dispatch:
     inputs:
       family:

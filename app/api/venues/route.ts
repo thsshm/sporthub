@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAnonEdgeClient } from "@/lib/supabase/server";
 import { captureException } from "@/lib/monitoring";
-import { parseBbox, type NormalizedBbox } from "@/lib/bbox";
+import {
+  parseBbox,
+  snapBboxMax,
+  snapBboxMin,
+  type NormalizedBbox,
+} from "@/lib/bbox";
 import type { VenuePin } from "@/lib/supabase/types";
 
 /**
@@ -23,13 +28,10 @@ import type { VenuePin } from "@/lib/supabase/types";
  */
 export const runtime = "edge";
 
-/**
- * Arrondi des coords bbox à 2 décimales (~1.1 km) avant l'appel RPC (#113).
- * Pans micro tombent dans le même bucket cache HTTP edge → hit rate élevé.
- * Le viewport MapLibre garde sa précision côté client — seule la query DB
- * et la clé de cache CDN sont "snappées" sur cette grille.
- */
-const roundCoord = (n: number) => Math.round(n * 100) / 100;
+// Snap bbox sur la grille 0.01° (~1.1 km) avant l'appel RPC pour le cache edge
+// (#113), mais DIRECTIONNEL (floor min / ceil max) pour que la box snappée
+// contienne toujours la vue et ne s'effondre jamais à fort zoom (#442).
+// Cf. lib/bbox.ts pour le détail du raisonnement.
 
 
 /**
@@ -382,10 +384,10 @@ async function fetchVenues(
     // Le total est cappé au `limit` demandé (pas 2×limit).
     const [r1, r2] = await Promise.all([
       sb.rpc("venues_in_bbox", {
-        west: roundCoord(bbox.west1),
-        south: roundCoord(bbox.south),
-        east: roundCoord(bbox.east1),
-        north: roundCoord(bbox.north),
+        west: snapBboxMin(bbox.west1),
+        south: snapBboxMin(bbox.south),
+        east: snapBboxMax(bbox.east1),
+        north: snapBboxMax(bbox.north),
         fams: filters.fams ?? undefined,
         sport: filters.sport ?? undefined,
         feat: filters.feat ?? undefined,
@@ -393,10 +395,10 @@ async function fetchVenues(
         max_results: filters.limit,
       }),
       sb.rpc("venues_in_bbox", {
-        west: roundCoord(bbox.west2),
-        south: roundCoord(bbox.south),
-        east: roundCoord(bbox.east2),
-        north: roundCoord(bbox.north),
+        west: snapBboxMin(bbox.west2),
+        south: snapBboxMin(bbox.south),
+        east: snapBboxMax(bbox.east2),
+        north: snapBboxMax(bbox.north),
         fams: filters.fams ?? undefined,
         sport: filters.sport ?? undefined,
         feat: filters.feat ?? undefined,
@@ -420,10 +422,10 @@ async function fetchVenues(
 
   // Bbox normale, valeurs déjà clampées par parseBbox.
   const { data, error } = await sb.rpc("venues_in_bbox", {
-    west: roundCoord(bbox.west),
-    south: roundCoord(bbox.south),
-    east: roundCoord(bbox.east),
-    north: roundCoord(bbox.north),
+    west: snapBboxMin(bbox.west),
+    south: snapBboxMin(bbox.south),
+    east: snapBboxMax(bbox.east),
+    north: snapBboxMax(bbox.north),
     fams: filters.fams ?? undefined,
     sport: filters.sport ?? undefined,
     feat: filters.feat ?? undefined,
