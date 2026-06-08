@@ -62,7 +62,7 @@
     "q3": "Comment ajouter mon club ou mon spot ?",
     "a3": "Trois options : (1) remplir notre formulaire (1 min, on l'ajoute dans la semaine) ; (2) modifier directement sur OpenStreetMap — la modif arrive ici sous 24h ; (3) nous écrire à hello@sporthubmap.com.",
     "q4": "Comment réserver un cours ou trouver un coach ?",
-    "a4": "Sport Hub ne gère pas la réservation directement. Selon le sport, on te renvoie vers le partenaire le plus adapté : Anybuddy (tennis/padel), ClassPass et Mindbody (fitness/yoga), Superprof (coachs particuliers), etc.",
+    "a4": "Sport Hub ne gère pas la réservation directement. Selon le sport, on te redirige vers le service de réservation le plus adapté (par exemple Anybuddy pour le tennis/padel, ClassPass ou Mindbody pour le fitness/yoga, Superprof pour les coachs particuliers).",
     "q5": "Les données sont-elles à jour ?",
     "a5": "Les sources sont rafraîchies automatiquement : OSM en quasi-temps réel, RES France tous les mois, Overture tous les trimestres. Les ratings Google sont fetchés avec un cache de 30 jours.",
     "q6": "Quelles familles vont s'ajouter ?",
