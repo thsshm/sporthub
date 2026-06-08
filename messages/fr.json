@@ -247,6 +247,7 @@
     "loading": "Chargement de la carte…",
     "fetching": "Chargement…",
     "spotsInView": "{count} spots dans la vue",
+    "loadingSpots": "Chargement…",
     "clubsInView": "{count} clubs dans la vue",
     "searchPlaceholder": "Rechercher une ville…",
     "filtersTitle": "Familles",

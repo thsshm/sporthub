@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
@@ -393,6 +393,18 @@ export function MapWithSearch({
   const [autoUpdate, setAutoUpdateState] = useState<boolean>(() => loadAutoUpdate(true));
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(0);
+  // Carte initialisée = a reporté ses venues au moins une fois. Avant ça, on
+  // n'affiche NI « 0 spots in view » NI l'overlay « No spots in this area »
+  // (ces messages partaient dans le HTML initial SSR et trompaient crawlers/
+  // LLMs alors que la carte n'avait encore rien chargé — audit #466). On montre
+  // un état neutre « Chargement… » jusqu'au 1er fetch.
+  const [mapReady, setMapReady] = useState(false);
+  // Référence STABLE (useCallback) : onVenuesChange est dans un dep array de
+  // MapClient → une fonction recréée à chaque render relancerait l'effet.
+  const handleVenuesChange = useCallback((c: number) => {
+    setVisibleCount(c);
+    setMapReady(true);
+  }, []);
   // Compteurs à facettes par filtre (#279), alimentés par MapClient via
   // /api/venues/facets. null = pas de données (mode agrégats / erreur / timeout).
   const [facets, setFacets] = useState<FacetCounts | null>(null);
@@ -693,9 +705,11 @@ export function MapWithSearch({
       )}
 
       <div className="bottom-safe-4 pointer-events-none absolute left-4 z-10 rounded-md bg-background/90 px-3 py-2 text-sm shadow-md backdrop-blur md:left-64">
-        {clubsCount > 0
-          ? tMap("clubsInView", { count: formatCount(clubsCount) })
-          : tMap("spotsInView", { count: formatCount(visibleCount) })}
+        {!mapReady
+          ? tMap("loadingSpots")
+          : clubsCount > 0
+            ? tMap("clubsInView", { count: formatCount(clubsCount) })
+            : tMap("spotsInView", { count: formatCount(visibleCount) })}
       </div>
 
       {/* Légende couleurs par famille — visible en mode explore (2+ familles
@@ -707,16 +721,19 @@ export function MapWithSearch({
       )}
 
       {/* Empty state intelligent (#125) : overlay centré quand 0 spots dans la
-          vue, avec message contextuel (zoom trop bas/haut, filtres restrictifs,
-          fallback générique). Pas affiché en mode presetVenues. */}
-      <EmptyStateOverlay
-        count={visibleCount}
-        zoom={currentZoom}
-        selectedFamilies={selectedFamilies}
-        totalFamilies={FAMILIES.length}
-        selectedCriteria={selectedCriteria}
-        hasTiles={Boolean(publicEnv.tilesUrl)}
-      />
+          vue. Affiché SEULEMENT une fois la carte initialisée (#466) — sinon le
+          message « No spots in this area » partait dans le HTML initial avant
+          tout fetch. */}
+      {mapReady && (
+        <EmptyStateOverlay
+          count={visibleCount}
+          zoom={currentZoom}
+          selectedFamilies={selectedFamilies}
+          totalFamilies={FAMILIES.length}
+          selectedCriteria={selectedCriteria}
+          hasTiles={Boolean(publicEnv.tilesUrl)}
+        />
+      )}
 
       {/* Toggle mode d'affichage (#123) — visible AUSSI sur mobile (carte ↔
           liste, sans "split") pour basculer entre les deux vues plein écran.
@@ -768,7 +785,7 @@ export function MapWithSearch({
           selectedCriteria={selectedCriteria}
           selectedSurfaces={selectedSurfaces}
           autoUpdate={autoUpdate}
-          onVenuesChange={setVisibleCount}
+          onVenuesChange={handleVenuesChange}
           onClubsChange={setClubsCount}
           onZoomChange={setCurrentZoom}
           onViewportChange={syncViewportToUrl}
