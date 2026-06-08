@@ -173,6 +173,8 @@
     "address": "地址",
     "website": "网站",
     "phone": "电话",
+    "callCta": "致电",
+    "websiteCta": "官方网站",
     "coordinates": "GPS 坐标",
     "notFoundTitle": "场所未找到",
     "courtsCount": "{count, plural, =0 {无场地} other {{count} 个场地}}",
