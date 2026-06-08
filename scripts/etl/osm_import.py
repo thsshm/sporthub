@@ -308,12 +308,19 @@ def fetch_family_records(
     family: str,
     bbox: tuple[float, float, float, float],
     limit: int | None,
-) -> list[VenueRecord]:
-    """Récupère et mappe tous les POI OSM pour une famille dans une bbox."""
+) -> tuple[list[VenueRecord], int]:
+    """Récupère et mappe tous les POI OSM pour une famille dans une bbox.
+
+    Renvoie (records, fetch_failures). `fetch_failures` = nombre de requêtes
+    Overpass qui ont échoué (ex. 504). CRUCIAL : un fetch incomplet ne doit
+    JAMAIS déclencher le soft-delete de réconciliation, sinon des venues
+    existantes mais non récupérées sont supprimées à tort (incident combat #97).
+    """
     tags = FAMILY_TAGS[family]
     seen_extids: set[str] = set()
     records: list[VenueRecord] = []
     dropped = 0  # #463 — écartés car visiblement mal classés (nom ≠ sport)
+    fetch_failures = 0  # requêtes Overpass échouées → fetch incomplet
 
     for tag_key, tag_value in tags:
         if limit and len(records) >= limit:
@@ -325,6 +332,7 @@ def fetch_family_records(
             elements = fetch_overpass(q)
         except Exception as e:  # noqa: BLE001
             print(f"    ⚠ erreur Overpass {tag_key}={tag_value}: {e}", flush=True)
+            fetch_failures += 1
             continue
 
         for el in elements:
@@ -346,7 +354,7 @@ def fetch_family_records(
             flush=True,
         )
 
-    return records
+    return records, fetch_failures
 
 
 # ── Run principal ──────────────────────────────────────────────────────────────
@@ -388,10 +396,12 @@ def run(args: argparse.Namespace) -> int:
     run_id: str | None = None
     total = UpsertResult()
     all_seen_extids: set[str] = set()
+    total_fetch_failures = 0  # #97 — si >0, fetch incomplet → PAS de soft-delete
 
     for family in families:
         print(f"\n  📦 famille : {family}")
-        records = fetch_family_records(family, bbox, args.limit)
+        records, fetch_fail = fetch_family_records(family, bbox, args.limit)
+        total_fetch_failures += fetch_fail
         print(f"  ✓ {len(records):,} records trouvés")
 
         if args.dry_run:
@@ -414,7 +424,17 @@ def run(args: argparse.Namespace) -> int:
     # Soft-delete des venues de cette source/pays non vus dans le batch.
     # Seul pour un pays précis (pas pour "all" global, évite les faux positifs).
     soft_deleted = 0
-    if run_id and args.country.upper() != "EU" and all_seen_extids:
+    if total_fetch_failures:
+        # #97 — un fetch incomplet (ex. 504 Overpass) rendrait `all_seen_extids`
+        # partiel → soft_delete_missing supprimerait des venues existantes mais
+        # non récupérées (incident combat : 47 venues perdues). On NE réconcilie
+        # JAMAIS sur données incomplètes. Protège aussi les crons hebdo.
+        print(
+            f"\n  ⚠ réconciliation soft-delete SAUTÉE : {total_fetch_failures} "
+            f"requête(s) source ont échoué → fetch incomplet, aucune suppression.",
+            flush=True,
+        )
+    elif run_id and args.country.upper() != "EU" and all_seen_extids:
         # #426 — scope par famille pour un import mono-famille (sinon on
         # soft-delete les autres familles, source+pays, absentes de ce batch).
         # `None` pour --family all = réconciliation complète.
@@ -437,7 +457,7 @@ def run(args: argparse.Namespace) -> int:
     elif not args.dry_run:
         print("\n✅ aucun record à écrire")
     else:
-        print(f"\n✅ DRY-RUN terminé · total records={sum(len(fetch_family_records(f, bbox, args.limit)) for f in families)}" if False else f"\n✅ DRY-RUN terminé")
+        print("\n✅ DRY-RUN terminé")
 
     return 0
 
