@@ -157,6 +157,8 @@ export function MapWithSearch({
   });
 
   const [flyTarget, setFlyTarget] = useState<FlyTarget | null>(null);
+  // Position GPS de l'utilisateur → point "vous êtes ici" sur la carte.
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
 
   // Ref posée dès qu'une intention de position EXPLICITE recentre la carte
   // (recherche ville, clic liste, ville du picker, bouton "Ma position"). La
@@ -331,6 +333,9 @@ export function MapWithSearch({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         markPrompted();
+        // Point "vous êtes ici" dès qu'on a une position GPS (même si on ne
+        // recentre pas parce que l'utilisateur a déjà bougé).
+        setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
         // L'utilisateur a déjà choisi une position entre-temps → ne pas écraser.
         if (userMovedRef.current) return;
         precisePosRef.current = true; // position précise : prime sur la géoloc IP
@@ -512,6 +517,7 @@ export function MapWithSearch({
     setGeolocError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
         flyToUser({
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
@@ -767,6 +773,7 @@ export function MapWithSearch({
           onFacetsChange={setFacets}
           flyTarget={flyTarget}
           initialVenues={effectiveInitialVenues}
+          userLocation={userLocation}
         />
       </div>
 
