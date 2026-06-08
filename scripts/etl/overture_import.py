@@ -110,13 +110,11 @@ OVERTURE_CATEGORY_MAP: dict[str, tuple[str, str]] = {
     "skate_park":            ("glisse", "glisse"),
     "ski_resort":            ("snow", "skiing"),
     "bowling_alley":         ("plus", "plus"),
-    # Combat (#94 — candidates Overture, à valider/pruner par dry-run)
-    "martial_arts_club":     ("combat", "martial_arts"),
+    # Combat (#94 — vérifiées par dry-run FR : POI > 0 sur release 2026-05-20.0)
+    "martial_arts_club":     ("combat", "martial_arts"),   # ~11.9k FR
     "boxing_gym":            ("combat", "boxing"),
     "karate_club":           ("combat", "karate"),
     "kickboxing_club":       ("combat", "kickboxing"),
-    "taekwondo":             ("combat", "taekwondo"),
-    "mixed_martial_arts":    ("combat", "mma"),
 }
 
 # Familles supportées (celles bien couvertes dans Overture)
@@ -131,8 +129,7 @@ FAMILY_CATEGORIES: dict[str, list[str]] = {
     "glisse":  ["skate_park"],
     "snow":    ["ski_resort"],
     "plus":    ["golf_course", "equestrian"],
-    "combat":  ["martial_arts_club", "boxing_gym", "karate_club",
-                "kickboxing_club", "taekwondo", "mixed_martial_arts"],
+    "combat":  ["martial_arts_club", "boxing_gym", "karate_club", "kickboxing_club"],
 }
 
 
