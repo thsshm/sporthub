@@ -110,11 +110,14 @@ OVERTURE_CATEGORY_MAP: dict[str, tuple[str, str]] = {
     "skate_park":            ("glisse", "glisse"),
     "ski_resort":            ("snow", "skiing"),
     "bowling_alley":         ("plus", "plus"),
-    # Combat (#94 — vérifiées par dry-run FR : POI > 0 sur release 2026-05-20.0)
-    "martial_arts_club":     ("combat", "martial_arts"),   # ~11.9k FR
+    # Combat (#94 — vérifiées par dry-run FR. sport_slug doit exister dans la
+    # table `sport` (FK) : slugs combat valides = boxing/judo/karate/mma/bjj.
+    # martial_arts_club (générique) & kickboxing → None (famille suffit, pas de
+    # mislabel ; primary_sport_slug NULL = pas de violation FK 23503).
+    "martial_arts_club":     ("combat", None),   # ~11.9k FR (générique)
     "boxing_gym":            ("combat", "boxing"),
     "karate_club":           ("combat", "karate"),
-    "kickboxing_club":       ("combat", "kickboxing"),
+    "kickboxing_club":       ("combat", None),
 }
 
 # Familles supportées (celles bien couvertes dans Overture)
