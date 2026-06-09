@@ -182,8 +182,23 @@ def upsert_venues_batch(
     mêmes clés (sinon PGRST102 "All object keys must match"). Or `to_api_dict`
     omet les champs None (pour ne pas écraser une valeur existante par null lors
     du merge). On groupe donc les lignes par signature de clés avant de chunker.
+
+    Dédup par `external_id` d'abord : un même lieu peut apparaître dans
+    plusieurs catégories (ex. martial_arts_club + boxing_gym) → même
+    (source, external_id) → même slug → collision `venue_slug_key` (23505) sur
+    la 2ᵉ occurrence. On garde la 1ʳᵉ (incident combat EU : 17,6k perdues / 45k).
     """
     result = UpsertResult()
+    seen_extids: set[str] = set()
+    deduped: list[VenueRecord] = []
+    for r in records:
+        if r.external_id in seen_extids:
+            result.skipped += 1
+            continue
+        seen_extids.add(r.external_id)
+        deduped.append(r)
+    records = deduped
+
     groups: dict[frozenset, list[dict]] = {}
     for r in records:
         row = r.to_api_dict()
