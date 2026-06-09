@@ -73,6 +73,12 @@ COUNTRY_BBOXES: dict[str, tuple[float, float, float, float]] = {
     "IT": (36.6, 6.7, 47.1, 18.5),
     "GB": (49.9, -8.2, 60.9, 1.8),
     "EU": (34.0, -25.0, 72.0, 45.0),
+    # Pilote hors-Europe (#227 extension mondiale) — (S, W, N, E).
+    "US": (24.4, -125.0, 49.4, -66.9),   # contiguous (hors AK/HI)
+    "CA": (41.7, -141.0, 83.1, -52.6),
+    "BR": (-33.8, -73.9, 5.3, -34.8),
+    "AU": (-43.6, 113.3, -10.7, 153.6),
+    "JP": (24.0, 122.9, 45.6, 145.8),
 }
 
 # Catégories Overture réelles (vérifiées sur release 2025-05-21.0).
