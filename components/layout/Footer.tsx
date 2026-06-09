@@ -27,10 +27,7 @@ export function Footer() {
               </li>
               {(["tennis", "padel", "surf", "yoga"] as const).map((slug) => (
                 <li key={slug}>
-                  <Link
-                    href={`/sports/${slug}`}
-                    className="hover:text-foreground"
-                  >
+                  <Link href={`/sports/${slug}`} className="hover:text-foreground">
                     {tSports(slug)}
                   </Link>
                 </li>
@@ -43,6 +40,11 @@ export function Footer() {
               <li>
                 <Link href="/partners" className="hover:text-foreground">
                   {t("partners")}
+                </Link>
+              </li>
+              <li>
+                <Link href="/developers" className="hover:text-foreground">
+                  {t("developers")}
                 </Link>
               </li>
             </ul>
