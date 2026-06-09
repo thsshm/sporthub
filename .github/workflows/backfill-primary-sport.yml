@@ -53,11 +53,11 @@ jobs:
             echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
             exit 1
           fi
-          ARGS=()
+          ARGS=(--chunk 120)
           [ -n "$IN_LIMIT" ] && ARGS+=(--limit "$IN_LIMIT")
           [ "$IN_APPLY" = "true" ] && ARGS+=(--apply)
-          echo "▶ backfill_primary_sport.py ${ARGS[*]:-}  (apply=$IN_APPLY)"
-          python3 scripts/backfill_primary_sport.py "${ARGS[@]:-}"
+          echo "▶ backfill_primary_sport.py ${ARGS[*]}  (apply=$IN_APPLY)"
+          python3 scripts/backfill_primary_sport.py "${ARGS[@]}"
 
       - name: Summary
         if: always()
