@@ -23,11 +23,53 @@ import argparse
 import collections
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+# Mots-clés de NOM → sport canonique. Ordre = du plus spécifique au plus large
+# (1ʳᵉ correspondance gagne). Mots entiers (\b) pour limiter les faux positifs ;
+# multilingue FR/EN. Restreint à des sports SANS ambiguïté. La cohérence avec la
+# famille de la venue est vérifiée en plus (classify_by_name) → garde-fou.
+_NAME_SPORT_PATTERNS = [
+    (r"brazilian jiu[- ]?jitsu", "bjj"),
+    (r"jiu[- ]?jitsu", "bjj"),
+    (r"bjj", "bjj"),
+    (r"jjb", "bjj"),
+    (r"kickbox\w*", "boxing"),
+    (r"boxing", "boxing"),
+    (r"boxe", "boxing"),
+    (r"boxeo", "boxing"),
+    (r"judo", "judo"),
+    (r"karat[eé]", "karate"),
+    (r"mixed martial arts?", "mma"),
+    (r"mma", "mma"),
+    (r"padel", "padel"),
+    (r"squash", "squash"),
+    (r"badminton", "badminton"),
+    (r"crossfit", "crossfit"),
+    (r"pilates", "pilates"),
+    (r"p[eé]tanque", "petanque"),
+    (r"golf", "golf"),
+    (r"tennis de table|ping[- ]?pong", "table_tennis"),
+]
+_NAME_SPORT_RE = [(re.compile(r"\b" + p + r"\b", re.IGNORECASE), s)
+                  for p, s in _NAME_SPORT_PATTERNS]
+
+
+def classify_by_name(name: str | None, family_slug: str | None,
+                     sport_family: dict[str, str]) -> str | None:
+    """Sport canonique déduit du NOM, SEULEMENT s'il est cohérent avec la famille
+    déjà attribuée à la venue (pur, testable). None sinon → on ne fabrique rien."""
+    if not name:
+        return None
+    for rgx, sport in _NAME_SPORT_RE:
+        if rgx.search(name):
+            return sport if sport_family.get(sport) == family_slug else None
+    return None
 
 
 # ── Logique pure (testée) ───────────────────────────────────────────────────────
@@ -122,6 +164,35 @@ def fetch_null_primary(url, key, limit=None) -> list[dict]:
     return rows
 
 
+def load_sport_family(url, key) -> dict[str, str]:
+    """{sport_slug: family_slug} depuis la table de référence `sport`."""
+    rows = json.loads(req(url, key, path="sport?select=slug,family_slug&limit=1000"))
+    return {r["slug"]: r.get("family_slug") for r in rows if r.get("slug")}
+
+
+def fetch_null_named(url, key, limit=None) -> list[dict]:
+    """Venues publiées, primary_sport_slug NULL, avec id/name/family_slug."""
+    rows, last_id, page = [], "", 1000
+    while True:
+        path = ("venue?select=id,name,family_slug&primary_sport_slug=is.null"
+                "&is_published=eq.true&deleted_at=is.null"
+                f"&order=id.asc&limit={page}")
+        if last_id:
+            path += f"&id=gt.{last_id}"
+        chunk = json.loads(req(url, key, path=path))
+        if not chunk:
+            break
+        rows.extend(chunk)
+        last_id = chunk[-1]["id"]
+        if limit and len(rows) >= limit:
+            return rows[:limit]
+        if len(rows) % 20000 < page:
+            print(f"    … {len(rows):,} venues chargées", flush=True)
+        if len(chunk) < page:
+            break
+    return rows
+
+
 def apply_primary(url, key, assignments: dict[str, str], chunk=120) -> int:
     """PATCH groupés PAR sport : venue?id=in.(ids) SET primary_sport_slug=<sport>."""
     by_sport: dict[str, list[str]] = {}
@@ -178,6 +249,32 @@ def sample_unclassified(args: argparse.Namespace) -> int:
 
 
 # ── Pipeline ────────────────────────────────────────────────────────────────────
+def run_by_name(args: argparse.Namespace) -> int:
+    """Classe par NOM (sport canonique cohérent avec la famille). Dry-run/apply."""
+    url, key = load_env()
+    sport_family = load_sport_family(url, key)
+    print(f"▶ {len(sport_family)} sports référencés ; chargement des venues NULL…")
+    venues = fetch_null_named(url, key, limit=args.limit)
+    print(f"  ✓ {len(venues):,} venues à primary_sport NULL")
+
+    assignments: dict[str, str] = {}
+    for v in venues:
+        sport = classify_by_name(v.get("name"), v.get("family_slug"), sport_family)
+        if sport:
+            assignments[v["id"]] = sport
+    dist = collections.Counter(assignments.values())
+    print(f"\n  classées par nom (sûres, cohérentes famille) : {len(assignments):,}"
+          f" ({100*len(assignments)//max(1,len(venues))}%)")
+    print(f"  par sport : {dict(dist.most_common(20))}")
+
+    if args.apply:
+        written = apply_primary(url, key, assignments, chunk=args.chunk)
+        print(f"\n✅ APPLY — {written:,} venues classées par nom.")
+    else:
+        print("\n✅ DRY-RUN — aucune écriture. Relancer avec --apply pour écrire.")
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
     url, key = load_env()
     print("▶ chargement des venues sans primary_sport_slug…")
@@ -222,6 +319,22 @@ def self_test() -> int:
         {"id": "v3", "venue_sport": [{"sport_slug": "padel", "courts_count": 3}]},
     ])
     assert plan == {"v1": "tennis", "v3": "padel"}, plan
+
+    # classify_by_name : sport canonique nommé + cohérent avec la famille.
+    sf = {"karate": "combat", "judo": "combat", "boxing": "combat", "bjj": "combat",
+          "mma": "combat", "yoga": "yoga", "padel": "raquette"}
+    assert classify_by_name("Academia de Karate Ronin", "combat", sf) == "karate"
+    assert classify_by_name("Brazilian Jiu-Jitsu Lyon", "combat", sf) == "bjj"
+    assert classify_by_name("Boxing Club Paris", "combat", sf) == "boxing"
+    # incohérence famille (karate dans une venue 'glisse') → on NE classe PAS
+    assert classify_by_name("Karate Surf Shop", "glisse", sf) is None
+    # nom sans sport canonique → None (pas de fabrication)
+    assert classify_by_name("Aikido Kouvola", "combat", sf) is None
+    assert classify_by_name("Stade municipal", "ballon", sf) is None
+    assert classify_by_name(None, "combat", sf) is None
+    # mot entier : 'mmaison' ne matche pas 'mma'
+    assert classify_by_name("La Mmaison du Sport", "combat", sf) is None
+
     print("✓ backfill_primary_sport self-test OK")
     return 0
 
@@ -233,12 +346,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--chunk", type=int, default=120, help="ids par PATCH")
     p.add_argument("--sample", type=int, default=0,
                    help="Lecture seule : échantillonne N venues NULL (nom/tags/famille)")
+    p.add_argument("--by-name", action="store_true",
+                   help="Classe par NOM (sport canonique cohérent avec la famille)")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args(argv)
     if args.self_test:
         return self_test()
     if args.sample:
         return sample_unclassified(args)
+    if args.by_name:
+        return run_by_name(args)
     return run(args)
 
 
