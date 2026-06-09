@@ -1,0 +1,68 @@
+name: Backfill primary_sport_slug
+
+# Déduit venue.primary_sport_slug (depuis venue_sport) quand il est NULL → les
+# venues réapparaissent sur les pages /[sport]/[pays]/[ville]. Idempotent
+# (ne touche que les NULL). Dry-run par défaut ; --apply sur coche.
+#
+# Secrets requis (déjà configurés) : SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Cap venues (smoke test ; vide = tout)"
+        type: string
+        required: false
+        default: ""
+      apply:
+        description: "Écrire réellement en DB (sinon dry-run)"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: backfill-primary-sport
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    name: backfill_primary_sport.py
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run backfill_primary_sport.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IN_LIMIT: ${{ inputs.limit || '' }}
+          IN_APPLY: ${{ inputs.apply || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
+            exit 1
+          fi
+          ARGS=()
+          [ -n "$IN_LIMIT" ] && ARGS+=(--limit "$IN_LIMIT")
+          [ "$IN_APPLY" = "true" ] && ARGS+=(--apply)
+          echo "▶ backfill_primary_sport.py ${ARGS[*]:-}  (apply=$IN_APPLY)"
+          python3 scripts/backfill_primary_sport.py "${ARGS[@]:-}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Backfill primary_sport_slug"
+            echo "- Mode : ${{ (inputs.apply == 'true') && 'APPLY (écriture réelle)' || 'DRY-RUN (aucune écriture)' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

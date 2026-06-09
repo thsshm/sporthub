@@ -74,3 +74,4 @@ jobs:
           python3 scripts/etl/overture_import.py --self-test
           python3 scripts/scrape_playtomic_padel_fr.py --self-test
           python3 scripts/backfill_venue_city.py --self-test
+          python3 scripts/backfill_primary_sport.py --self-test
