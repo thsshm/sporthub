@@ -5,6 +5,7 @@ import { Link } from "@/i18n/routing";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
+import { LOW_QUALITY_THRESHOLD } from "@/lib/venue/quality-score";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportVenuesSection } from "./SportVenuesSection";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -135,7 +136,12 @@ async function fetchVenues(sportSlug: string, page: number, filters: SportFilter
     )
     .eq("primary_sport_slug", sportSlug)
     .eq("is_published", true)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // N'indexer/lister que les venues ≥ seuil qualité (#464). Filtre SQL sur la
+    // colonne générée `quality_score` (miroir de isLowQualityVenue) → count ET
+    // range cohérents, pagination propre, sans fetch-all (la page nationale est
+    // non bornée, ex. tennis 67k). La carte reste exhaustive (API /api/venues).
+    .gte("quality_score", LOW_QUALITY_THRESHOLD);
 
   // Filtres spécifiques sport (#467) — booléens venue-level. Sémantique alignée
   // sur /api/venues?feat=… (KNOWN_FEAT) → carte et liste cohérentes.
