@@ -192,7 +192,7 @@ export async function generateMetadata({
   const lowQuality = indexableCount < NOINDEX_MIN_VENUES;
   const path = `/${sport}/${country}/${city}`;
   // hreflang : page programmatique sport×ville déclinée en FR/EN/ZH (#108).
-  const hreflang = buildHreflangAlternates(path);
+  const hreflang = buildHreflangAlternates(path, locale);
 
   return {
     title,

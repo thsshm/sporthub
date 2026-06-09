@@ -91,7 +91,7 @@ export async function generateMetadata({
     const t = await getTranslations({ locale, namespace: "venue" });
     return { title: t("notFoundTitle") };
   }
-  return buildVenueMetadata(venue, venue.city_name);
+  return buildVenueMetadata(venue, venue.city_name, locale);
 }
 
 export default async function VenuePage({ params }: Props) {

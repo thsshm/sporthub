@@ -78,6 +78,43 @@ describe("buildHreflangAlternates (#108)", () => {
   });
 });
 
+describe("buildHreflangAlternates — canonical auto-référent par langue (#465)", () => {
+  it("canonical EN → URL EN (pas FR)", () => {
+    const out = buildHreflangAlternates("/sports/padel", "en");
+    expect(out.canonical).toBe("https://sporthubmap.com/en/sports/padel");
+  });
+
+  it("canonical ZH → URL ZH", () => {
+    const out = buildHreflangAlternates("/sports/padel", "zh");
+    expect(out.canonical).toBe("https://sporthubmap.com/zh/sports/padel");
+  });
+
+  it("canonical FR → URL FR (sans préfixe)", () => {
+    const out = buildHreflangAlternates("/sports/padel", "fr");
+    expect(out.canonical).toBe("https://sporthubmap.com/sports/padel");
+  });
+
+  it("locale absente → fallback FR (rétro-compat)", () => {
+    expect(buildHreflangAlternates("/sports/padel").canonical).toBe(
+      "https://sporthubmap.com/sports/padel",
+    );
+  });
+
+  it("locale inconnue → fallback FR", () => {
+    expect(buildHreflangAlternates("/sports/padel", "de").canonical).toBe(
+      "https://sporthubmap.com/sports/padel",
+    );
+  });
+
+  it("le jeu hreflang reste identique quelle que soit la locale", () => {
+    const fr = buildHreflangAlternates("/sports/padel", "fr");
+    const en = buildHreflangAlternates("/sports/padel", "en");
+    expect(en.languages).toEqual(fr.languages);
+    expect(en.languages.en).toBe("https://sporthubmap.com/en/sports/padel");
+    expect(en.languages["x-default"]).toBe("https://sporthubmap.com/sports/padel");
+  });
+});
+
 describe("buildHomeMetadata", () => {
   const meta = buildHomeMetadata();
 

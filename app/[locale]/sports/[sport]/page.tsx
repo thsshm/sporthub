@@ -87,7 +87,7 @@ export async function generateMetadata({
   const tSport = await getTranslations({ locale, namespace: "sport" });
   const name = tSports.has(sportSlug) ? tSports(sportSlug) : sport.name_fr;
   // hreflang : /sports/[sport] décliné en FR/EN/ZH (#108).
-  const hreflang = buildHreflangAlternates(`/sports/${sportSlug}`);
+  const hreflang = buildHreflangAlternates(`/sports/${sportSlug}`, locale);
   return {
     title: name,
     description: tSport("metaDescription", { sport: name }),
