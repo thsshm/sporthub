@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
-import { Link } from "@/i18n/routing";
 import { isWebGLAvailable } from "@/lib/webgl";
 import { Crosshair, Share2, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
@@ -79,6 +78,11 @@ const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ),
 });
 
+// Carte de repli sans WebGL (#466) — chargée seulement quand WebGL manque.
+const LeafletMap = dynamic(() => import("@/app/[locale]/map/LeafletMap"), {
+  ssr: false,
+});
+
 type Props = {
   initialLat: number;
   initialLon: number;
@@ -111,6 +115,7 @@ export function MapWithSearch({
   initialCityCenter,
 }: Props) {
   const tMap = useTranslations("map");
+  const locale = useLocale();
 
   // Persistance viewport : si l'utilisateur revient sur /map, on restaure sa
   // dernière position (lazy init useState pour ne lire localStorage qu'une fois).
@@ -816,32 +821,16 @@ export function MapWithSearch({
             userLocation={userLocation}
           />
         ) : (
-          // Repli WebGL absent : message lisible + alternatives qui ne
-          // nécessitent pas WebGL (accueil = explorateur par sport + villes).
-          <div
-            role="alert"
-            className="flex h-full w-full items-center justify-center bg-muted/20 p-6"
-          >
-            <div className="max-w-sm rounded-lg border bg-card p-6 text-center shadow-sm">
-              <h2 className="text-lg font-semibold">{tMap("webglTitle")}</h2>
-              <p className="mt-2 text-sm text-muted-foreground">{tMap("webglBody")}</p>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                <Link
-                  href="/"
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-                >
-                  {tMap("webglBrowse")}
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setWebglOk(isWebGLAvailable())}
-                  className="rounded-md border px-4 py-2 text-sm hover:bg-accent"
-                >
-                  {tMap("webglRetry")}
-                </button>
-              </div>
-            </div>
-          </div>
+          // Repli sans WebGL (#466) : carte Leaflet RASTER (tuiles images, sans
+          // WebGL) → une vraie carte fonctionnelle quel que soit le navigateur,
+          // comme le fallback raster de Google/Apple Maps.
+          <LeafletMap
+            initialLat={initialView.lat}
+            initialLon={initialView.lon}
+            initialZoom={initialView.zoom}
+            initialVenues={effectiveInitialVenues}
+            locale={locale}
+          />
         )}
       </div>
 
