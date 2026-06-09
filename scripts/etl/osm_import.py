@@ -124,10 +124,14 @@ TAG_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("sport", "skateboard"):   ("glisse", "glisse"),
     ("leisure", "skateboard_park"): ("glisse", "glisse"),
     ("sport", "bmx"):          ("glisse", "glisse"),
-    # Snow / hiver
+    # Snow / hiver — vrais lieux de pratique : domaines skiables + sports de
+    # ski. On NE prend PAS aerialway=chair_lift (télésièges = infra, ~1 530 en
+    # FR, bruit sur la carte) ni les pistes individuelles (trop granulaire) ; le
+    # domaine `landuse=winter_sports` = ~1 entrée par station, bien plus lisible.
     ("sport", "skiing"):       ("snow", "skiing"),
     ("sport", "snowboarding"): ("snow", "snowboarding"),
-    ("aerialway", "chair_lift"):("snow", "skiing"),  # remontées mécaniques
+    ("sport", "ski_jumping"):  ("snow", "skiing"),
+    ("landuse", "winter_sports"): ("snow", "skiing"),
     # Plein air / hike
     ("highway", "trailhead"):  ("hike", "trail"),
     ("route", "hiking"):       ("hike", "trail"),
@@ -175,7 +179,7 @@ FAMILY_TAGS: dict[str, list[tuple[str, str]]] = {
     "glisse":    [("sport", "skateboard"), ("leisure", "skateboard_park"),
                   ("sport", "bmx")],
     "snow":      [("sport", "skiing"), ("sport", "snowboarding"),
-                  ("aerialway", "chair_lift")],
+                  ("sport", "ski_jumping"), ("landuse", "winter_sports")],
     "hike":      [("highway", "trailhead"), ("sport", "cycling"),
                   ("sport", "running"), ("sport", "athletics")],
     "escalade":  [("sport", "climbing"), ("natural", "rock")],
