@@ -1,0 +1,75 @@
+name: Apply DB migrations
+
+# Applique les migrations supabase/migrations/*.sql à la base de prod liée,
+# depuis un runner GitHub — pour pouvoir pousser SANS terminal local. Tout se
+# fait au clic depuis l'UI : Actions → « Apply DB migrations » → Run workflow.
+#
+# Équivalent CI de ./scripts/db-push.sh. Le CLI Supabase track les migrations
+# déjà appliquées côté base → idempotent (ne ré-applique pas 0049 si déjà fait).
+#
+# Secrets requis (Repo → Settings → Secrets and variables → Actions → New) :
+#   SUPABASE_ACCESS_TOKEN   https://supabase.com/dashboard/account/tokens
+#   SUPABASE_DB_PASSWORD    mot de passe Postgres du projet
+# (déjà présents en local dans .claude/settings.local.json — à recopier une fois
+#  dans les secrets GitHub).
+#
+# Sécurité : dry_run=true par DÉFAUT → liste les migrations à appliquer SANS rien
+# écrire. Décocher « Dry-run » dans le formulaire pour appliquer réellement.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run (liste les migrations sans les appliquer)"
+        type: boolean
+        default: true
+
+# Un seul push de migrations à la fois (évite deux runs concurrents sur la base).
+concurrency:
+  group: db-migrations
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: qwfvcrisfmnrfzsrnjwn
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Push migrations (dry-run)
+        if: ${{ inputs.dry_run }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase db push --linked --dry-run
+
+      - name: Push migrations (apply)
+        if: ${{ !inputs.dry_run }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase db push --linked
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Apply DB migrations"
+            echo "- Mode : ${{ inputs.dry_run == true && 'DRY-RUN (aucune écriture)' || 'APPLIQUÉ' }}"
+            echo "- Projet : $SUPABASE_PROJECT_REF"
+          } >> "$GITHUB_STEP_SUMMARY"
