@@ -1,0 +1,60 @@
+name: Seed countries
+
+# Complète la table `country` avec tous les pays ISO 3166-1 (ignore-duplicates :
+# n'écrase aucun pays existant). Corrige les FK venue_country_code manquantes
+# (ex. IS, AM) qui faisaient perdre des venues à l'import.
+#
+# Secrets requis (déjà configurés) : SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Écrire réellement (sinon dry-run)"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: seed-countries
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: seed_countries.py
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run seed_countries.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IN_APPLY: ${{ inputs.apply || 'false' }}
+        run: |
+          set -euo pipefail
+          pip install pycountry --quiet
+          if [ "$IN_APPLY" = "true" ]; then
+            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+              echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
+              exit 1
+            fi
+            python3 scripts/etl/seed_countries.py --apply
+          else
+            python3 scripts/etl/seed_countries.py --dry-run
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Seed countries"
+            echo "- Mode : ${{ (inputs.apply == true) && 'APPLY (écriture réelle)' || 'DRY-RUN' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
