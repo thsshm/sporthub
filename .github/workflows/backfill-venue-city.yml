@@ -42,6 +42,11 @@ on:
         type: string
         required: false
         default: "tennis"
+      consolidate_arr:
+        description: "Re-rattache les venues d'arrondissements (Paris/Lyon/Marseille) au parent"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: backfill-venue-city
@@ -74,6 +79,7 @@ jobs:
           IN_DIAGNOSE: ${{ inputs.diagnose || 'false' }}
           IN_BBOX: ${{ inputs.bbox || '4.81,45.74,4.87,45.79' }}
           IN_SPORT: ${{ inputs.sport || 'tennis' }}
+          IN_CONSOLIDATE: ${{ inputs.consolidate_arr || 'false' }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
@@ -83,6 +89,13 @@ jobs:
           if [ "$IN_DIAGNOSE" = "true" ]; then
             echo "▶ backfill_venue_city.py --diagnose --bbox $IN_BBOX --sport $IN_SPORT"
             python3 scripts/backfill_venue_city.py --diagnose --bbox "$IN_BBOX" --sport "$IN_SPORT"
+            exit 0
+          fi
+          if [ "$IN_CONSOLIDATE" = "true" ]; then
+            CARGS=(--consolidate-arr)
+            [ "$IN_APPLY" = "true" ] && CARGS+=(--apply)
+            echo "▶ backfill_venue_city.py ${CARGS[*]}  (apply=$IN_APPLY)"
+            python3 scripts/backfill_venue_city.py "${CARGS[@]}"
             exit 0
           fi
           ARGS=(--max-km "$IN_MAXKM")

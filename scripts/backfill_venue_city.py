@@ -29,6 +29,7 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -40,6 +41,12 @@ MAX_KM = 5.0
 # Taille de cellule de la grille spatiale. 0.05° ≈ 5.5 km en latitude → le
 # voisinage 3×3 (cellule + 8 adjacentes) couvre un rayon de 5 km partout.
 CELL_DEG = 0.05
+
+# Seules villes françaises à arrondissements. Leurs venues (souvent ex-RES) sont
+# rattachés à des fiches-ville `<base>-NN` (ex. lyon-06) au lieu de la ville
+# parente → la page /[sport]/fr/lyon les rate. On les re-rattache au parent.
+ARRONDISSEMENT_BASES = ("paris", "lyon", "marseille")
+_ARR_RE = re.compile(r"^([a-z]+(?:-[a-z]+)*)-(\d{1,2})$")
 
 
 # ── Géo + index spatial (pur, testé) ───────────────────────────────────────────
@@ -104,6 +111,26 @@ def plan_assignments(
         cid = nearest_city_id(index, v["lat"], v["lon"], v.get("country_code"), max_km)
         if cid:
             out[v["id"]] = cid
+    return out
+
+
+def arrondissement_parent_map(cities: list[dict]) -> dict[str, str]:
+    """{city_id arrondissement: city_id ville parente} (pur, testable).
+
+    Un arrondissement = slug `<base>-NN` avec `base` ∈ ARRONDISSEMENT_BASES et une
+    ville `<base>` existante dans le même pays. (Restreint à Paris/Lyon/Marseille
+    pour ne JAMAIS fusionner par erreur une vraie ville nommée `xxx-NN`.)"""
+    id_by_slug_country: dict[tuple[str | None, str | None], str] = {}
+    for c in cities:
+        id_by_slug_country[(c.get("slug"), c.get("country_code"))] = c["id"]
+    out: dict[str, str] = {}
+    for c in cities:
+        m = _ARR_RE.match(c.get("slug") or "")
+        if not m or m.group(1) not in ARRONDISSEMENT_BASES:
+            continue
+        parent = id_by_slug_country.get((m.group(1), c.get("country_code")))
+        if parent and parent != c["id"]:
+            out[c["id"]] = parent
     return out
 
 
@@ -243,6 +270,59 @@ def diagnose(args: argparse.Namespace) -> int:
     return 0
 
 
+def fetch_venues_in_cities(url, key, city_ids: list[str]) -> list[dict]:
+    """Venues (non supprimées) rattachées à l'une des `city_ids`."""
+    rows, last_id, page = [], "", 1000
+    ids = ",".join(city_ids)
+    while True:
+        path = (f"venue?select=id,city_id&city_id=in.({ids})"
+                f"&deleted_at=is.null&order=id.asc&limit={page}")
+        if last_id:
+            path += f"&id=gt.{last_id}"
+        chunk = json.loads(req(url, key, path=path))
+        if not chunk:
+            break
+        rows.extend(chunk)
+        last_id = chunk[-1]["id"]
+        if len(chunk) < page:
+            break
+    return rows
+
+
+def consolidate_arrondissements(args: argparse.Namespace) -> int:
+    """Re-rattache les venues des arrondissements (Paris/Lyon/Marseille) à la
+    ville parente, pour que /[sport]/fr/<ville> les montre. Dry-run par défaut."""
+    import collections
+
+    url, key = load_env()
+    cities = load_cities(url, key)
+    slug_by_id = {c["id"]: c.get("slug") for c in cities}
+    parent_of = arrondissement_parent_map(cities)
+    print(f"▶ {len(parent_of)} fiches-arrondissement détectées "
+          f"(parents : {sorted({slug_by_id.get(p) for p in parent_of.values()})})")
+    if not parent_of:
+        print("  (rien à consolider)")
+        return 0
+
+    venues = fetch_venues_in_cities(url, key, list(parent_of))
+    assignments = {
+        v["id"]: parent_of[v["city_id"]]
+        for v in venues
+        if v.get("city_id") in parent_of
+    }
+    by_parent = collections.Counter(slug_by_id.get(cid) for cid in assignments.values())
+    print(f"  venues à re-rattacher : {len(assignments):,}")
+    for slug, n in by_parent.most_common():
+        print(f"     {n:6}  → {slug}")
+
+    if args.apply:
+        written = apply_assignments(url, key, assignments, chunk=args.chunk)
+        print(f"\n✅ APPLY — {written:,} venues re-rattachés à leur ville parente.")
+    else:
+        print("\n✅ DRY-RUN — aucune écriture. Relancer avec --apply pour écrire.")
+    return 0
+
+
 # ── Pipeline ────────────────────────────────────────────────────────────────────
 def run(args: argparse.Namespace) -> int:
     url, key = load_env()
@@ -308,6 +388,20 @@ def self_test() -> int:
     ]
     plan = plan_assignments(venues, idx, 5.0)
     assert plan == {"v1": "lyon", "v3": "paris"}, plan
+
+    # arrondissement_parent_map : lyon-06 → lyon ; base hors liste ou parent
+    # absent → ignoré (jamais de fusion par erreur).
+    arr_cities = [
+        {"id": "lyon", "slug": "lyon", "country_code": "FR"},
+        {"id": "lyon6", "slug": "lyon-06", "country_code": "FR"},
+        {"id": "paris16", "slug": "paris-16", "country_code": "FR"},
+        {"id": "marseille8", "slug": "marseille-08", "country_code": "FR"},
+        {"id": "orphan", "slug": "lyon-99", "country_code": "ES"},   # parent ES absent
+        {"id": "bdx2", "slug": "bordeaux-2", "country_code": "FR"},  # base hors liste
+    ]
+    amap = arrondissement_parent_map(arr_cities)
+    assert amap == {"lyon6": "lyon"}, amap
+
     print("✓ backfill_venue_city self-test OK")
     return 0
 
@@ -323,12 +417,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--bbox", default="4.81,45.74,4.87,45.79",
                    help="W,S,E,N pour --diagnose (défaut : Lyon intra-muros)")
     p.add_argument("--sport", default="tennis", help="primary_sport_slug pour --diagnose")
+    p.add_argument("--consolidate-arr", action="store_true",
+                   help="Re-rattache les venues d'arrondissements (Paris/Lyon/Marseille) au parent")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args(argv)
     if args.self_test:
         return self_test()
     if args.diagnose:
         return diagnose(args)
+    if args.consolidate_arr:
+        return consolidate_arrondissements(args)
     return run(args)
 
 
