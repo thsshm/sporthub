@@ -107,7 +107,7 @@ OVERTURE_CATEGORY_MAP: dict[str, tuple[str, str]] = {
     "golf_course":           ("plus", "golf"),
     "equestrian":            ("plus", "equestrian"),
     "climbing_gym":          ("escalade", "climbing_indoor"),
-    "skate_park":            ("glisse", "glisse"),
+    "skate_park":            ("glisse", None),   # pas de slug 'glisse'/'skateboard' dans `sport` (FK) → NULL
     "ski_resort":            ("snow", "skiing"),
     "bowling_alley":         ("plus", "plus"),
     # Combat (#94 — vérifiées par dry-run FR. sport_slug doit exister dans la
