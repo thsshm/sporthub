@@ -27,6 +27,12 @@ export async function VenueCard({ venue }: Props) {
   const location = venue.city_name ?? venue.address ?? "";
   const t = await getTranslations("venue");
   const tFav = await getTranslations("favorites");
+  const tFamilies = await getTranslations("families");
+  // Nom de famille localisé pour l'aria-label/title de l'emoji (#470) — sinon le
+  // lecteur d'écran / le tooltip annonçaient le slug brut (« raquette », « hike »).
+  const familyName = tFamilies.has(venue.family_slug)
+    ? tFamilies(venue.family_slug)
+    : venue.family_slug;
 
   return (
     <div className="group relative block">
@@ -52,12 +58,12 @@ export async function VenueCard({ venue }: Props) {
             aria-hidden="true"
           />
 
-          <CardHeader className="pb-2 pt-4 pr-12">
+          <CardHeader className="pb-2 pr-12 pt-4">
             <div className="flex items-start gap-2">
               <span
                 className="mt-0.5 text-xl leading-none"
-                aria-label={venue.family_slug}
-                title={venue.family_slug}
+                aria-label={familyName}
+                title={familyName}
               >
                 {emoji}
               </span>
