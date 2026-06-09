@@ -31,14 +31,14 @@ function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: numb
   const dLon = ((b.lon - a.lon) * Math.PI) / 180;
   const lat1 = (a.lat * Math.PI) / 180;
   const lat2 = (b.lat * Math.PI) / 180;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.sin(dLon / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  const h = Math.sin(dLat / 2) ** 2 + Math.sin(dLon / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
 export function VenueListPanel({ venues, center, onSelect, className }: Props) {
   const t = useTranslations("map.list");
+  // Nom de sport localisé (#476) — sinon slug brut anglais dans la liste viewport.
+  const tSports = useTranslations("sports");
 
   const sorted = useMemo(() => {
     return venues
@@ -59,10 +59,7 @@ export function VenueListPanel({ venues, center, onSelect, className }: Props) {
   }
 
   return (
-    <aside
-      aria-label={t("title")}
-      className={`flex flex-col overflow-y-auto ${className ?? ""}`}
-    >
+    <aside aria-label={t("title")} className={`flex flex-col overflow-y-auto ${className ?? ""}`}>
       <div className="sticky top-0 z-10 border-b bg-background/95 px-3 py-2 text-xs font-semibold text-muted-foreground backdrop-blur">
         {t("countNearest", { count: sorted.length })}
       </div>
@@ -89,8 +86,11 @@ export function VenueListPanel({ venues, center, onSelect, className }: Props) {
                   {v.name}
                 </Link>
                 {v.primary_sport_slug && (
-                  <span className="block truncate text-xs capitalize text-muted-foreground">
-                    {v.primary_sport_slug.replaceAll("_", " ")} · {d.toFixed(d < 10 ? 1 : 0)} km
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {tSports.has(v.primary_sport_slug)
+                      ? tSports(v.primary_sport_slug)
+                      : v.primary_sport_slug.replaceAll("_", " ")}{" "}
+                    · {d.toFixed(d < 10 ? 1 : 0)} km
                   </span>
                 )}
                 {!v.primary_sport_slug && (
