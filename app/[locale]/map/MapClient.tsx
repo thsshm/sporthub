@@ -210,6 +210,9 @@ export default function MapClient({
   userLocation,
 }: Props) {
   const tMap = useTranslations("map");
+  // Noms de sports localisés pour la popup (#476) : sans ça le slug brut anglais
+  // (« table tennis », « yoga retreat ») s'affichait quelle que soit la langue.
+  const tSports = useTranslations("sports");
   const mapRef = useRef<MapRef | null>(null);
   // Vector tiles (#226) : quand NEXT_PUBLIC_TILES_URL est défini, on rend les
   // venues via tuiles PMTiles (coût O(1)) au lieu de fetch /api/venues +
@@ -938,8 +941,7 @@ export default function MapClient({
             // l'emoji de famille si le sport n'est pas curé (ex. spa, dance).
             const pf = feature as PointFeature<PointProps>;
             const v = pf.properties.venue;
-            const pinEmoji =
-              getSportEmoji(v.primary_sport_slug) ?? getFamilyEmoji(v.family_slug);
+            const pinEmoji = getSportEmoji(v.primary_sport_slug) ?? getFamilyEmoji(v.family_slug);
             return (
               <Marker
                 key={v.id}
@@ -1115,8 +1117,15 @@ export default function MapClient({
                       {selected.name}
                     </h3>
                     {selected.primary_sport_slug && (
-                      <p className="text-xs capitalize text-gray-500">
-                        {selected.primary_sport_slug.replaceAll("_", " ")}
+                      <p className="text-xs text-gray-500">
+                        {getSportEmoji(selected.primary_sport_slug) && (
+                          <span aria-hidden="true">
+                            {getSportEmoji(selected.primary_sport_slug)}{" "}
+                          </span>
+                        )}
+                        {tSports.has(selected.primary_sport_slug)
+                          ? tSports(selected.primary_sport_slug)
+                          : selected.primary_sport_slug.replaceAll("_", " ")}
                       </p>
                     )}
                   </div>
@@ -1180,11 +1189,7 @@ export default function MapClient({
         {/* Point "vous êtes ici" (#feedback Gautier) — rendu en dernier pour
             passer au-dessus des pins. Point bleu cerclé de blanc + halo pulsé. */}
         {userLocation && (
-          <Marker
-            latitude={userLocation.lat}
-            longitude={userLocation.lon}
-            anchor="center"
-          >
+          <Marker latitude={userLocation.lat} longitude={userLocation.lon} anchor="center">
             <div
               className="pointer-events-none relative flex h-5 w-5 items-center justify-center"
               aria-label={tMap("myLocation")}
