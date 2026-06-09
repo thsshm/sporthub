@@ -27,6 +27,21 @@ on:
         type: boolean
         required: false
         default: false
+      diagnose:
+        description: "Lecture seule : distribution city_id→slug (bbox/sport)"
+        type: boolean
+        required: false
+        default: false
+      bbox:
+        description: "W,S,E,N pour le diagnostic"
+        type: string
+        required: false
+        default: "4.81,45.74,4.87,45.79"
+      sport:
+        description: "primary_sport_slug pour le diagnostic"
+        type: string
+        required: false
+        default: "tennis"
 
 concurrency:
   group: backfill-venue-city
@@ -56,11 +71,19 @@ jobs:
           IN_MAXKM: ${{ inputs.max_km || '5' }}
           IN_LIMIT: ${{ inputs.limit || '' }}
           IN_APPLY: ${{ inputs.apply || 'false' }}
+          IN_DIAGNOSE: ${{ inputs.diagnose || 'false' }}
+          IN_BBOX: ${{ inputs.bbox || '4.81,45.74,4.87,45.79' }}
+          IN_SPORT: ${{ inputs.sport || 'tennis' }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
             echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
             exit 1
+          fi
+          if [ "$IN_DIAGNOSE" = "true" ]; then
+            echo "▶ backfill_venue_city.py --diagnose --bbox $IN_BBOX --sport $IN_SPORT"
+            python3 scripts/backfill_venue_city.py --diagnose --bbox "$IN_BBOX" --sport "$IN_SPORT"
+            exit 0
           fi
           ARGS=(--max-km "$IN_MAXKM")
           [ -n "$IN_LIMIT" ] && ARGS+=(--limit "$IN_LIMIT")
