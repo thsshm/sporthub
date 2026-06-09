@@ -24,6 +24,11 @@ on:
         type: string
         required: false
         default: ""
+      by_name:
+        description: "Classer par nom (sport canonique cohérent avec la famille)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: backfill-primary-sport
@@ -53,6 +58,7 @@ jobs:
           IN_LIMIT: ${{ inputs.limit || '' }}
           IN_APPLY: ${{ inputs.apply || 'false' }}
           IN_SAMPLE: ${{ inputs.sample || '' }}
+          IN_BYNAME: ${{ inputs.by_name || 'false' }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
@@ -65,6 +71,7 @@ jobs:
             exit 0
           fi
           ARGS=(--chunk 120)
+          [ "$IN_BYNAME" = "true" ] && ARGS+=(--by-name)
           [ -n "$IN_LIMIT" ] && ARGS+=(--limit "$IN_LIMIT")
           [ "$IN_APPLY" = "true" ] && ARGS+=(--apply)
           echo "▶ backfill_primary_sport.py ${ARGS[*]}  (apply=$IN_APPLY)"
