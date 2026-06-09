@@ -380,6 +380,24 @@
     "contributeCta": "更正信息",
     "note": "目前请求由人工处理。我们会在几天内回复。"
   },
+  "developers": {
+    "metaTitle": "SportHub API — 即将推出 | Sport Hub",
+    "metaDescription": "提供 REST API 和矢量切片，查询 25 万+ 开放数据运动场所。筹备中——申请抢先体验。",
+    "title": "SportHub API",
+    "statusBadge": "筹备中",
+    "intro": "从开放数据源（OpenStreetMap、RES、Wikidata、Overture）聚合的 25 万+ 运动场所。公共 API 正在筹备中，供你在其基础上构建应用。",
+    "plannedHeading": "API 将支持",
+    "planned1": "按运动、城市或地理范围（bounding box）查询场所。",
+    "planned2": "开箱即用的矢量切片，在你自己的地图上显示场所。",
+    "planned3": "去重、规范化并自动更新的数据。",
+    "planned4": "筛选条件：家族、运动、室内/室外、场地表面、无障碍。",
+    "accessHeading": "抢先体验",
+    "accessBody": "告诉我们你想构建什么——我们正向首批项目开放访问，并根据实际需求优先开发接口。",
+    "accessCta": "申请抢先体验",
+    "accessMailSubject": "抢先体验 — SportHub API",
+    "accessMailBody": "你好，\n\n我对 SportHub API 感兴趣。我的项目：\n\n- 我想构建：\n- 涉及的运动 / 地区：\n- 预期用量：\n",
+    "note": "数据采用开放许可（OpenStreetMap ODbL、RES Étalab、Wikidata CC0、Overture）。任何 API 使用都须遵守相应署名要求。"
+  },
   "footer": {
     "about": "Sport Hub",
     "aboutText": "一张地图,所有运动。开放数据,无广告,无需注册。",
@@ -389,6 +407,7 @@
     "source": "源代码 (GitHub)",
     "contribute": "贡献",
     "partners": "俱乐部与合作伙伴",
+    "developers": "开发者",
     "copyright": "© {year} Sport Hub — MIT 许可 — 数据遵循各来源许可"
   },
   "legal": {

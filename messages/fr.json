@@ -380,6 +380,24 @@
     "contributeCta": "Corriger une fiche",
     "note": "Les demandes sont traitées manuellement pour le moment. Réponse sous quelques jours."
   },
+  "developers": {
+    "metaTitle": "API SportHub — bientôt | Sport Hub",
+    "metaDescription": "Une API REST et des vector tiles pour interroger 250 000+ spots sportifs en données ouvertes. En préparation — demande l'accès anticipé.",
+    "title": "API SportHub",
+    "statusBadge": "En préparation",
+    "intro": "250 000+ spots sportifs agrégés depuis des sources ouvertes (OpenStreetMap, RES, Wikidata, Overture). Une API publique est en préparation pour que tu construises dessus.",
+    "plannedHeading": "Ce que l'API permettra",
+    "planned1": "Rechercher des lieux par sport, ville ou zone géographique (bounding box).",
+    "planned2": "Des vector tiles prêtes à l'emploi pour afficher les spots sur ta propre carte.",
+    "planned3": "Des données dédupliquées et normalisées, mises à jour automatiquement.",
+    "planned4": "Des filtres : famille, sport, couvert/extérieur, surface, accessibilité.",
+    "accessHeading": "Accès anticipé",
+    "accessBody": "Dis-nous ce que tu veux construire : on ouvre l'accès aux premiers projets et on priorise les endpoints selon les besoins réels.",
+    "accessCta": "Demander l'accès anticipé",
+    "accessMailSubject": "Accès anticipé — API SportHub",
+    "accessMailBody": "Bonjour,\n\nJe suis intéressé(e) par l'API SportHub. Mon projet :\n\n- Ce que je veux construire :\n- Sports / zones concernés :\n- Volume / usage attendu :\n",
+    "note": "Données sous licences ouvertes (OpenStreetMap ODbL, RES Étalab, Wikidata CC0, Overture). Tout usage de l'API devra en respecter l'attribution."
+  },
   "footer": {
     "about": "Sport Hub",
     "aboutText": "Une seule carte pour tous tes sports. Données ouvertes, sans pub, sans inscription.",
@@ -389,6 +407,7 @@
     "source": "Code source (GitHub)",
     "contribute": "Contribuer",
     "partners": "Clubs & partenaires",
+    "developers": "Développeurs",
     "copyright": "© {year} Sport Hub — Licence MIT — Données sous licences respectives des sources"
   },
   "legal": {
