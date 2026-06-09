@@ -19,6 +19,11 @@ on:
         type: boolean
         required: false
         default: false
+      sample:
+        description: "Lecture seule : échantillonne N venues NULL (nom/tags/famille)"
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: backfill-primary-sport
@@ -47,11 +52,17 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           IN_LIMIT: ${{ inputs.limit || '' }}
           IN_APPLY: ${{ inputs.apply || 'false' }}
+          IN_SAMPLE: ${{ inputs.sample || '' }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
             echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
             exit 1
+          fi
+          if [ -n "$IN_SAMPLE" ]; then
+            echo "▶ backfill_primary_sport.py --sample $IN_SAMPLE"
+            python3 scripts/backfill_primary_sport.py --sample "$IN_SAMPLE"
+            exit 0
           fi
           ARGS=(--chunk 120)
           [ -n "$IN_LIMIT" ] && ARGS+=(--limit "$IN_LIMIT")

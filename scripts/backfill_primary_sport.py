@@ -138,6 +138,45 @@ def apply_primary(url, key, assignments: dict[str, str], chunk=120) -> int:
     return written
 
 
+def sample_unclassified(args: argparse.Namespace) -> int:
+    """Lecture seule : échantillon des venues NULL pour juger la classifiabilité
+    (nom, family_slug, tags OSM `sport`/`leisure`/`amenity`)."""
+    url, key = load_env()
+    n = args.sample or 400
+    path = (
+        "venue?select=id,name,family_slug,enrichments"
+        "&primary_sport_slug=is.null&is_published=eq.true&deleted_at=is.null"
+        f"&order=id.asc&limit={n}"
+    )
+    rows = json.loads(req(url, key, path=path))
+    fam = collections.Counter(r.get("family_slug") for r in rows)
+    osm_sport = collections.Counter()
+    leisure = collections.Counter()
+    n_sport_tag = n_leisure = 0
+    examples = []
+    for r in rows:
+        tags = ((r.get("enrichments") or {}).get("raw_tags")) or {}
+        sp = tags.get("sport")
+        lz = tags.get("leisure") or tags.get("amenity")
+        if sp:
+            n_sport_tag += 1
+            osm_sport[sp] += 1
+        if lz:
+            n_leisure += 1
+            leisure[lz] += 1
+        if len(examples) < 18:
+            examples.append((r.get("name"), r.get("family_slug"), sp, lz))
+    print(f"▶ échantillon de {len(rows)} venues sans primary_sport_slug\n")
+    print(f"  avec tag OSM `sport`   : {n_sport_tag}/{len(rows)} "
+          f"({100*n_sport_tag//max(1,len(rows))}%) → top: {dict(osm_sport.most_common(12))}")
+    print(f"  avec tag leisure/amenity: {n_leisure}/{len(rows)} → top: {dict(leisure.most_common(10))}")
+    print(f"  familles : {dict(fam.most_common(14))}")
+    print("\n  exemples (nom | famille | tag sport | leisure) :")
+    for name, f, sp, lz in examples:
+        print(f"     {str(name)[:42]:42} | {str(f):10} | {str(sp):14} | {lz}")
+    return 0
+
+
 # ── Pipeline ────────────────────────────────────────────────────────────────────
 def run(args: argparse.Namespace) -> int:
     url, key = load_env()
@@ -192,10 +231,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--apply", action="store_true", help="Écrit en DB (sinon dry-run)")
     p.add_argument("--limit", type=int, default=None, help="Cap venues (smoke test)")
     p.add_argument("--chunk", type=int, default=120, help="ids par PATCH")
+    p.add_argument("--sample", type=int, default=0,
+                   help="Lecture seule : échantillonne N venues NULL (nom/tags/famille)")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args(argv)
     if args.self_test:
         return self_test()
+    if args.sample:
+        return sample_unclassified(args)
     return run(args)
 
 
