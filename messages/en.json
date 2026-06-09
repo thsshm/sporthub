@@ -380,6 +380,24 @@
     "contributeCta": "Fix a listing",
     "note": "Requests are handled manually for now. We reply within a few days."
   },
+  "developers": {
+    "metaTitle": "SportHub API — coming soon | Sport Hub",
+    "metaDescription": "A REST API and vector tiles to query 250,000+ open-data sports spots. In the works — request early access.",
+    "title": "SportHub API",
+    "statusBadge": "In the works",
+    "intro": "250,000+ sports spots aggregated from open sources (OpenStreetMap, RES, Wikidata, Overture). A public API is in the works so you can build on top of it.",
+    "plannedHeading": "What the API will do",
+    "planned1": "Query venues by sport, city or bounding box.",
+    "planned2": "Ready-to-use vector tiles to show spots on your own map.",
+    "planned3": "Deduplicated, normalized data, refreshed automatically.",
+    "planned4": "Filters: family, sport, indoor/outdoor, surface, accessibility.",
+    "accessHeading": "Early access",
+    "accessBody": "Tell us what you want to build — we're opening access to the first projects and prioritizing endpoints based on real needs.",
+    "accessCta": "Request early access",
+    "accessMailSubject": "Early access — SportHub API",
+    "accessMailBody": "Hi,\n\nI'm interested in the SportHub API. My project:\n\n- What I want to build:\n- Sports / areas involved:\n- Expected volume / usage:\n",
+    "note": "Data under open licenses (OpenStreetMap ODbL, RES Étalab, Wikidata CC0, Overture). Any API usage must respect their attribution."
+  },
   "footer": {
     "about": "Sport Hub",
     "aboutText": "One map for every sport. Open data, no ads, no signup.",
@@ -389,6 +407,7 @@
     "source": "Source code (GitHub)",
     "contribute": "Contribute",
     "partners": "Clubs & partners",
+    "developers": "Developers",
     "copyright": "© {year} Sport Hub — MIT license — Data under their respective source licenses"
   },
   "legal": {
