@@ -100,7 +100,7 @@ export async function generateMetadata({
 }
 
 type VenueRow = {
-  id: string;
+  venue_id: string;
   slug: string;
   name: string;
   lat: number;
@@ -110,37 +110,35 @@ type VenueRow = {
   address: string | null;
   courts_count: number | null;
   country_code: string | null;
-  city?: { name?: string; country_code?: string } | null;
+  city_name: string | null;
+  city_country: string | null;
 };
 
 async function fetchVenues(sportSlug: string, page: number, filters: SportFilters) {
   const sb = getSupabaseServerClient();
   const offset = (page - 1) * PAGE_SIZE;
 
-  // On filtre sur `venue.primary_sport_slug` (colonne dénormalisée sur venue),
-  // PAS sur le join M:N `venue_sport`. Raison (#332) : la table `venue_sport`
-  // est éparse — elle ne couvre que certains sports (padel, surf, golf…),
-  // laissant yoga/boxing/judo/diving/running SANS aucune ligne → pages vides,
-  // alors que ces venues existent bel et bien avec ce sport en primaire. Tout
-  // le reste de l'app (page sport×ville, API /venues, sitemap, compteurs
-  // famille) clé déjà sur `primary_sport_slug` ; cette page était l'outlier.
-  let query = sb
-    .from("venue")
+  // Filtre par APPARTENANCE au sport ({primary_sport_slug} ∪ venue_sport), via la
+  // MV dénormalisée `mv_venue_sport_search` (#476) → une venue multi-sport (ex.
+  // box Hyrox = gym) apparaît sur toutes ses pages sport, **cohérent avec la carte**
+  // (venues_in_bbox/venues_aggregates lisent la même MV). La MV est pré-filtrée
+  // is_published + non supprimée. count:'planned' = estimation planner (instantané,
+  // comme avant) → pas de COUNT exact sur les gros sports (gym 174k).
+  // mv_venue_sport_search est une vue matérialisée → absente des types Supabase
+  // générés ; on type le builder en `any` (justifié), comme le cast rpc ailleurs.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (sb as any)
+    .from("mv_venue_sport_search")
     .select(
       `
-      id, slug, name, lat, lon, family_slug, primary_sport_slug, address,
-      courts_count, country_code,
-      city:city_id ( name, country_code )
+      venue_id, slug, name, lat, lon, family_slug, primary_sport_slug, address,
+      courts_count, country_code, city_name, city_country
     `,
       { count: "planned" }
     )
-    .eq("primary_sport_slug", sportSlug)
-    .eq("is_published", true)
-    .is("deleted_at", null)
-    // N'indexer/lister que les venues ≥ seuil qualité (#464). Filtre SQL sur la
-    // colonne générée `quality_score` (miroir de isLowQualityVenue) → count ET
-    // range cohérents, pagination propre, sans fetch-all (la page nationale est
-    // non bornée, ex. tennis 67k). La carte reste exhaustive (API /api/venues).
+    .eq("sport_slug", sportSlug)
+    // N'indexer/lister que les venues ≥ seuil qualité (#464, quality_score
+    // dénormalisé dans la MV). La carte reste exhaustive (API /api/venues).
     .gte("quality_score", LOW_QUALITY_THRESHOLD);
 
   // Filtres spécifiques sport (#467) — booléens venue-level. Sémantique alignée
@@ -153,15 +151,24 @@ async function fetchVenues(sportSlug: string, page: number, filters: SportFilter
 
   const { data, error, count } = await query
     .range(offset, offset + PAGE_SIZE - 1)
-    .order("id", { ascending: true });
+    .order("venue_id", { ascending: true });
 
   if (error) return { venues: [], total: 0 };
 
   const venues = ((data as VenueRow[]) ?? []).map((v) => ({
-    ...v,
-    city_name: v.city?.name,
-    country_code: v.country_code ?? v.city?.country_code ?? undefined,
-    sport_slugs: v.primary_sport_slug ? [v.primary_sport_slug] : [],
+    id: v.venue_id,
+    slug: v.slug,
+    name: v.name,
+    lat: v.lat,
+    lon: v.lon,
+    family_slug: v.family_slug,
+    primary_sport_slug: v.primary_sport_slug,
+    address: v.address,
+    courts_count: v.courts_count,
+    city_name: v.city_name ?? undefined,
+    country_code: v.country_code ?? v.city_country ?? undefined,
+    // Cette venue matche `sportSlug` par appartenance (primary ou venue_sport).
+    sport_slugs: [sportSlug],
   }));
   return { venues, total: count ?? 0 };
 }
