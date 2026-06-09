@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
+import { Link } from "@/i18n/routing";
+import { isWebGLAvailable } from "@/lib/webgl";
 import { Crosshair, Share2, SlidersHorizontal, X } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import {
@@ -468,9 +470,24 @@ export function MapWithSearch({
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
+  // WebGL requis par MapLibre. Si le navigateur ne l'a pas (accélération
+  // matérielle coupée, etc.), la carte resterait un canvas blanc → on détecte au
+  // mount et on affiche un repli lisible à la place (#466 / demande @thsshm).
+  // Détection conservatrice (lib/webgl.ts) : false uniquement si WebGL échoue.
+  const [webglOk, setWebglOk] = useState(true);
+  useEffect(() => {
+    setWebglOk(isWebGLAvailable());
+  }, []);
+
   /** Mode effectivement appliqué — "split" dégradé en "map" sous le seuil split
-   *  (donc aussi sur mobile). Carte OU liste plein écran, jamais superposées. */
-  const effectiveMode: ViewMode = viewMode === "split" && !isWideEnoughForSplit ? "map" : viewMode;
+   *  (donc aussi sur mobile). Carte OU liste plein écran, jamais superposées.
+   *  Sans WebGL, on force "map" pour que le repli (dans le conteneur carte)
+   *  s'affiche plein écran au lieu d'une liste vide. */
+  const effectiveMode: ViewMode = !webglOk
+    ? "map"
+    : viewMode === "split" && !isWideEnoughForSplit
+      ? "map"
+      : viewMode;
 
   // Snapshot venues + center reporté par MapClient pour alimenter
   // VenueListPanel sans re-fetch propre (#123).
@@ -738,13 +755,15 @@ export function MapWithSearch({
       {/* Toggle mode d'affichage (#123) — visible AUSSI sur mobile (carte ↔
           liste, sans "split") pour basculer entre les deux vues plein écran.
           z-20 : flotte au-dessus de la liste plein écran → jamais bloqué. */}
-      <ViewModeToggle
-        active={viewMode}
-        onChange={setViewMode}
-        disableSplit={!isWideEnoughForSplit}
-        hideSplit={isMobile}
-        className="absolute right-4 top-16 z-20 inline-flex"
-      />
+      {webglOk && (
+        <ViewModeToggle
+          active={viewMode}
+          onChange={setViewMode}
+          disableSplit={!isWideEnoughForSplit}
+          hideSplit={isMobile}
+          className="absolute right-4 top-16 z-20 inline-flex"
+        />
+      )}
 
       {/* Panneau liste (#123) — overlay à droite en split, full-width en list.
           Toujours monté (reçoit les venues snapshot du MapClient) pour ne pas
@@ -776,25 +795,54 @@ export function MapWithSearch({
               : "h-full w-full"
         }
       >
-        <MapClient
-          initialLat={initialView.lat}
-          initialLon={initialView.lon}
-          initialZoom={initialView.zoom}
-          selectedFamilies={selectedFamilies}
-          totalFamilies={FAMILIES.length}
-          selectedCriteria={selectedCriteria}
-          selectedSurfaces={selectedSurfaces}
-          autoUpdate={autoUpdate}
-          onVenuesChange={handleVenuesChange}
-          onClubsChange={setClubsCount}
-          onZoomChange={setCurrentZoom}
-          onViewportChange={syncViewportToUrl}
-          onVenuesData={handleVenuesData}
-          onFacetsChange={setFacets}
-          flyTarget={flyTarget}
-          initialVenues={effectiveInitialVenues}
-          userLocation={userLocation}
-        />
+        {webglOk ? (
+          <MapClient
+            initialLat={initialView.lat}
+            initialLon={initialView.lon}
+            initialZoom={initialView.zoom}
+            selectedFamilies={selectedFamilies}
+            totalFamilies={FAMILIES.length}
+            selectedCriteria={selectedCriteria}
+            selectedSurfaces={selectedSurfaces}
+            autoUpdate={autoUpdate}
+            onVenuesChange={handleVenuesChange}
+            onClubsChange={setClubsCount}
+            onZoomChange={setCurrentZoom}
+            onViewportChange={syncViewportToUrl}
+            onVenuesData={handleVenuesData}
+            onFacetsChange={setFacets}
+            flyTarget={flyTarget}
+            initialVenues={effectiveInitialVenues}
+            userLocation={userLocation}
+          />
+        ) : (
+          // Repli WebGL absent : message lisible + alternatives qui ne
+          // nécessitent pas WebGL (accueil = explorateur par sport + villes).
+          <div
+            role="alert"
+            className="flex h-full w-full items-center justify-center bg-muted/20 p-6"
+          >
+            <div className="max-w-sm rounded-lg border bg-card p-6 text-center shadow-sm">
+              <h2 className="text-lg font-semibold">{tMap("webglTitle")}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">{tMap("webglBody")}</p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <Link
+                  href="/"
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                >
+                  {tMap("webglBrowse")}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setWebglOk(isWebGLAvailable())}
+                  className="rounded-md border px-4 py-2 text-sm hover:bg-accent"
+                >
+                  {tMap("webglRetry")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Picker explore (#132) : overlay multi-familles + ville. Au-dessus de
