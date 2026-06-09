@@ -174,6 +174,7 @@ export default async function SportPage({ params, searchParams }: Props) {
   const tFamilies = await getTranslations("families");
   const tSports = await getTranslations("sports");
   const tMap = await getTranslations("map");
+  const tVenue = await getTranslations("venue");
 
   const filters: SportFilters = {
     indoor: searchParams.indoor === "1",
@@ -308,9 +309,9 @@ export default async function SportPage({ params, searchParams }: Props) {
       )}
 
       {venues.length === 0 ? (
-        <p className="mt-12 text-center text-muted-foreground">
+        <div className="mt-12 text-center text-muted-foreground">
           {anyFilterActive ? (
-            <>
+            <p>
               {t("emptyMessage")}{" "}
               <Link
                 href={sportHref(sportSlug, NO_FILTERS)}
@@ -318,16 +319,26 @@ export default async function SportPage({ params, searchParams }: Props) {
               >
                 {tMap("resetFilters")}
               </Link>
-            </>
+            </p>
           ) : (
             <>
-              {t("emptyMessage")}{" "}
-              <Link href="/" className="underline hover:text-foreground">
-                {t("exploreOthers")}
-              </Link>
+              <p>
+                {t("emptyMessage")}{" "}
+                <Link href="/" className="underline hover:text-foreground">
+                  {t("exploreOthers")}
+                </Link>
+              </p>
+              {/* CTA contribution (#467) : un sport sans lieu indexé est le
+                  meilleur moment pour inviter à en ajouter un → /contribute. */}
+              <p className="mt-3 text-sm">
+                {tVenue("addPlacePrompt")}{" "}
+                <Link href="/contribute" className="underline hover:text-foreground">
+                  {tVenue("addPlaceCta")}
+                </Link>
+              </p>
             </>
           )}
-        </p>
+        </div>
       ) : (
         <SportVenuesSection
           sportSlug={sport.slug}
