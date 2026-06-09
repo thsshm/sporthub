@@ -152,7 +152,7 @@ def req(url, key, method="GET", path="", body=None, prefer=None, timeout=120, re
 def load_cities(url, key) -> list[dict]:
     rows, last_id, page = [], "", 1000
     while True:
-        path = f"city?select=id,country_code,lat,lon&order=id.asc&limit={page}"
+        path = f"city?select=id,slug,country_code,lat,lon&order=id.asc&limit={page}"
         if last_id:
             path += f"&id=gt.{last_id}"
         chunk = json.loads(req(url, key, path=path))
@@ -202,6 +202,45 @@ def apply_assignments(url, key, assignments: dict[str, str], chunk=120) -> int:
                 body={"city_id": cid}, prefer="return=minimal")
             written += len(batch)
     return written
+
+
+# ── Diagnostic (lecture seule) ──────────────────────────────────────────────────
+def diagnose(args: argparse.Namespace) -> int:
+    """Pour un bbox + sport (primary), reporte à quelles VILLES les venues sont
+    rattachés (city_id→slug), + le nb sans city_id. Révèle les mismatches du type
+    'tennis Lyon = 0' (venues rattachés à des arrondissements/doublons, pas à la
+    ville de la page). Aucune écriture."""
+    import collections
+
+    url, key = load_env()
+    cities = load_cities(url, key)
+    slug_by_id = {c["id"]: c.get("slug") for c in cities}
+    w, s, e, n = [float(x) for x in args.bbox.split(",")]
+    print(f"▶ venues primary_sport={args.sport} dans bbox {args.bbox}…")
+    rows, last_id, page = [], "", 1000
+    while True:
+        path = (
+            f"venue?select=id,city_id&primary_sport_slug=eq.{args.sport}"
+            f"&lat=gte.{s}&lat=lte.{n}&lon=gte.{w}&lon=lte.{e}"
+            f"&is_published=eq.true&deleted_at=is.null&order=id.asc&limit={page}"
+        )
+        if last_id:
+            path += f"&id=gt.{last_id}"
+        chunk = json.loads(req(url, key, path=path))
+        if not chunk:
+            break
+        rows.extend(chunk)
+        last_id = chunk[-1]["id"]
+        if len(chunk) < page:
+            break
+    dist = collections.Counter(
+        (slug_by_id.get(r["city_id"]) if r.get("city_id") else "∅ NULL")
+        for r in rows
+    )
+    print(f"  ✓ {len(rows)} venues. Rattachement par ville (city slug → nb) :")
+    for slug, count in dist.most_common(20):
+        print(f"     {count:5}  {slug}")
+    return 0
 
 
 # ── Pipeline ────────────────────────────────────────────────────────────────────
@@ -279,10 +318,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-km", type=float, default=MAX_KM, help="Rayon max (défaut 5)")
     p.add_argument("--limit", type=int, default=None, help="Cap venues (smoke test)")
     p.add_argument("--chunk", type=int, default=120, help="ids par PATCH")
+    p.add_argument("--diagnose", action="store_true",
+                   help="Lecture seule : distribution city_id→slug pour --bbox/--sport")
+    p.add_argument("--bbox", default="4.81,45.74,4.87,45.79",
+                   help="W,S,E,N pour --diagnose (défaut : Lyon intra-muros)")
+    p.add_argument("--sport", default="tennis", help="primary_sport_slug pour --diagnose")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args(argv)
     if args.self_test:
         return self_test()
+    if args.diagnose:
+        return diagnose(args)
     return run(args)
 
 
