@@ -36,7 +36,7 @@ export async function generateMetadata({
   const t = await getTranslations({ locale, namespace: "home" });
   // hreflang root : same path "/" pour les 3 locales. Les pages enfants
   // surchargent pour leur chemin propre (#108).
-  const hreflang = buildHreflangAlternates("/");
+  const hreflang = buildHreflangAlternates("/", locale);
   // Total réel (même source cachée que le H1 de la home) plutôt qu'un nombre
   // hardcodé qui devient faux quand la base bouge (#334).
   const totalSpots = await getTotalSpots();

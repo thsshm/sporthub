@@ -38,7 +38,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "famille" });
-  const hreflang = buildHreflangAlternates(`/famille/retraites`);
+  const hreflang = buildHreflangAlternates(`/famille/retraites`, locale);
   return {
     title: t("retraites.title"),
     description: t("retraites.description"),

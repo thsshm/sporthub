@@ -127,7 +127,7 @@ export async function generateMetadata({
   return {
     title: t("metaTitle"),
     description: t("metaDescription", { count: cities.length }),
-    alternates: buildHreflangAlternates("/villes"),
+    alternates: buildHreflangAlternates("/villes", locale),
   };
 }
 

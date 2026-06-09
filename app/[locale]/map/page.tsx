@@ -19,8 +19,8 @@ const INITIAL_LIMIT = 500;
 // Sans `languages`, Google indexait uniquement /map en FR (cf. #108).
 // Le canonical reste STRICTEMENT "/map" (sans query) : les variantes
 // ?family= ne sont que des filtres, pas des URLs canoniques distinctes (#132,
-// évite le duplicate content que /explore créait en V1).
-const mapHreflang = buildHreflangAlternates("/map");
+// évite le duplicate content que /explore créait en V1). Calculé par locale
+// dans generateMetadata (canonical auto-référent, #465).
 
 /** Parse `?family=raquette,ballon` → slugs valides, dédupliqués. Cf. #132. */
 function parseFamilies(raw: string | undefined): string[] {
@@ -39,6 +39,7 @@ function parseFamilies(raw: string | undefined): string[] {
 // Localisé via next-intl pour rester cohérent avec /en/map et /zh/map (#108).
 export async function generateMetadata({ params, searchParams }: MapPageProps): Promise<Metadata> {
   const { locale } = await params;
+  const mapHreflang = buildHreflangAlternates("/map", locale);
   const tMap = await getTranslations({ locale, namespace: "map" });
   const tFamilies = await getTranslations({ locale, namespace: "families" });
   const families = parseFamilies(searchParams.family);
