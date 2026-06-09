@@ -129,7 +129,7 @@ export async function generateMetadata({
       : t("metaDescriptionNoCity", { name: club.name, count: courts.length })
   ).slice(0, 160);
   const path = `/club/${club.slug}`;
-  const hreflang = buildHreflangAlternates(path);
+  const hreflang = buildHreflangAlternates(path, locale);
   return {
     title,
     description,

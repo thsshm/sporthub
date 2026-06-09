@@ -105,7 +105,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const t = await getTranslations({ locale, namespace: "disciplines" });
   const tSports = await getTranslations({ locale, namespace: "sports" });
   const sportName = tSports.has(sportSlug) ? tSports(sportSlug) : sport.name_fr;
-  const hreflang = buildHreflangAlternates(`/disciplines/${sportSlug}`);
+  const hreflang = buildHreflangAlternates(`/disciplines/${sportSlug}`, locale);
 
   // #331 : tant que le ranking ne ramène rien (la requête ORDER BY courts_count
   // sur le set joint peut timeout côté DB → 0 club), la page est du thin content.

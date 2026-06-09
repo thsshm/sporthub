@@ -35,7 +35,10 @@ const HREFLANG_DEFAULT_LOCALE = "fr" as const;
  *
  * @param path - chemin sans locale ni domaine, p.ex. `/map`, `/venue/abc`, `/`.
  */
-export function buildHreflangAlternates(path: string): {
+export function buildHreflangAlternates(
+  path: string,
+  locale?: string,
+): {
   canonical: string;
   languages: Record<string, string>;
 } {
@@ -54,8 +57,17 @@ export function buildHreflangAlternates(path: string): {
   // x-default = FR (URL canonique sans préfixe). Google recommande
   // x-default pour signaler la page à servir aux locales non listées.
   languages["x-default"] = languages[HREFLANG_DEFAULT_LOCALE];
+  // Canonical AUTO-RÉFÉRENT par langue (#465) : la page /en se canonicalise sur
+  // /en, /zh sur /zh, FR sur FR. Indispensable pour que Google indépendamment
+  // indexe les 3 langues (un canonical cross-langue vers FR dé-indexait /en et
+  // /zh comme « doublons »). Le hreflang ci-dessus relie les variantes. Locale
+  // absente ou inconnue → fallback FR (rétro-compat des call sites non migrés).
+  const canonicalLocale =
+    locale && (HREFLANG_LOCALES as readonly string[]).includes(locale)
+      ? locale
+      : HREFLANG_DEFAULT_LOCALE;
   return {
-    canonical: languages[HREFLANG_DEFAULT_LOCALE],
+    canonical: languages[canonicalLocale],
     languages,
   };
 }
@@ -63,8 +75,8 @@ export function buildHreflangAlternates(path: string): {
 /**
  * Metadata de base pour la landing.
  */
-export function buildHomeMetadata(): Metadata {
-  const hreflang = buildHreflangAlternates("/");
+export function buildHomeMetadata(locale?: string): Metadata {
+  const hreflang = buildHreflangAlternates("/", locale);
   return {
     title: {
       default: "Sport Hub · Une seule carte pour tous tes sports",
@@ -98,7 +110,11 @@ export function buildHomeMetadata(): Metadata {
 /**
  * Metadata pour une page venue.
  */
-export function buildVenueMetadata(venue: VenueDetail, cityName?: string): Metadata {
+export function buildVenueMetadata(
+  venue: VenueDetail,
+  cityName?: string,
+  locale?: string,
+): Metadata {
   const emoji = getFamilyEmoji(venue.family_slug);
   const location = cityName ?? venue.address ?? "";
   const title = `${venue.name}${location ? ` · ${location}` : ""}`;
@@ -114,7 +130,7 @@ export function buildVenueMetadata(venue: VenueDetail, cityName?: string): Metad
   // contenus métier, UI localisée). Permet à Google d'indexer la bonne URL
   // par locale et d'éviter le piège "URL identique → uniquement FR indexé"
   // (#108).
-  const hreflang = buildHreflangAlternates(`/venue/${venue.slug}`);
+  const hreflang = buildHreflangAlternates(`/venue/${venue.slug}`, locale);
 
   // noindex des fiches trop pauvres (« nom + coordonnées » sans adresse,
   // contact ni contenu) : thin content non indexable (#464). `follow` reste

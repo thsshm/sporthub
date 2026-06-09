@@ -19,16 +19,44 @@ const PAGE_SIZE = 24;
 
 type Props = {
   params: { locale: string; sport: string };
-  searchParams: { page?: string; indoor?: string; lit?: string };
+  searchParams: {
+    page?: string;
+    indoor?: string;
+    lit?: string;
+    wheelchair?: string;
+    free?: string;
+    paid?: string;
+  };
 };
 
 export const revalidate = 3600;
 
 /** Filtres spécifiques sport, portés par l'URL (#467). Limités aux booléens
- * portés par la table `venue` elle-même (is_indoor / has_lighting) : on ne
- * touche PAS à `venue_sport` (épars → pages vides, cf. #332). La `surface`,
- * qui vit sur venue_sport, est volontairement hors scope de cette tranche. */
-type SportFilters = { indoor: boolean; lit: boolean };
+ * portés par la table `venue` elle-même (is_indoor / has_lighting /
+ * is_wheelchair_accessible / fee_required) : on ne touche PAS au join `venue_sport`
+ * (épars → pages vides, cf. #332). La `surface`, qui vit sur venue_sport, reste
+ * hors scope. `free` et `paid` adressent la MÊME colonne fee_required (false/true)
+ * → mutuellement exclusifs côté UI (cocher l'un décoche l'autre). */
+type SportFilters = {
+  indoor: boolean;
+  lit: boolean;
+  wheelchair: boolean;
+  free: boolean;
+  paid: boolean;
+};
+
+type SportFilterKey = keyof SportFilters;
+
+/** Toutes les puces, dans l'ordre d'affichage. */
+const FILTER_KEYS: SportFilterKey[] = ["indoor", "lit", "wheelchair", "free", "paid"];
+
+const NO_FILTERS: SportFilters = {
+  indoor: false,
+  lit: false,
+  wheelchair: false,
+  free: false,
+  paid: false,
+};
 
 /** Construit une URL /sports/[sport] en préservant filtres + page. Les valeurs
  * par défaut (false / page 1) sont omises → URLs propres et canoniques. */
@@ -36,6 +64,9 @@ function sportHref(sportSlug: string, f: SportFilters & { page?: number }): stri
   const sp = new URLSearchParams();
   if (f.indoor) sp.set("indoor", "1");
   if (f.lit) sp.set("lit", "1");
+  if (f.wheelchair) sp.set("wheelchair", "1");
+  if (f.free) sp.set("free", "1");
+  if (f.paid) sp.set("paid", "1");
   if (f.page && f.page > 1) sp.set("page", String(f.page));
   const qs = sp.toString();
   return `/sports/${sportSlug}${qs ? `?${qs}` : ""}`;
@@ -56,7 +87,7 @@ export async function generateMetadata({
   const tSport = await getTranslations({ locale, namespace: "sport" });
   const name = tSports.has(sportSlug) ? tSports(sportSlug) : sport.name_fr;
   // hreflang : /sports/[sport] décliné en FR/EN/ZH (#108).
-  const hreflang = buildHreflangAlternates(`/sports/${sportSlug}`);
+  const hreflang = buildHreflangAlternates(`/sports/${sportSlug}`, locale);
   return {
     title: name,
     description: tSport("metaDescription", { sport: name }),
@@ -107,9 +138,12 @@ async function fetchVenues(sportSlug: string, page: number, filters: SportFilter
     .is("deleted_at", null);
 
   // Filtres spécifiques sport (#467) — booléens venue-level. Sémantique alignée
-  // sur /api/venues?feat=indoor,lit (KNOWN_FEAT) → carte et liste cohérentes.
+  // sur /api/venues?feat=… (KNOWN_FEAT) → carte et liste cohérentes.
   if (filters.indoor) query = query.eq("is_indoor", true);
   if (filters.lit) query = query.eq("has_lighting", true);
+  if (filters.wheelchair) query = query.eq("is_wheelchair_accessible", true);
+  if (filters.free) query = query.eq("fee_required", false);
+  if (filters.paid) query = query.eq("fee_required", true);
 
   const { data, error, count } = await query
     .range(offset, offset + PAGE_SIZE - 1)
@@ -144,14 +178,15 @@ export default async function SportPage({ params, searchParams }: Props) {
   const filters: SportFilters = {
     indoor: searchParams.indoor === "1",
     lit: searchParams.lit === "1",
+    wheelchair: searchParams.wheelchair === "1",
+    free: searchParams.free === "1",
+    paid: searchParams.paid === "1",
   };
-  const anyFilterActive = filters.indoor || filters.lit;
+  const anyFilterActive = FILTER_KEYS.some((k) => filters[k]);
   // Critères envoyés à la carte (MapClient → /api/venues?feat=…) pour que pins
-  // et liste affichent le même sous-ensemble filtré (#467).
-  const selectedCriteria: string[] = [
-    ...(filters.indoor ? ["indoor"] : []),
-    ...(filters.lit ? ["lit"] : []),
-  ];
+  // et liste affichent le même sous-ensemble filtré (#467). Les clés matchent
+  // KNOWN_FEAT de l'API (indoor/lit/wheelchair/free/paid).
+  const selectedCriteria: string[] = FILTER_KEYS.filter((k) => filters[k]);
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const { venues, total } = await fetchVenues(sportSlug, page, filters);
@@ -159,20 +194,26 @@ export default async function SportPage({ params, searchParams }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const sportName = tSports.has(sport.slug) ? tSports(sport.slug) : sport.name_fr;
 
+  // Libellés i18n via le namespace `map.feat.*` (déjà en 3 locales, zéro
+  // nouvelle clé). Clés littérales → type-safe next-intl.
+  const featLabel: Record<SportFilterKey, string> = {
+    indoor: tMap("feat.indoor"),
+    lit: tMap("feat.lit"),
+    wheelchair: tMap("feat.wheelchair"),
+    free: tMap("feat.free"),
+    paid: tMap("feat.paid"),
+  };
+
   // Barre de filtres spécifiques sport (#467) — liens SSR, fonctionnels sans JS
-  // et crawlables. Chaque puce bascule son param et remet la page à 1.
-  const filterChips: { key: "indoor" | "lit"; active: boolean; href: string }[] = [
-    {
-      key: "indoor",
-      active: filters.indoor,
-      href: sportHref(sportSlug, { ...filters, indoor: !filters.indoor }),
-    },
-    {
-      key: "lit",
-      active: filters.lit,
-      href: sportHref(sportSlug, { ...filters, lit: !filters.lit }),
-    },
-  ];
+  // et crawlables. Chaque puce bascule son param et remet la page à 1. `free` et
+  // `paid` visent la même colonne fee_required → cocher l'un décoche l'autre
+  // (sinon résultat vide systématique : fee_required ne peut être true ET false).
+  const filterChips = FILTER_KEYS.map((key) => {
+    const next: SportFilters = { ...filters, [key]: !filters[key] };
+    if (key === "free" && next.free) next.paid = false;
+    if (key === "paid" && next.paid) next.free = false;
+    return { key, active: filters[key], href: sportHref(sportSlug, next) };
+  });
 
   // ── Schema.org JSON-LD : BreadcrumbList + ItemList des venues affichés.
   //    Permet à Google de comprendre la hiérarchie (Home → Sport → Venues)
@@ -244,12 +285,12 @@ export default async function SportPage({ params, searchParams }: Props) {
                   : "hover:bg-accent"
               }`}
             >
-              {chip.key === "indoor" ? tMap("feat.indoor") : tMap("feat.lit")}
+              {featLabel[chip.key]}
             </Link>
           ))}
           {anyFilterActive && (
             <Link
-              href={sportHref(sportSlug, { indoor: false, lit: false })}
+              href={sportHref(sportSlug, NO_FILTERS)}
               className="ml-1 text-sm text-muted-foreground underline-offset-2 hover:underline"
             >
               {tMap("resetFilters")}
@@ -264,7 +305,7 @@ export default async function SportPage({ params, searchParams }: Props) {
             <>
               {t("emptyMessage")}{" "}
               <Link
-                href={sportHref(sportSlug, { indoor: false, lit: false })}
+                href={sportHref(sportSlug, NO_FILTERS)}
                 className="underline hover:text-foreground"
               >
                 {tMap("resetFilters")}
