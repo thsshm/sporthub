@@ -191,7 +191,15 @@ export default async function SportPage({ params, searchParams }: Props) {
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const { venues, total } = await fetchVenues(sportSlug, page, filters);
   const family = FAMILIES_BY_SLUG[sport.family_slug];
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Compteur cohérent avec la liste réellement rendue (#470). `total` vient de
+  // count:"planned" (estimation du planner Postgres) qui peut renvoyer 1 quand
+  // la requête ne ramène en fait AUCUNE ligne → le header affichait
+  // « 1 venue indexed » pendant que le corps affichait « No venue yet »
+  // (contradiction signalée sur yoga retreat, même cause que #335). On force 0
+  // dès que la liste est vide : header, pagination et corps ne se contredisent
+  // plus jamais.
+  const displayTotal = venues.length === 0 ? 0 : total;
+  const totalPages = Math.max(1, Math.ceil(displayTotal / PAGE_SIZE));
   const sportName = tSports.has(sport.slug) ? tSports(sport.slug) : sport.name_fr;
 
   // Libellés i18n via le namespace `map.feat.*` (déjà en 3 locales, zéro
@@ -259,7 +267,7 @@ export default async function SportPage({ params, searchParams }: Props) {
           {sportName}
         </h1>
         <p className="mt-2 text-muted-foreground">
-          {t("venuesIndexed", { count: total })}
+          {t("venuesIndexed", { count: displayTotal })}
           {totalPages > 1 && (
             <span className="text-sm"> · {t("page", { current: page, total: totalPages })}</span>
           )}
@@ -335,7 +343,7 @@ export default async function SportPage({ params, searchParams }: Props) {
               primary_sport_slug: v.primary_sport_slug,
             })) as VenuePin[]
           }
-          totalSportVenues={total}
+          totalSportVenues={displayTotal}
           mapHint={t("mapHint", { sport: sportName.toLowerCase() })}
         >
           {/* Mode "ancré" (défaut) : grille SSR indexable + pagination. */}
