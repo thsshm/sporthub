@@ -20,6 +20,7 @@ import {
   Check,
 } from "lucide-react";
 import type { VenueDetail, VenueAmenity, Amenity } from "@/lib/supabase/types";
+import { plausibleCourtCount } from "@/lib/venue/courts-plausibility";
 
 type Props = {
   venue: VenueDetail;
@@ -81,7 +82,11 @@ export async function VenueAmenitiesList({ venue }: Props) {
     features.push({ key: `db:${a.slug}`, icon: Check, label });
   }
 
-  if (features.length === 0 && !venue.courts_count) {
+  // Plausibilité (#555) : ne pas afficher un nb de courts aberrant (agrégation
+  // au mauvais niveau) → masqué au-dessus du seuil de la famille.
+  const courts = plausibleCourtCount(venue.courts_count, venue.family_slug);
+
+  if (features.length === 0 && !courts) {
     return null;
   }
 
@@ -106,13 +111,13 @@ export async function VenueAmenitiesList({ venue }: Props) {
             </li>
           );
         })}
-        {venue.courts_count != null && venue.courts_count > 0 && (
+        {courts != null && (
           <li className="flex items-center gap-2 rounded-md border bg-card px-3 py-2">
             <LayoutGrid
               className="h-4 w-4 shrink-0 text-muted-foreground"
               aria-hidden="true"
             />
-            <span>{t("courtsCount", { count: venue.courts_count })}</span>
+            <span>{t("courtsCount", { count: courts })}</span>
           </li>
         )}
       </ul>

@@ -12,6 +12,7 @@ import { ExternalLink } from "lucide-react";
 import type { VenueDetail, VenueEnrichments } from "@/lib/supabase/types";
 import { generateVenueDescription } from "@/lib/venue/description";
 import type { DescriptionContext, DescriptionStrings } from "@/lib/venue/description";
+import { plausibleCourtCount } from "@/lib/venue/courts-plausibility";
 
 type Props = {
   venue: VenueDetail;
@@ -28,7 +29,9 @@ export async function VenueAbout({ venue, cityName, locale = "fr" }: Props) {
   const wikiDescription = enrichments.description?.trim() || null;
   const sportSlug = venue.primary_sport_slug;
   const sportName = sportSlug && tSports.has(sportSlug) ? tSports(sportSlug) : sportSlug;
-  const courtsCount = venue.courts_count;
+  // Plausibilité (#555) : on n'utilise pas un nb de courts aberrant dans la
+  // description générée (« 200 courts de tennis »).
+  const courtsCount = plausibleCourtCount(venue.courts_count, venue.family_slug);
 
   // Construit la description générée si aucune description Wikipedia.
   let description = wikiDescription;
