@@ -21,11 +21,16 @@ import unicodedata
 
 
 def _norm(s: str) -> str:
-    """minuscule + sans accents, pour des comparaisons de sous-chaînes robustes."""
+    """minuscule + sans accents + tirets→espaces, pour des comparaisons robustes.
+
+    Les tirets deviennent des espaces (#553) : « tennis-de-table » doit matcher le
+    signal « tennis de table » (sinon une « salle de tennis-de-table et musculation »
+    légitime serait prise pour une salle de muscu mal classée → faux positif)."""
     if not s:
         return ""
     decomposed = unicodedata.normalize("NFKD", s)
-    return "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+    out = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+    return out.replace("-", " ")
 
 
 # Famille SportHub de chaque sport pouvant servir de "signal" dans un nom.
@@ -69,7 +74,7 @@ _NAME_SIGNALS: dict[str, tuple[str, ...]] = {
 # de simple sous-chaîne, sinon faux positifs : « golf » ⊂ « montgolfière »,
 # « peche » ⊂ « pêchers » (lieu-dit), etc. (#463 — vérifié en prod).
 _SIGNAL_PATTERNS: dict[str, list[re.Pattern[str]]] = {
-    sport: [re.compile(r"(?<![a-z])" + re.escape(t) + r"(?![a-z])") for t in terms]
+    sport: [re.compile(r"(?<![a-z])" + re.escape(_norm(t)) + r"(?![a-z])") for t in terms]
     for sport, terms in _NAME_SIGNALS.items()
 }
 
@@ -133,6 +138,8 @@ def self_test() -> int:
         ("Jardin de la Montgolfière", "padel"),  # 'golf' ⊂ montgolfière → garde
         ("Complexe sportif des Grands Pêchers", "tennis"),  # 'peche' ⊂ pêchers → garde
         ("Salle Decathlon", "padel"),  # 'cathlon'… aucun terme entier → garde
+        ("Salle de tennis-de-table et musculation", "table_tennis"),  # #553 tiret → garde
+        ("Club de Ping-Pong", "table_tennis"),  # signal ping-pong (tiret) → garde
     ]
     drop = [
         ("Étang de pêche du Moulin", "padel"),  # pêche → padel : inter-familles
