@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
 import math
 import os
@@ -411,6 +412,59 @@ def build_booking_link_rows(report: list[dict]) -> list[dict]:
     ]
 
 
+def build_new_venue_rows(report: list[dict]) -> list[dict]:
+    """Lignes `venue` pour les clubs Playtomic NON matchés (--add-new) : le padel
+    a explosé après 2020 → la plupart des clubs Playtomic n'existent pas dans la
+    base RES/OSM (mesuré : 4% de matchés sur la grille FR). On les crée comme
+    nouvelles fiches plutôt que d'enrichir 6 venues.
+
+    Pur, testable. Garanties :
+      - jamais un club matché (lui passe par l'enrichissement classique) ;
+      - nom + coordonnées obligatoires (pas de fiche « sans titre ») ;
+      - slug déterministe (sha256 du tenant_id) → ré-exécutable, upsert sur la
+        contrainte UNIQUE (source, external_id) (migration 0043) ;
+      - website_url seulement si c'est une URL (Playtomic y met parfois du texte
+        libre, ex. « Trinquet St Andre »).
+    Le rattachement ville (city_id) est volontairement laissé NULL : le workflow
+    backfill-venue-city (ville la plus proche ≤ 5 km) le pose en aval.
+    """
+    rows: list[dict] = []
+    for r in report:
+        if r.get("match"):
+            continue
+        tid = r.get("playtomic_id")
+        name = (r.get("playtomic_name") or "").strip()
+        lat, lon = r.get("lat"), r.get("lon")
+        if not tid or not name or lat is None or lon is None:
+            continue
+        slug = "playtomic-" + hashlib.sha256(f"playtomic:{tid}".encode()).hexdigest()[:10]
+        row: dict[str, Any] = {
+            "slug": slug,
+            "name": name,
+            "lat": lat,
+            "lon": lon,
+            "family_slug": "raquette",
+            "primary_sport_slug": "padel",
+            "country_code": "FR",
+            "source": "playtomic",
+            "external_id": tid,
+            "is_published": True,
+        }
+        if r.get("address"):
+            row["address"] = r["address"]
+        website = r.get("website_url") or ""
+        if website.startswith("http"):
+            row["website_url"] = website
+        if r.get("booking_url"):
+            row["booking_url"] = r["booking_url"]
+        if r.get("courts_indoor") is not None:
+            row["courts_indoor"] = r["courts_indoor"]
+        if r.get("courts_outdoor") is not None:
+            row["courts_outdoor"] = r["courts_outdoor"]
+        rows.append(row)
+    return rows
+
+
 def _chunks(seq: list, n: int):
     for i in range(0, len(seq), n):
         yield seq[i : i + n]
@@ -462,6 +516,57 @@ def apply_enrichment(
     return len(refs), len(patches), len(links)
 
 
+def apply_add_new(url: str, key: str, report: list[dict]) -> tuple[int, int, int]:
+    """Crée les clubs Playtomic non matchés comme nouvelles venues (--add-new).
+    Retourne (venues_upsertées, venue_sport, booking_links). Idempotent :
+      - venue : upsert sur (source, external_id) (merge-duplicates) ;
+      - venue_sport padel + booking_link : upsert sur leurs clés uniques,
+        venue_id résolu via un GET par source='playtomic' (les ids ne sont pas
+        renvoyés par l'upsert en return=minimal).
+    """
+    rows = build_new_venue_rows(report)
+    for chunk in _chunks(rows, 100):
+        _write(
+            url, key, "venue?on_conflict=source,external_id", chunk,
+            method="POST", prefer="return=minimal,resolution=merge-duplicates",
+        )
+
+    # external_id → venue_id (toutes les venues de la source, re-runs compris).
+    id_by_ext: dict[str, str] = {}
+    for v in _rest_get(
+        url, key, "venue?select=id,external_id&source=eq.playtomic&limit=1000"
+    ):
+        if v.get("external_id"):
+            id_by_ext[v["external_id"]] = v["id"]
+
+    sports = [
+        {"venue_id": id_by_ext[r["external_id"]], "sport_slug": "padel", "is_primary": True}
+        for r in rows if r["external_id"] in id_by_ext
+    ]
+    for chunk in _chunks(sports, 100):
+        _write(
+            url, key, "venue_sport?on_conflict=venue_id,sport_slug", chunk,
+            method="POST", prefer="return=minimal,resolution=merge-duplicates",
+        )
+
+    links = [
+        {
+            "venue_id": id_by_ext[r["external_id"]],
+            "partner": "playtomic",
+            "url": r["booking_url"],
+            "sport_slug": "padel",
+            "is_active": True,
+        }
+        for r in rows if r.get("booking_url") and r["external_id"] in id_by_ext
+    ]
+    for chunk in _chunks(links, 100):
+        _write(
+            url, key, "booking_link?on_conflict=venue_id,partner,sport_slug", chunk,
+            method="POST", prefer="return=minimal,resolution=merge-duplicates",
+        )
+    return len(rows), len(sports), len(links)
+
+
 # ── Pipeline ───────────────────────────────────────────────────────────────────
 def run(args: argparse.Namespace) -> int:
     url, key = load_env()
@@ -492,9 +597,16 @@ def run(args: argparse.Namespace) -> int:
         m = best_match(detail, venues)
         if m:
             matched += 1
+        addr = detail.get("address") or {}
+        coord = addr.get("coordinate") or {}
         report.append({
             "playtomic_id": detail.get("tenant_id"),
             "playtomic_name": detail.get("tenant_name"),
+            # Position + adresse : nécessaires pour créer une fiche (--add-new).
+            "lat": coord.get("lat"),
+            "lon": coord.get("lon"),
+            "address": addr.get("street") or None,
+            "city": addr.get("city") or None,
             "courts_indoor": indoor,
             "courts_outdoor": outdoor,
             "website_url": props.get("WEBSITE_URL") or None,
@@ -507,6 +619,8 @@ def run(args: argparse.Namespace) -> int:
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2))
     pct = 100 * matched // max(1, len(report))
 
+    n_new_candidates = len(build_new_venue_rows(report))
+
     if args.apply:
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         n_refs, n_venues, n_links = apply_enrichment(url, key, report, now_iso)
@@ -514,9 +628,14 @@ def run(args: argparse.Namespace) -> int:
         print(f"   clubs Playtomic: {len(report)} · matchés: {matched} ({pct}%)")
         print(f"   external_ref: {n_refs} · venues enrichis: {n_venues} · "
               f"booking_link (affichés sur la fiche): {n_links}")
+        if args.add_new:
+            n_added, n_sports, n_blinks = apply_add_new(url, key, report)
+            print(f"   nouvelles venues (non matchées): {n_added} · "
+                  f"venue_sport: {n_sports} · booking_link: {n_blinks}")
     else:
         print(f"\n✅ DRY-RUN — aucune écriture DB.")
         print(f"   clubs Playtomic: {len(report)} · matchés à un venue: {matched} ({pct}%)")
+        print(f"   candidats --add-new (non matchés, nom+coords valides): {n_new_candidates}")
     print(f"   rapport: {out}")
     return 0
 
@@ -614,6 +733,37 @@ def self_test() -> int:
     p0 = dict(build_venue_patches(rep0))
     assert p0["vz"] == {"courts_indoor": 0, "courts_outdoor": 0}, p0
 
+    # build_new_venue_rows (--add-new) : seuls les NON matchés avec nom+coords.
+    rep_new = [
+        # matché → exclu (passe par l'enrichissement).
+        {"playtomic_id": "m1", "playtomic_name": "Matché", "lat": 1.0, "lon": 1.0,
+         "match": {"venue_id": "v1", "score": 0.95}},
+        # candidat valide, website texte libre → rejeté du row.
+        {"playtomic_id": "n1", "playtomic_name": "Central Padel Indoor",
+         "lat": 45.1, "lon": 5.7, "address": "1 rue du Sport", "city": "Grenoble",
+         "courts_indoor": 6, "courts_outdoor": 0,
+         "website_url": "Trinquet St Andre",
+         "booking_url": "https://playtomic.io/tenant/n1", "match": None},
+        # sans coordonnées → exclu.
+        {"playtomic_id": "n2", "playtomic_name": "Sans Coords", "lat": None,
+         "lon": None, "match": None},
+        # sans nom → exclu.
+        {"playtomic_id": "n3", "playtomic_name": "  ", "lat": 1.0, "lon": 1.0,
+         "match": None},
+    ]
+    new_rows = build_new_venue_rows(rep_new)
+    assert len(new_rows) == 1, new_rows
+    nr = new_rows[0]
+    assert nr["external_id"] == "n1" and nr["source"] == "playtomic"
+    assert nr["family_slug"] == "raquette" and nr["primary_sport_slug"] == "padel"
+    assert nr["country_code"] == "FR" and nr["is_published"] is True
+    assert nr["slug"].startswith("playtomic-") and len(nr["slug"]) == len("playtomic-") + 10
+    assert nr["courts_indoor"] == 6 and nr["courts_outdoor"] == 0
+    assert "website_url" not in nr, nr  # texte libre ≠ URL → rejeté
+    assert nr["booking_url"] == "https://playtomic.io/tenant/n1"
+    # déterminisme du slug (ré-exécutable, upsert (source, external_id)).
+    assert build_new_venue_rows(rep_new)[0]["slug"] == nr["slug"]
+
     print("✓ scrape_playtomic_padel_fr self-test OK")
     return 0
 
@@ -624,6 +774,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", default="/tmp/padel_playtomic_report.json")
     p.add_argument("--apply", action="store_true",
                    help="Écrit en DB (external_ref + venue). Sinon dry-run.")
+    p.add_argument("--add-new", action="store_true", dest="add_new",
+                   help="Avec --apply : crée les clubs non matchés comme "
+                        "nouvelles venues (sinon enrichissement seul).")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args(argv)
     if args.self_test:
