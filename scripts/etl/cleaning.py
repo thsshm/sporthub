@@ -40,6 +40,8 @@ _SPORT_FAMILY: dict[str, str] = {
     "boules": "boules",
     "golf": "plus",
     "fishing": "_autre",
+    "pool": "baignade",   # #553 — piscine/natation
+    "gym": "fitness",     # #553 — musculation/crossfit
 }
 
 # Sous-chaînes (NORMALISÉES, sans accents) signalant fortement un sport dans un
@@ -54,6 +56,12 @@ _NAME_SIGNALS: dict[str, tuple[str, ...]] = {
     "boules": ("petanque", "boulodrome", "boule lyonnaise", "boules lyonnaises"),
     "golf": ("golf",),
     "fishing": ("etang de peche", "etang de la peche", "peche", "pisciculture"),
+    # #553 — contradictions inter-familles fréquentes sur les pages raquette :
+    # une « piscine »/« salle de musculation » taguée tennis n'est pas un court.
+    # Termes peu ambigus uniquement (« natation », « musculation »…), pas les
+    # mots génériques (« fitness », « salle de sport ») qui sur-matcheraient.
+    "pool": ("piscine", "natation", "bassin de natation", "swimming pool"),
+    "gym": ("salle de musculation", "musculation", "crossfit", "cross fit", "halterophilie"),
 }
 
 
@@ -131,6 +139,10 @@ def self_test() -> int:
         ("Squash & Pêche ... pisciculture", "padel"),
         ("Boulodrome lyonnais", "tennis"),  # boules classé tennis (#463)
         ("Golf de Saint-Cloud", "padel"),  # golf classé padel
+        # #553 — piscine/musculation classées tennis (inter-familles) :
+        ("Piscine découverte municipale", "tennis"),   # piscine (baignade) ≠ tennis
+        ("Salle de musculation Energy", "tennis"),      # musculation (fitness) ≠ tennis
+        ("CrossFit Box Lyon", "padel"),                 # crossfit (fitness) ≠ padel
         ("Tennis Club Lyon", "padel"),  # tennis (raquette) vs padel… même famille → NON
     ]
     ok = True
