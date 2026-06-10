@@ -61,11 +61,25 @@ def group_key(venue: dict) -> tuple | None:
     return (city_id, venue.get("family_slug"), addr)
 
 
+# Plafond de plausibilité par famille (#555) : au-delà, le « groupe d'adresse »
+# agrège presque sûrement au mauvais niveau (lieu-dit partagé, complexe
+# municipal…) → on N'ÉCRIT PAS courts_count (on ne propage pas une valeur
+# fausse). MIROIR des caps d'affichage de lib/venue/courts-plausibility.ts
+# (#590) — garder les deux alignés.
+FAMILY_MAX_COURTS: dict[str, int] = {
+    "raquette": 40, "ballon": 30, "boules": 60, "baignade": 25, "combat": 20,
+    "fitness": 30, "yoga": 30, "nautique": 30, "glisse": 20, "snow": 20,
+    "hike": 20, "retraites": 20, "plus": 40,
+}
+DEFAULT_MAX_COURTS = 50
+
+
 def compute_courts_counts(venues: list[dict]) -> dict[str, int]:
     """Mappe venue_id → courts_count dérivé (taille du groupe d'adresse).
 
     Les venues sans clé groupable (pas d'adresse) sont ignorées (absentes du
-    dict de sortie → on ne les écrase pas). Logique pure, testable sans DB.
+    dict de sortie → on ne les écrase pas). Les groupes au-delà du plafond de
+    plausibilité de leur famille sont SKIPPÉS (#555). Logique pure, testable.
     """
     groups: dict[tuple, list[str]] = defaultdict(list)
     for v in venues:
@@ -75,8 +89,11 @@ def compute_courts_counts(venues: list[dict]) -> dict[str, int]:
         groups[k].append(v["id"])
 
     out: dict[str, int] = {}
-    for ids in groups.values():
+    for k, ids in groups.items():
         n = len(ids)
+        family = k[1]
+        if n > FAMILY_MAX_COURTS.get(family or "", DEFAULT_MAX_COURTS):
+            continue  # agrégation suspecte → ne pas écrire (#555)
         for vid in ids:
             out[vid] = n
     return out
@@ -228,6 +245,20 @@ def self_test() -> int:
     assert out["d"] == 1 and out["e"] == 1, out
     assert "f" not in out, out
     assert "g" not in out and "h" not in out, out
+    # #555 — plafond de plausibilité : un « groupe » de 45 combat à la même
+    # adresse (cap 20) = agrégation au mauvais niveau → AUCUN courts_count écrit.
+    big = [
+        {"id": f"x{i}", "address": "2 rue Y", "city_id": "c9", "family_slug": "combat"}
+        for i in range(45)
+    ]
+    out_big = compute_courts_counts(big)
+    assert out_big == {}, out_big
+    # …mais 45 boules (cap 60) restent plausibles (grands boulodromes).
+    big_boules = [
+        {"id": f"y{i}", "address": "2 rue Y", "city_id": "c9", "family_slug": "boules"}
+        for i in range(45)
+    ]
+    assert compute_courts_counts(big_boules)["y0"] == 45
     print("✓ backfill_courts_count self-test OK")
     return 0
 
