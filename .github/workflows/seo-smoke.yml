@@ -1,0 +1,49 @@
+name: SEO smoke (pages publiques)
+
+# Smoke test SEO des pages publiques critiques (#587) : détecte en continu les
+# régressions « No venue »/« No address » sur des pages réputées peuplées, les
+# compteurs périmés hardcodés, le faux état vide SSR de /map et la divergence
+# de compteur home ↔ /developers.
+#
+# Tourne contre la PROD (pas le diff d'une PR) → workflow séparé du CI :
+#   - cron quotidien (07:00 UTC, avant la journée FR) ;
+#   - déclenchable à la main (workflow_dispatch), avec base_url custom pour
+#     tester une preview Vercel.
+# Aucun secret requis (pages publiques, lecture seule).
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Base URL à tester (défaut : prod V2)"
+        type: string
+        default: ""
+  schedule:
+    - cron: "0 7 * * *"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run SEO smoke
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: node scripts/seo-smoke.mjs "$BASE_URL"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### SEO smoke (#587)"
+            echo "- Base : ${{ inputs.base_url != '' && inputs.base_url || 'prod (défaut)' }}"
+            echo "- Résultat : ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"

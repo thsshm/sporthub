@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "check:migrations": "node scripts/check-migrations.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
+    "smoke:seo": "node scripts/seo-smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
