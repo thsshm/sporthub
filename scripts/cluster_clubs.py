@@ -584,6 +584,18 @@ class SupabaseRest:
         log.info("Reset %s : DELETE club…", family_slug)
         self._req("DELETE", f"/club?{qs}", prefer="return=minimal")
 
+    def refresh_top_clubs_mv(self) -> None:
+        """Rafraîchit mv_top_clubs_by_sport (RPC SECURITY DEFINER, migration 0038)
+        qui alimente le ranking /disciplines. Non bloquant (#497)."""
+        log = logging.getLogger(__name__)
+        if self.dry_run:
+            return
+        try:
+            self._req("POST", "/rpc/refresh_top_clubs_by_sport_mv", body={})
+            log.info("MV mv_top_clubs_by_sport rafraîchie.")
+        except RuntimeError as exc:
+            log.warning("Refresh MV top-clubs échoué (non bloquant) : %s", exc)
+
     def import_clubs_batched(
         self, clubs: list[dict[str, Any]], batch_size: int = 250
     ) -> int:
@@ -715,6 +727,12 @@ def run(args: argparse.Namespace) -> int:
             family, len(clubs), family_linked,
             " [DRY-RUN]" if args.dry_run else "",
         )
+
+    # Rafraîchit la MV qui alimente /disciplines (mv_top_clubs_by_sport) : sans
+    # ça, le ranking afficherait les anciens noms jusqu'au cron hebdo. Non
+    # bloquant. Uniquement sur écriture réelle (#497).
+    if not args.dry_run and not is_dummy:
+        sb.refresh_top_clubs_mv()
 
     # Récap final
     log.info("=" * 50)
