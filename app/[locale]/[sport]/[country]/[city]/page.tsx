@@ -45,10 +45,12 @@ type Ctx = {
   /** Nombre EXHAUSTIF de venues publiées du sport dans la ville. Alimente
    * l'overlay de la carte (qui reste exhaustive). */
   total: number;
-  /** Venues *indexables* (publiées ET ≥ seuil qualité, #464). Alimentent la
-   * LISTE, le H1/meta, le compteur « adresses », le noindex et la pagination —
-   * mais PAS la carte. */
+  /** Venues *indexables* (publiées ET ≥ seuil qualité, #464). Pilotent le
+   * noindex et le titre/meta indexé. */
   indexable: DisplayVenue[];
+  /** Tout le scope publié (non filtré qualité, borné). Fallback d'affichage
+   * quand `indexable` est vide mais que des venues existent (#551). */
+  scope: DisplayVenue[];
 };
 
 const resolveContext = cache(async (sport: string, country: string, city: string): Promise<Ctx | null> => {
@@ -80,15 +82,16 @@ const resolveContext = cache(async (sport: string, country: string, city: string
     .eq("is_published", true)
     .is("deleted_at", null);
 
-  // Liste indexable (≥ seuil qualité, #464) — partagée entre generateMetadata
-  // (noindex) et la page via le cache() de resolveContext (un seul fetch).
-  const indexable = await fetchIndexableVenues(sb, sport, cityCtx);
+  // Scope + sous-ensemble indexable (≥ seuil qualité, #464) — partagé entre
+  // generateMetadata (noindex) et la page via le cache() (un seul fetch).
+  const { indexable, scope } = await fetchScopeVenues(sb, sport, cityCtx);
 
   return {
     sport: sportDef,
     city: cityCtx,
     total: count ?? 0,
     indexable,
+    scope,
   };
 });
 
@@ -127,11 +130,11 @@ type DisplayVenue = Omit<VenueRow, "country_code"> & {
  * sinon les compteurs/pagination. La carte n'utilise PAS ceci (elle fetche
  * l'API, exhaustive).
  */
-async function fetchIndexableVenues(
+async function fetchScopeVenues(
   sb: ReturnType<typeof getSupabaseServerClient>,
   sportSlug: string,
   city: Ctx["city"],
-): Promise<DisplayVenue[]> {
+): Promise<{ indexable: DisplayVenue[]; scope: DisplayVenue[] }> {
   const { data, error } = await sb
     .from("venue")
     .select(
@@ -144,16 +147,21 @@ async function fetchIndexableVenues(
     .order("id")
     .limit(MAX_SCOPE_VENUES);
 
-  if (error || !data) return [];
+  if (error || !data) return { indexable: [], scope: [] };
 
-  return (data as VenueRow[])
-    .filter((v) => !isLowQualityVenue(v))
-    .map((v) => ({
-      ...v,
-      city_name: city.name,
-      country_code: v.country_code ?? city.country_code ?? undefined,
-      sport_slugs: v.primary_sport_slug ? [v.primary_sport_slug] : [],
-    }));
+  const scope: DisplayVenue[] = (data as VenueRow[]).map((v) => ({
+    ...v,
+    city_name: city.name,
+    country_code: v.country_code ?? city.country_code ?? undefined,
+    sport_slugs: v.primary_sport_slug ? [v.primary_sport_slug] : [],
+  }));
+  // `indexable` = sous-ensemble ≥ seuil qualité (même fonction pure que le
+  // noindex). `scope` = tout le scope publié (non filtré) → FALLBACK d'affichage
+  // quand aucune venue n'atteint le seuil mais que des venues existent (#551 :
+  // ne jamais montrer « No address » si total > 0 ; la page reste noindex car
+  // thin, mais liste de vrais lieux au lieu d'une grille vide).
+  const indexable = scope.filter((v) => !isLowQualityVenue(v));
+  return { indexable, scope };
 }
 
 export async function generateMetadata({
@@ -227,13 +235,17 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
   const tSports = await getTranslations("sports");
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
-  // Liste = venues indexables (qualité), paginées côté JS. La carte ci-dessous
-  // reste exhaustive (elle fetche l'API, indépendante de cette liste) — #464.
+  // Liste affichée : venues indexables (≥ qualité) si présentes, SINON fallback
+  // sur tout le scope publié (#551 — ne jamais afficher « No address » / une
+  // grille vide quand des venues existent ; la page reste noindex car thin via
+  // `indexableCount`). La carte reste exhaustive (fetch API indépendant) — #464.
   const indexableCount = ctx.indexable.length;
+  const display = indexableCount > 0 ? ctx.indexable : ctx.scope;
+  const displayCount = display.length;
   const offset = (page - 1) * PAGE_SIZE;
-  const venues = ctx.indexable.slice(offset, offset + PAGE_SIZE);
+  const venues = display.slice(offset, offset + PAGE_SIZE);
   const family = FAMILIES_BY_SLUG[ctx.sport.family_slug];
-  const totalPages = Math.max(1, Math.ceil(indexableCount / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(displayCount / PAGE_SIZE));
   const basePath = `/${sport}/${country}/${city}`;
   const sportName = tSports.has(ctx.sport.slug) ? tSports(ctx.sport.slug) : ctx.sport.name_fr;
 
@@ -302,7 +314,7 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
           {t("h1", { sport: sportName, city: ctx.city.name })}
         </h1>
         <p className="mt-2 text-muted-foreground">
-          {t("addresses", { count: indexableCount })}
+          {t("addresses", { count: displayCount })}
           {totalPages > 1 && (
             <span className="text-sm">
               {" "}
