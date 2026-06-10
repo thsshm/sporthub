@@ -1,0 +1,53 @@
+name: Merge court records (#554)
+
+# Fusionne les enregistrements court-level (« Court de Padel 1/2/3 », « … piste N »)
+# en UNE venue par club + courts_count (#554). Dry-run par défaut.
+#
+# Secret requis : SUPABASE_DB_PASSWORD (connexion pooler depuis le runner —
+# fiable, contrairement au pooler local qui peut échouer).
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Écrire réellement en DB (sinon dry-run)"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: merge-courts
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  merge:
+    name: merge_court_records.py
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install psycopg2
+        run: pip install psycopg2-binary --quiet
+      - name: Run merge_court_records.py
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          IN_APPLY: ${{ inputs.apply }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "::error::secret SUPABASE_DB_PASSWORD manquant." >&2; exit 1
+          fi
+          ARGS=()
+          [ "${IN_APPLY}" = "true" ] && ARGS+=(--apply)
+          echo "▶ merge_court_records.py ${ARGS[*]:-(dry-run)}"
+          python3 scripts/etl/merge_court_records.py "${ARGS[@]:-}"
+      - name: Summary
+        if: always()
+        run: |
+          echo "Mode ${{ (inputs.apply == 'true') && 'APPLY' || 'DRY-RUN' }}" >> "$GITHUB_STEP_SUMMARY"
