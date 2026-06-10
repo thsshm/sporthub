@@ -165,6 +165,7 @@
     "h1": "{city}的{sport}",
     "addresses": "{count, plural, =0 {无地址} other {{count} 个地址}}",
     "emptyMessage": "{city} 暂无 {sport} 场所。",
+    "nearbyTitle": "{city}暂时没有{sport} — 这里有附近的一些场所：",
     "seeOtherCities": "查看其他城市",
     "addVenuePrompt": "知道这里的场地?",
     "addVenueCta": "添加它。",

@@ -165,6 +165,7 @@
     "h1": "{sport} in {city}",
     "addresses": "{count, plural, =0 {No address} one {1 address} other {{count} addresses}}",
     "emptyMessage": "No venue yet for {sport} in {city}.",
+    "nearbyTitle": "No {sport} in {city} yet — here are some spots nearby:",
     "seeOtherCities": "See other cities",
     "addVenuePrompt": "Know a spot here?",
     "addVenueCta": "Add it.",
