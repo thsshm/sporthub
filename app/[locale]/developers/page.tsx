@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
 import { getTotalSpots } from "@/lib/home-stats";
 import { formatCount } from "@/lib/utils";
+import { DevelopersAccessCta } from "@/components/developers/DevelopersAccessCta";
 
 // Adresse de contact unique du site (même que la FAQ, /contribute, les fiches).
 const CONTACT_EMAIL = "hello@sporthubmap.com";
@@ -54,9 +55,7 @@ export default async function DevelopersPage({ params }: { params: { locale: str
         {t("statusBadge")}
       </span>
       <h1 className="mt-4 text-3xl font-bold tracking-tight">{t("title")}</h1>
-      <p className="mt-3 max-w-prose text-muted-foreground">
-        {t("intro", { count: totalSpots })}
-      </p>
+      <p className="mt-3 max-w-prose text-muted-foreground">{t("intro", { count: totalSpots })}</p>
 
       <section className="mt-10 rounded-lg border p-6">
         <h2 className="text-lg font-semibold text-foreground">{t("plannedHeading")}</h2>
@@ -75,12 +74,7 @@ export default async function DevelopersPage({ params }: { params: { locale: str
       <section className="mt-6 flex flex-col rounded-lg border p-6">
         <h2 className="text-lg font-semibold text-foreground">{t("accessHeading")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{t("accessBody")}</p>
-        <a
-          href={accessHref}
-          className="mt-4 inline-flex w-fit items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          {t("accessCta")}
-        </a>
+        <DevelopersAccessCta href={accessHref} label={t("accessCta")} />
       </section>
 
       <p className="mt-8 max-w-prose text-sm text-muted-foreground">{t("note")}</p>
