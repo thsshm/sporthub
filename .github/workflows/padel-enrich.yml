@@ -33,6 +33,11 @@ on:
         type: boolean
         required: false
         default: false
+      add_new:
+        description: "Avec apply : créer les clubs non matchés comme nouvelles venues"
+        type: boolean
+        required: false
+        default: false
 
 # Une seule exécution à la fois (évite deux enrichissements concurrents).
 concurrency:
@@ -62,6 +67,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           IN_LIMIT: ${{ inputs.limit || '' }}
           IN_APPLY: ${{ inputs.apply || 'false' }}
+          IN_ADD_NEW: ${{ inputs.add_new || 'false' }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
@@ -71,7 +77,8 @@ jobs:
           ARGS=(--out /tmp/padel_playtomic_report.json)
           [ -n "$IN_LIMIT" ] && ARGS+=(--limit "$IN_LIMIT")
           [ "$IN_APPLY" = "true" ] && ARGS+=(--apply)
-          echo "▶ scrape_playtomic_padel_fr.py ${ARGS[*]}  (apply=$IN_APPLY)"
+          [ "$IN_ADD_NEW" = "true" ] && ARGS+=(--add-new)
+          echo "▶ scrape_playtomic_padel_fr.py ${ARGS[*]}  (apply=$IN_APPLY add_new=$IN_ADD_NEW)"
           python3 scripts/scrape_playtomic_padel_fr.py "${ARGS[@]}"
 
       - name: Upload report
