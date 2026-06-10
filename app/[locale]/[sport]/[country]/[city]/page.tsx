@@ -17,6 +17,7 @@ import {
   buildPlaceJsonLd,
   jsonLdHtml,
 } from "@/lib/seo/metadata";
+import { sportActionKey } from "@/lib/seo/sport-action";
 
 const PAGE_SIZE = 24;
 const SITE_URL = "https://sporthubmap.com";
@@ -178,9 +179,16 @@ export async function generateMetadata({
   const indexableCount = ctx.indexable.length;
   // Titre sans le compteur quand 0 résultat indexable : évite « … (0 adresses) »
   // indexé (audit SEO #465). Pour ≥ 1, on garde le compteur (chiffre réel utile).
+  // Verbe adapté au sport (#560) : « où s'entraîner » pour la gym, « où pratiquer »
+  // pour le yoga, « où se détendre » pour spa/sauna… au lieu de « où jouer » partout.
+  const actionKey = sportActionKey(ctx.sport.family_slug, ctx.sport.slug);
   const title =
     indexableCount === 0
-      ? t("titleNoCount", { sport: sportName, city: ctx.city.name })
+      ? t("titleNoCount", {
+          sport: sportName,
+          city: ctx.city.name,
+          action: t(`action.${actionKey}`),
+        })
       : t("title", { sport: sportName, city: ctx.city.name, count: indexableCount });
   const description = t("description", {
     sport: sportName.toLowerCase(),

@@ -160,7 +160,7 @@
   },
   "programmatic": {
     "title": "Clubs de {sport} à {city} ({count} adresses)",
-    "titleNoCount": "{sport} à {city} : où pratiquer",
+    "titleNoCount": "{sport} à {city} : {action}",
     "description": "Liste complète des {count} clubs et terrains de {sport} à {city} — adresses, contacts, horaires.",
     "h1": "{sport} à {city}",
     "addresses": "{count, plural, =0 {Aucune adresse} one {1 adresse} other {{count} adresses}}",
@@ -168,7 +168,15 @@
     "seeOtherCities": "Voir les autres villes",
     "addVenuePrompt": "Vous connaissez un spot ici ?",
     "addVenueCta": "Ajoutez-le.",
-    "localIntro": "Sport Hub référence où pratiquer le {sport} à {city}. Repère les adresses sur la carte, compare horaires et équipements, et trouve le spot le plus proche — sans inscription. Les données proviennent de sources ouvertes (OpenStreetMap, référentiels officiels) et sont enrichies en continu.",
+    "localIntro": "Sport Hub référence les spots de {sport} à {city}. Repère les adresses sur la carte, compare horaires et équipements, et trouve le spot le plus proche — sans inscription. Les données proviennent de sources ouvertes (OpenStreetMap, référentiels officiels) et sont enrichies en continu.",
+    "action": {
+      "play": "où jouer",
+      "train": "où s'entraîner",
+      "practice": "où pratiquer",
+      "relax": "où se détendre",
+      "retreat": "où partir en retraite",
+      "swim": "où nager"
+    },
     "relatedTitle": "Sports proches à {city}"
   },
   "venue": {
