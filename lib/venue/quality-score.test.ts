@@ -3,6 +3,8 @@ import {
   venueQualityScore,
   isLowQualityVenue,
   venueQualityBadge,
+  isOrganizationName,
+  ORGANIZATION_PENALTY,
   LOW_QUALITY_THRESHOLD,
   HIGH_QUALITY_THRESHOLD,
   type ScorableVenue,
@@ -22,14 +24,12 @@ describe("venueQualityScore", () => {
         address: "1 rue du Stade",
         city_name: "Lyon",
         primary_sport_slug: "tennis",
-      }),
+      })
     ).toBe(35);
   });
 
   it("ignore les chaînes vides ou blanches", () => {
-    expect(
-      venueQualityScore({ address: "   ", website_url: "", phone: null }),
-    ).toBe(0);
+    expect(venueQualityScore({ address: "   ", website_url: "", phone: null })).toBe(0);
   });
 
   it("compte city via city_id OU city_name", () => {
@@ -39,25 +39,21 @@ describe("venueQualityScore", () => {
 
   it("description : venue.description OU enrichments.description (pas de double comptage)", () => {
     expect(venueQualityScore({ description: "Joli club" })).toBe(12);
-    expect(
-      venueQualityScore({ enrichments: { description: "Extrait wiki" } }),
-    ).toBe(12);
+    expect(venueQualityScore({ enrichments: { description: "Extrait wiki" } })).toBe(12);
     expect(
       venueQualityScore({
         description: "x",
         enrichments: { description: "y" },
-      }),
+      })
     ).toBe(12);
   });
 
   it("rating compte seulement si note ET nombre d'avis > 0", () => {
-    expect(
-      venueQualityScore({ enrichments: { google_rating: 4.5 } }),
-    ).toBe(0);
+    expect(venueQualityScore({ enrichments: { google_rating: 4.5 } })).toBe(0);
     expect(
       venueQualityScore({
         enrichments: { google_rating: 4.5, google_rating_count: 12 },
-      }),
+      })
     ).toBe(8);
   });
 
@@ -94,9 +90,7 @@ describe("isLowQualityVenue", () => {
     // adresse seule = 20 < 25 → low
     expect(isLowQualityVenue({ address: "1 rue X" })).toBe(true);
     // adresse(20) + sport(5) = 25 → pas low
-    expect(
-      isLowQualityVenue({ address: "1 rue X", primary_sport_slug: "tennis" }),
-    ).toBe(false);
+    expect(isLowQualityVenue({ address: "1 rue X", primary_sport_slug: "tennis" })).toBe(false);
   });
 
   it("est cohérent avec le seuil exporté", () => {
@@ -118,9 +112,7 @@ describe("venueQualityBadge", () => {
   });
 
   it("verified l'emporte même avec un score faible", () => {
-    expect(
-      venueQualityBadge({ claim_status: "verified", address: "1 rue X" }),
-    ).toBe("verified");
+    expect(venueQualityBadge({ claim_status: "verified", address: "1 rue X" })).toBe("verified");
   });
 
   it("complete quand le score atteint le seuil haut", () => {
@@ -135,5 +127,68 @@ describe("venueQualityBadge", () => {
 
   it("seuil haut exporté = 60", () => {
     expect(HIGH_QUALITY_THRESHOLD).toBe(60);
+  });
+});
+
+describe("isOrganizationName / ORGANIZATION_PENALTY (#588)", () => {
+  it("détecte fédérations, ligues, comités, districts (accents inclus)", () => {
+    expect(isOrganizationName("Fédération Française de Gymnastique")).toBe(true);
+    expect(isOrganizationName("Ligue Île-de-France de gymnastique")).toBe(true);
+    expect(isOrganizationName("Comité départemental olympique")).toBe(true);
+    expect(isOrganizationName("District de football de la Loire")).toBe(true);
+    expect(isOrganizationName("Office Municipal des Sports")).toBe(true);
+    expect(isOrganizationName("UFOLEP 31")).toBe(true);
+  });
+
+  it("ne flagge PAS les vraies installations", () => {
+    expect(isOrganizationName("Basic-Fit Toulouse")).toBe(false);
+    expect(isOrganizationName("Salle de musculation Jean Moulin")).toBe(false);
+    expect(isOrganizationName("Tennis Club de Vincennes")).toBe(false);
+    expect(isOrganizationName("Studio Yoga Bastille")).toBe(false);
+  });
+
+  it("signal d'installation neutralise le signal org (Salle de la Ligue, District Fitness)", () => {
+    expect(isOrganizationName("Salle de la Ligue")).toBe(false);
+    expect(isOrganizationName("District Fitness")).toBe(false);
+    expect(isOrganizationName("Gymnase du Comité")).toBe(false);
+  });
+
+  it("frontière de mot : pas de faux positif sur sous-chaîne", () => {
+    // « comite » ⊄ « comitéen »-like ; « ligue » ⊄ « light »… on vérifie le principe
+    expect(isOrganizationName("Espace Liguria")).toBe(false);
+    expect(isOrganizationName("Districtus Climbing")).toBe(false);
+  });
+
+  it("null / vide → false", () => {
+    expect(isOrganizationName(null)).toBe(false);
+    expect(isOrganizationName(undefined)).toBe(false);
+    expect(isOrganizationName("   ")).toBe(false);
+  });
+
+  it("pénalise le score d'une org : squelette org passe sous le seuil liste", () => {
+    const orgSkeleton: ScorableVenue = {
+      name: "Comité départemental de gymnastique",
+      address: "1 rue des Sports",
+      city_name: "Toulouse",
+    };
+    // adresse(20)+ville(10)=30 → -30 → 0 < LOW_QUALITY_THRESHOLD
+    expect(venueQualityScore(orgSkeleton)).toBe(0);
+    expect(isLowQualityVenue(orgSkeleton)).toBe(true);
+  });
+
+  it("une org très complète reste visible mais dépriorisée (jamais < 0)", () => {
+    const orgRich: ScorableVenue = {
+      name: "Ligue régionale de gymnastique",
+      address: "1 rue X",
+      city_name: "Lyon",
+      website_url: "https://ligue.example",
+      phone: "0102030405",
+      description: "Siège de la ligue.",
+    };
+    const sameButFacility = { ...orgRich, name: "Gymnase de Lyon" };
+    expect(venueQualityScore(orgRich)).toBe(
+      venueQualityScore(sameButFacility) - ORGANIZATION_PENALTY
+    );
+    expect(venueQualityScore({ name: "Ligue X" })).toBe(0);
   });
 });
