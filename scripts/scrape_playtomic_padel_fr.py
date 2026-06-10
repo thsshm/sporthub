@@ -61,12 +61,19 @@ GEO_FAR_M = 300.0
 NAME_STRONG = 0.92
 NAME_WEAK = 0.88
 
-# Grille de découverte couvrant la France métropolitaine (bbox), pas ~0.5°
-# (~55 km) avec un rayon de recherche de 40 km → recouvrement. Le dédup par
+# Grille de découverte couvrant la France métropolitaine (bbox). Le dédup par
 # tenant_id élimine les doublons entre cellules voisines.
+#
+# IMPORTANT (#345, mesuré 2026-06) : l'endpoint Playtomic /v1/tenants ne pagine
+# PAS et plafonne le nombre de clubs renvoyés par requête bien sous `size`
+# (Paris 40 km → 28, Lyon → 8). Le seul levier pour augmenter la couverture est
+# donc de DENSIFIER la grille : plus de points d'écoute rapprochés → l'union des
+# « N plus proches » de chaque point capte beaucoup plus de clubs. Pas 0.5°
+# (~55 km, 125 clubs FR) → 0.25° (~20 km). Rayon 25 km > demi-diagonale de la
+# cellule (~17 km) → aucun trou entre cellules.
 FR_BBOX = (41.3, -5.1, 51.1, 9.6)  # (S, W, N, E)
-GRID_STEP_DEG = 0.5
-SEARCH_RADIUS_M = 40_000
+GRID_STEP_DEG = 0.25
+SEARCH_RADIUS_M = 25_000
 
 
 # ── Géo + similarité (pur, testé) ──────────────────────────────────────────────
