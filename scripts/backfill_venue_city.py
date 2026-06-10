@@ -337,6 +337,13 @@ def run(args: argparse.Namespace) -> int:
 
     print(f"▶ calcul du plus proche (≤ {args.max_km} km)…")
     assignments = plan_assignments(venues, index, args.max_km)
+    # Durcissement : ne JAMAIS laisser un venue sur une fiche-arrondissement
+    # (paris-16…) — qui est souvent la ville la plus proche du centroïde — mais
+    # directement la ville parente, pour que /[sport]/fr/paris les voie. Évite de
+    # devoir relancer --consolidate-arr après chaque backfill (anti whack-a-mole).
+    parent_of = arrondissement_parent_map(cities)
+    if parent_of:
+        assignments = {vid: parent_of.get(cid, cid) for vid, cid in assignments.items()}
     n = len(assignments)
     pct = 100 * n // max(1, len(venues))
     # Distribution par ville (top) pour spot-check.
