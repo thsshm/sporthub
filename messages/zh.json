@@ -160,7 +160,7 @@
   },
   "programmatic": {
     "title": "{city}的{sport}俱乐部({count} 个地址)",
-    "titleNoCount": "{city}的{sport}：在哪里运动",
+    "titleNoCount": "{city}的{sport}：{action}",
     "description": "{city} 的 {count} 个 {sport} 俱乐部和场地完整列表 — 地址、联系方式、开放时间。",
     "h1": "{city}的{sport}",
     "addresses": "{count, plural, =0 {无地址} other {{count} 个地址}}",
@@ -168,7 +168,15 @@
     "seeOtherCities": "查看其他城市",
     "addVenuePrompt": "知道这里的场地?",
     "addVenueCta": "添加它。",
-    "localIntro": "Sport Hub 收录了在{city}进行{sport}的场所。在地图上查看地址，比较开放时间和设施，找到最近的场地——无需注册。数据来自开放来源（OpenStreetMap、官方登记），并持续完善。",
+    "localIntro": "Sport Hub 收录了{city}的{sport}场所。在地图上查看地址，比较开放时间和设施，找到最近的场地——无需注册。数据来自开放来源（OpenStreetMap、官方登记），并持续完善。",
+    "action": {
+      "play": "在哪里运动",
+      "train": "在哪里训练",
+      "practice": "在哪里练习",
+      "relax": "在哪里放松",
+      "retreat": "在哪里静修",
+      "swim": "在哪里游泳"
+    },
     "relatedTitle": "{city}的相关运动"
   },
   "venue": {
