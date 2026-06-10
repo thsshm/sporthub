@@ -9,6 +9,7 @@ import { FAMILIES_BY_SLUG, getRelatedSports } from "@/lib/families";
 import {
   isLowQualityVenue,
   venueQualityScore,
+  LOW_QUALITY_THRESHOLD,
   type ScorableVenue,
 } from "@/lib/venue/quality-score";
 import { VenueCard } from "@/components/venue/VenueCard";
@@ -46,7 +47,7 @@ export const revalidate = 86400; // 24h
 
 type Ctx = {
   sport: (typeof SPORTS_BY_SLUG)[string];
-  city: { id: string; name: string; country_code: string };
+  city: { id: string; name: string; country_code: string; lat: number | null; lon: number | null };
   /** Nombre EXHAUSTIF de venues publiées du sport dans la ville. Alimente
    * l'overlay de la carte (qui reste exhaustive). */
   total: number;
@@ -56,6 +57,10 @@ type Ctx = {
   /** Tout le scope publié (non filtré qualité, borné). Fallback d'affichage
    * quand `indexable` est vide mais que des venues existent (#551). */
   scope: DisplayVenue[];
+  /** Suggestions « à proximité » (même sport, communes alentour, ≥ seuil
+   * qualité) — uniquement quand `total === 0`, pour ne pas laisser une page
+   * sport×ville vide sans alternative (#558). */
+  nearby: { slug: string; name: string }[];
 };
 
 const resolveContext = cache(async (sport: string, country: string, city: string): Promise<Ctx | null> => {
@@ -65,7 +70,7 @@ const resolveContext = cache(async (sport: string, country: string, city: string
   const sb = getSupabaseServerClient();
   const { data: cityRow } = await sb
     .from("city")
-    .select("id, name, country_code")
+    .select("id, name, country_code, lat, lon")
     .eq("country_code", country.toUpperCase())
     .eq("slug", city)
     .maybeSingle();
@@ -94,12 +99,17 @@ const resolveContext = cache(async (sport: string, country: string, city: string
   // generateMetadata (noindex) et la page via le cache() (un seul fetch).
   const { indexable, scope } = await fetchScopeVenues(sb, sport, cityCtx);
 
+  // Zéro résultat local → on prépare des suggestions « à proximité » (#558).
+  // Calculé UNIQUEMENT dans ce cas (rare) pour ne pas alourdir les pages pleines.
+  const nearby = (count ?? 0) === 0 ? await fetchNearbyVenues(sb, sport, cityCtx) : [];
+
   return {
     sport: sportDef,
     city: cityCtx,
     total: count ?? 0,
     indexable,
     scope,
+    nearby,
   };
 });
 
@@ -176,6 +186,43 @@ async function fetchScopeVenues(
   );
   const indexable = scope.filter((v) => !isLowQualityVenue(v));
   return { indexable, scope };
+}
+
+/** Demi-côté de la bbox « à proximité » (~0.7° ≈ 60-80 km selon latitude). */
+const NEARBY_BBOX_DEG = 0.7;
+const NEARBY_LIMIT = 12;
+
+/**
+ * Lieux du même sport À PROXIMITÉ d'une ville (autres communes alentour), pour
+ * ne pas laisser une page sport×ville à ZÉRO résultat sans alternative utile
+ * (#558, critère « proposer nearby »). Bbox carrée autour du centre-ville ;
+ * on ne suggère que des fiches ≥ seuil qualité (pas de squelettes). Liste
+ * légère (slug + nom) → simples liens, pas de VenueCard.
+ */
+async function fetchNearbyVenues(
+  sb: ReturnType<typeof getSupabaseServerClient>,
+  sportSlug: string,
+  city: Ctx["city"],
+): Promise<{ slug: string; name: string }[]> {
+  if (city.lat == null || city.lon == null) return [];
+  const { data, error } = await sb
+    .from("venue")
+    .select("slug, name")
+    .eq("primary_sport_slug", sportSlug)
+    .eq("is_published", true)
+    .is("deleted_at", null)
+    .gte("quality_score", LOW_QUALITY_THRESHOLD)
+    .neq("city_id", city.id)
+    .gte("lat", city.lat - NEARBY_BBOX_DEG)
+    .lte("lat", city.lat + NEARBY_BBOX_DEG)
+    .gte("lon", city.lon - NEARBY_BBOX_DEG)
+    .lte("lon", city.lon + NEARBY_BBOX_DEG)
+    .limit(NEARBY_LIMIT);
+  if (error || !data) return [];
+  return (data as { slug: string; name: string }[]).map((v) => ({
+    slug: v.slug,
+    name: v.name,
+  }));
 }
 
 export async function generateMetadata({
@@ -376,7 +423,28 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
               {t("seeOtherCities")}
             </Link>
           </p>
-          <p className="mt-3 text-sm">
+          {/* Suggestions « à proximité » (#558) : on ne laisse pas la page vide
+              quand le sport n'a aucun lieu dans CETTE ville mais existe alentour. */}
+          {ctx.nearby.length > 0 && (
+            <div className="mt-6">
+              <p className="text-sm font-medium text-foreground">
+                {t("nearbyTitle", { sport: sportName.toLowerCase(), city: ctx.city.name })}
+              </p>
+              <ul className="mt-3 flex flex-wrap justify-center gap-2">
+                {ctx.nearby.map((v) => (
+                  <li key={v.slug}>
+                    <Link
+                      href={`/venue/${v.slug}`}
+                      className="inline-flex rounded-full border bg-card px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent"
+                    >
+                      {v.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="mt-6 text-sm">
             {t("addVenuePrompt")}{" "}
             <Link href="/contribute" className="underline hover:text-foreground">
               {t("addVenueCta")}
