@@ -18,6 +18,7 @@ import {
   jsonLdHtml,
 } from "@/lib/seo/metadata";
 import { sportActionKey } from "@/lib/seo/sport-action";
+import { formatCityName } from "@/lib/format/city-name";
 
 const PAGE_SIZE = 24;
 const SITE_URL = "https://sporthubmap.com";
@@ -73,7 +74,10 @@ const resolveContext = cache(async (sport: string, country: string, city: string
   // padel/paris) qui divergeait du vrai nombre de lignes rendues (1) → titre,
   // H1, meta et compteur carte mentaient au crawler/LLM (#335). NB : la page
   // mondiale /sports/[sport] (non bornée par ville) garde "planned" elle.
-  const cityCtx = cityRow as Ctx["city"];
+  // Normalise l'affichage (#559) : « PARIS » → « Paris ». Le slug (donc les URLs)
+  // n'est pas touché, uniquement le nom affiché (titre/H1/breadcrumb/intro).
+  const cityRaw = cityRow as Ctx["city"];
+  const cityCtx: Ctx["city"] = { ...cityRaw, name: formatCityName(cityRaw.name) };
   const { count } = await sb
     .from("venue")
     .select("id", { count: "exact", head: true })

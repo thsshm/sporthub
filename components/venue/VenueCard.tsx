@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SportChips } from "@/components/venue/SportChips";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
+import { formatCityName } from "@/lib/format/city-name";
 import type { VenuePin } from "@/lib/supabase/types";
 
 type Props = {
@@ -24,7 +25,7 @@ type Props = {
 export async function VenueCard({ venue }: Props) {
   const emoji = getFamilyEmoji(venue.family_slug);
   const familyColor = getFamilyColor(venue.family_slug);
-  const location = venue.city_name ?? venue.address ?? "";
+  const location = formatCityName(venue.city_name) || venue.address || "";
   const t = await getTranslations("venue");
   const tFav = await getTranslations("favorites");
   const tFamilies = await getTranslations("families");
