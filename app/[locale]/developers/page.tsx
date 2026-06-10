@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { buildHreflangAlternates } from "@/lib/seo/metadata";
+import { getTotalSpots } from "@/lib/home-stats";
+import { formatCount } from "@/lib/utils";
 
 // Adresse de contact unique du site (même que la FAQ, /contribute, les fiches).
 const CONTACT_EMAIL = "hello@sporthubmap.com";
@@ -24,9 +26,10 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "developers" });
   const hreflang = buildHreflangAlternates("/developers", locale);
+  const count = formatCount(await getTotalSpots());
   return {
     title: t("metaTitle"),
-    description: t("metaDescription"),
+    description: t("metaDescription", { count }),
     alternates: {
       canonical: hreflang.canonical,
       languages: hreflang.languages,
@@ -40,6 +43,9 @@ export default async function DevelopersPage({ params }: { params: { locale: str
   const t = await getTranslations("developers");
 
   const accessHref = mailto(t("accessMailSubject"), t("accessMailBody"));
+  // Compteur dynamique (#557) — même source que la home/FAQ → jamais de chiffre
+  // périmé ("250 000+" en dur auparavant).
+  const totalSpots = formatCount(await getTotalSpots());
   const plannedItems = ["planned1", "planned2", "planned3", "planned4"] as const;
 
   return (
@@ -48,7 +54,9 @@ export default async function DevelopersPage({ params }: { params: { locale: str
         {t("statusBadge")}
       </span>
       <h1 className="mt-4 text-3xl font-bold tracking-tight">{t("title")}</h1>
-      <p className="mt-3 max-w-prose text-muted-foreground">{t("intro")}</p>
+      <p className="mt-3 max-w-prose text-muted-foreground">
+        {t("intro", { count: totalSpots })}
+      </p>
 
       <section className="mt-10 rounded-lg border p-6">
         <h2 className="text-lg font-semibold text-foreground">{t("plannedHeading")}</h2>

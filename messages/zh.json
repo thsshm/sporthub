@@ -382,10 +382,10 @@
   },
   "developers": {
     "metaTitle": "SportHub API — 即将推出 | Sport Hub",
-    "metaDescription": "提供 REST API 和矢量切片，查询 25 万+ 开放数据运动场所。筹备中——申请抢先体验。",
+    "metaDescription": "提供 REST API 和矢量切片，查询 {count} 个开放数据运动场所。筹备中——申请抢先体验。",
     "title": "SportHub API",
     "statusBadge": "筹备中",
-    "intro": "从开放数据源（OpenStreetMap、RES、Wikidata、Overture）聚合的 25 万+ 运动场所。公共 API 正在筹备中，供你在其基础上构建应用。",
+    "intro": "从开放数据源（OpenStreetMap、RES、Wikidata、Overture）聚合的 {count} 个运动场所。公共 API 正在筹备中，供你在其基础上构建应用。",
     "plannedHeading": "API 将支持",
     "planned1": "按运动、城市或地理范围（bounding box）查询场所。",
     "planned2": "开箱即用的矢量切片，在你自己的地图上显示场所。",
