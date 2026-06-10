@@ -6,6 +6,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { LOW_QUALITY_THRESHOLD } from "@/lib/venue/quality-score";
+import { isSportMismatch, sinkMismatches } from "@/lib/venue/sport-mismatch";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportVenuesSection } from "./SportVenuesSection";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -170,7 +171,7 @@ async function fetchVenues(
 
   if (error) return { venues: [], total: 0 };
 
-  const venues = ((data as VenueRow[]) ?? []).map((v) => ({
+  const mapped = ((data as VenueRow[]) ?? []).map((v) => ({
     id: v.venue_id,
     slug: v.slug,
     name: v.name,
@@ -185,6 +186,15 @@ async function fetchVenues(
     // Cette venue matche `sportSlug` par appartenance (primary ou venue_sport).
     sport_slugs: [sportSlug],
   }));
+  // Exclusion des noms contradictoires des résultats listés (#553) — la carte
+  // reste exhaustive. Peut rendre une page < PAGE_SIZE cartes ; `total` est de
+  // toute façon une estimation planner. En mode fallback (applyQuality=false,
+  // sport 100% sous seuil #550), on RELÈGUE seulement en fin de page pour ne
+  // pas re-créer « No venue » ; si le filtre vide la page qualité, le caller
+  // bascule déjà sur ce fallback.
+  const venues = applyQuality
+    ? mapped.filter((v) => !isSportMismatch(v.name, sportSlug))
+    : sinkMismatches(mapped, sportSlug);
   return { venues, total: count ?? 0 };
 }
 
