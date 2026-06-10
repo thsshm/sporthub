@@ -18,6 +18,7 @@ import { MapPin } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/routing";
 import { getSupabaseStaticClient } from "@/lib/supabase/server";
+import { formatCityName } from "@/lib/format-city";
 
 type FeaturedCity = {
   id: string;
@@ -28,15 +29,14 @@ type FeaturedCity = {
 };
 
 /** Fallback statique si la table city ne contient pas encore de featured cities. */
-const FALLBACK_CITIES: Array<Pick<FeaturedCity, "slug" | "name" | "country_code">> =
-  [
-    { slug: "paris", name: "Paris", country_code: "FR" },
-    { slug: "lyon", name: "Lyon", country_code: "FR" },
-    { slug: "marseille", name: "Marseille", country_code: "FR" },
-    { slug: "bordeaux", name: "Bordeaux", country_code: "FR" },
-    { slug: "nantes", name: "Nantes", country_code: "FR" },
-    { slug: "toulouse", name: "Toulouse", country_code: "FR" },
-  ];
+const FALLBACK_CITIES: Array<Pick<FeaturedCity, "slug" | "name" | "country_code">> = [
+  { slug: "paris", name: "Paris", country_code: "FR" },
+  { slug: "lyon", name: "Lyon", country_code: "FR" },
+  { slug: "marseille", name: "Marseille", country_code: "FR" },
+  { slug: "bordeaux", name: "Bordeaux", country_code: "FR" },
+  { slug: "nantes", name: "Nantes", country_code: "FR" },
+  { slug: "toulouse", name: "Toulouse", country_code: "FR" },
+];
 
 type CityRow = {
   id: string;
@@ -47,72 +47,70 @@ type CityRow = {
 
 const fetchFeaturedCities = unstable_cache(
   async (): Promise<FeaturedCity[]> => {
-  const sb = getSupabaseStaticClient();
+    const sb = getSupabaseStaticClient();
 
-  // 1) Voie principale : top villes par nombre de venues publiées, via la RPC
-  // top_cities_by_venue_count (migration 0017). "Villes avec le plus de spots",
-  // indépendant de is_featured (qui était curé DE/CZ et triait en "A").
-  try {
-    const { data, error } = await sb.rpc("top_cities_by_venue_count", {
-      max_results: 6,
-    });
-    if (!error && data && data.length > 0) {
-      return data.map((c) => ({
-        id: c.id,
-        slug: c.slug,
-        name: c.name,
-        country_code: c.country_code,
-        count: Number(c.count) || 0,
-      }));
-    }
-  } catch {
-    /* RPC indisponible (ex. migration 0017 pas encore appliquée) → fallback */
-  }
-
-  // 2) Fallback : liste hardcodée (Paris, Lyon…) + count exact par ville.
-  // Utilisé tant que la RPC n'est pas en base, ou si elle ne renvoie rien.
-  let cities: CityRow[] = [];
-  try {
-    const slugs = FALLBACK_CITIES.map((c) => c.slug);
-    const { data } = await sb
-      .from("city")
-      .select("id, slug, name, country_code")
-      .in("slug", slugs)
-      .eq("country_code", "FR");
-    cities = (data as CityRow[] | null) ?? [];
-  } catch {
-    cities = [];
-  }
-
-  const enriched = await Promise.all(
-    cities.map(async (c) => {
-      let count = 0;
-      try {
-        const res = await sb
-          .from("venue")
-          .select("id", { count: "exact", head: true })
-          .eq("city_id", c.id)
-          .eq("is_published", true)
-          .is("deleted_at", null);
-        count = res.count ?? 0;
-      } catch {
-        count = 0;
+    // 1) Voie principale : top villes par nombre de venues publiées, via la RPC
+    // top_cities_by_venue_count (migration 0017). "Villes avec le plus de spots",
+    // indépendant de is_featured (qui était curé DE/CZ et triait en "A").
+    try {
+      const { data, error } = await sb.rpc("top_cities_by_venue_count", {
+        max_results: 6,
+      });
+      if (!error && data && data.length > 0) {
+        return data.map((c) => ({
+          id: c.id,
+          slug: c.slug,
+          name: c.name,
+          country_code: c.country_code,
+          count: Number(c.count) || 0,
+        }));
       }
-      return {
-        id: c.id,
-        slug: c.slug,
-        name: c.name,
-        country_code: c.country_code,
-        count,
-      } satisfies FeaturedCity;
-    }),
-  );
-  return enriched
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-    .slice(0, 6);
+    } catch {
+      /* RPC indisponible (ex. migration 0017 pas encore appliquée) → fallback */
+    }
+
+    // 2) Fallback : liste hardcodée (Paris, Lyon…) + count exact par ville.
+    // Utilisé tant que la RPC n'est pas en base, ou si elle ne renvoie rien.
+    let cities: CityRow[] = [];
+    try {
+      const slugs = FALLBACK_CITIES.map((c) => c.slug);
+      const { data } = await sb
+        .from("city")
+        .select("id, slug, name, country_code")
+        .in("slug", slugs)
+        .eq("country_code", "FR");
+      cities = (data as CityRow[] | null) ?? [];
+    } catch {
+      cities = [];
+    }
+
+    const enriched = await Promise.all(
+      cities.map(async (c) => {
+        let count = 0;
+        try {
+          const res = await sb
+            .from("venue")
+            .select("id", { count: "exact", head: true })
+            .eq("city_id", c.id)
+            .eq("is_published", true)
+            .is("deleted_at", null);
+          count = res.count ?? 0;
+        } catch {
+          count = 0;
+        }
+        return {
+          id: c.id,
+          slug: c.slug,
+          name: c.name,
+          country_code: c.country_code,
+          count,
+        } satisfies FeaturedCity;
+      })
+    );
+    return enriched.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, 6);
   },
   ["home-featured-cities"],
-  { revalidate: 300, tags: ["home"] },
+  { revalidate: 300, tags: ["home"] }
 );
 
 export async function HomeFeaturedCities() {
@@ -127,9 +125,7 @@ export async function HomeFeaturedCities() {
     <section className="border-t bg-muted/10">
       <div className="container mx-auto max-w-6xl px-6 py-14">
         <div className="text-center">
-          <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
-            {t("title")}
-          </h2>
+          <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">{t("title")}</h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
             {t("subtitle")}
           </p>
@@ -145,8 +141,11 @@ export async function HomeFeaturedCities() {
                 <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
                 {city.country_code}
               </span>
-              <span className="mt-1 truncate text-base font-semibold group-hover:underline" title={city.name}>
-                {city.name}
+              <span
+                className="mt-1 truncate text-base font-semibold group-hover:underline"
+                title={formatCityName(city.name)}
+              >
+                {formatCityName(city.name)}
               </span>
               <span className="mt-1 text-xs text-muted-foreground">
                 {t("venuesCount", { count: city.count })}
