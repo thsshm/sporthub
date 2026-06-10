@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { getSupabaseStaticClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
+import { LOW_QUALITY_THRESHOLD } from "@/lib/venue/quality-score";
 
 /**
  * Counts de venues publiées par famille — source unique partagée par le H1 de
@@ -93,8 +94,9 @@ export function keepPopularCombos(
 
 /**
  * Recherches populaires DATA-DRIVEN : on part d'une liste éditoriale puis on
- * NE GARDE QUE les combos sport×ville réellement peuplés (≥ MIN_VENUES_FOR_POPULAR
- * lieux publiés). Évite d'envoyer l'utilisateur sur des pages vides (#462).
+ * NE GARDE QUE les combos sport×ville avec ≥ MIN_VENUES_FOR_POPULAR lieux
+ * **≥ seuil qualité** (= réellement listés en SSR, #552). Évite d'envoyer
+ * l'utilisateur sur une page vide / « No address » (#462, #552).
  *
  * count=exact ici : la requête est bornée par city_id → l'index composite
  * (primary_sport_slug, city_id) (migration 0005) rend le COUNT trivial. Client
@@ -123,7 +125,15 @@ export const getPopularCombos = unstable_cache(
             .eq("primary_sport_slug", combo.sport)
             .eq("city_id", cityId)
             .eq("is_published", true)
-            .is("deleted_at", null);
+            .is("deleted_at", null)
+            // Gate QUALITÉ (#552) : on compte les venues réellement listées en
+            // SSR (≥ seuil qualité, comme la page ville #520/#551), pas juste
+            // publiées. Sinon une combo « peuplée » mais 100% squelettes (ex.
+            // pétanque/Marseille) passait le gate puis affichait « No address ».
+            // → une popular search a maintenant ≥ MIN_VENUES_FOR_POPULAR lieux
+            // VISIBLES ; les combos qui échouent sont remplacées par d'autres du
+            // pool POPULAR_CANDIDATES (fallback implicite via keepPopularCombos).
+            .gte("quality_score", LOW_QUALITY_THRESHOLD);
           return { combo, count: count ?? 0 };
         } catch {
           return { combo, count: 0 };
