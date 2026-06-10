@@ -26,6 +26,10 @@ on:
         description: "Famille unique (vide = toutes les familles club)"
         type: string
         default: ""
+      reset:
+        description: "Reset AVANT clustering (vide les clubs de la famille pour les renommer, #497)"
+        type: boolean
+        default: false
 
 # Un seul clustering à la fois (évite deux runs concurrents qui écrivent en
 # même temps dans `club` / `venue.club_id`).
@@ -57,10 +61,12 @@ jobs:
           # pour éviter toute injection de commande.
           DRY_RUN: ${{ inputs.dry_run }}
           FAMILY: ${{ inputs.family }}
+          RESET: ${{ inputs.reset }}
         run: |
           ARGS=""
           if [ "$DRY_RUN" = "false" ]; then ARGS="$ARGS --no-dry-run"; fi
           if [ -n "$FAMILY" ]; then ARGS="$ARGS --family $FAMILY"; fi
+          if [ "$RESET" = "true" ]; then ARGS="$ARGS --reset"; fi
           echo "Lancement : python3 scripts/cluster_clubs.py $ARGS"
           python3 scripts/cluster_clubs.py $ARGS
 
@@ -71,4 +77,5 @@ jobs:
             echo "### Clustering clubs"
             echo "- Mode : ${{ inputs.dry_run == true && 'DRY-RUN (aucune écriture)' || 'ÉCRITURE RÉELLE' }}"
             echo "- Famille : ${{ inputs.family != '' && inputs.family || 'toutes' }}"
+            echo "- Reset : ${{ inputs.reset == true && 'OUI (clubs vidés avant)' || 'non' }}"
           } >> "$GITHUB_STEP_SUMMARY"
