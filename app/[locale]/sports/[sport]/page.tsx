@@ -114,7 +114,12 @@ type VenueRow = {
   city_country: string | null;
 };
 
-async function fetchVenues(sportSlug: string, page: number, filters: SportFilters) {
+async function fetchVenues(
+  sportSlug: string,
+  page: number,
+  filters: SportFilters,
+  applyQuality = true,
+) {
   const sb = getSupabaseServerClient();
   const offset = (page - 1) * PAGE_SIZE;
 
@@ -136,10 +141,16 @@ async function fetchVenues(sportSlug: string, page: number, filters: SportFilter
     `,
       { count: "planned" }
     )
-    .eq("sport_slug", sportSlug)
-    // N'indexer/lister que les venues ≥ seuil qualité (#464, quality_score
-    // dénormalisé dans la MV). La carte reste exhaustive (API /api/venues).
-    .gte("quality_score", LOW_QUALITY_THRESHOLD);
+    .eq("sport_slug", sportSlug);
+
+  // N'indexer/lister que les venues ≥ seuil qualité (#464). MAIS si ce filtre
+  // ne laisse RIEN (sport dont 100% des venues sont des squelettes OSM, ex.
+  // padel → 0 ≥ seuil), le caller re-fetch avec applyQuality=false pour ne
+  // jamais afficher « No venue » alors que des spots existent (#550). La carte
+  // reste exhaustive (API /api/venues).
+  if (applyQuality) {
+    query = query.gte("quality_score", LOW_QUALITY_THRESHOLD);
+  }
 
   // Filtres spécifiques sport (#467) — booléens venue-level. Sémantique alignée
   // sur /api/venues?feat=… (KNOWN_FEAT) → carte et liste cohérentes.
@@ -203,7 +214,16 @@ export default async function SportPage({ params, searchParams }: Props) {
   const selectedCriteria: string[] = FILTER_KEYS.filter((k) => filters[k]);
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
-  const { venues, total } = await fetchVenues(sportSlug, page, filters);
+  let { venues, total } = await fetchVenues(sportSlug, page, filters);
+  // #550 — fallback anti « No venue » : si le filtre qualité ne laisse AUCUNE
+  // venue sur cette page (sport dont 100% des venues sont des squelettes OSM,
+  // ex. padel), on re-fetch SANS le gate qualité. On ne masque jamais un sport
+  // qui a des données (la carte est exhaustive de toute façon). Le SEO des
+  // pages trop maigres est traité par le noindex/redirect (#558), pas en
+  // affichant « No venue ».
+  if (venues.length === 0) {
+    ({ venues, total } = await fetchVenues(sportSlug, page, filters, false));
+  }
   const family = FAMILIES_BY_SLUG[sport.family_slug];
   // Compteur cohérent avec la liste réellement rendue (#470). `total` vient de
   // count:"planned" (estimation du planner Postgres) qui peut renvoyer 1 quand
