@@ -103,7 +103,9 @@ jobs:
       max-parallel: 2 # DuckDB/S3 : pas de rate-limit, on peut paralléliser un peu
       fail-fast: false
       matrix:
-        country: [FR, ES, DE, IT, GB]
+        # EU + extension hors-Europe (#227). Overture est global ; OSM (matrice
+        # ci-dessus) reste EU car ses bbox Overpass ne couvrent que l'Europe.
+        country: [FR, ES, DE, IT, GB, US, CA, BR, AU, JP]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
