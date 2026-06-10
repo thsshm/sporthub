@@ -1,0 +1,64 @@
+name: Retreats import (Wikidata)
+
+# Peuple la famille `retraites` depuis Wikidata (#97) : fetch SPARQL → upsert.
+# Équivalent CI de scripts/etl/import_wikidata_retreats.py (qui se connecte en
+# Postgres direct via le pooler) — pour pouvoir importer SANS terminal local.
+#
+# Secrets requis : SUPABASE_DB_PASSWORD (déjà configuré).
+# Sécurité : dry-run par DÉFAUT (aucune écriture) ; décocher pour appliquer.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Écrire réellement en DB (sinon dry-run)"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: retreats-import
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    name: fetch + import retraites
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch Wikidata + import
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          IN_APPLY: ${{ inputs.apply || 'false' }}
+        run: |
+          set -euo pipefail
+          pip install psycopg2-binary --quiet
+          python3 scripts/etl/fetch_wikidata_retreats.py --output /tmp/retreats_wikidata.json
+          if [ "$IN_APPLY" = "true" ]; then
+            if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+              echo "::error::Secret SUPABASE_DB_PASSWORD manquant." >&2
+              exit 1
+            fi
+            python3 scripts/etl/import_wikidata_retreats.py --input /tmp/retreats_wikidata.json --apply
+          else
+            python3 scripts/etl/import_wikidata_retreats.py --input /tmp/retreats_wikidata.json
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Retreats import (Wikidata)"
+            echo "- Mode : ${{ (inputs.apply == true) && 'APPLY (écriture réelle)' || 'DRY-RUN (aucune écriture)' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
