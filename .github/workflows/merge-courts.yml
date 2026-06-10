@@ -43,10 +43,13 @@ jobs:
           if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
             echo "::error::secret SUPABASE_DB_PASSWORD manquant." >&2; exit 1
           fi
-          ARGS=()
-          [ "${IN_APPLY}" = "true" ] && ARGS+=(--apply)
-          echo "▶ merge_court_records.py ${ARGS[*]:-(dry-run)}"
-          python3 scripts/etl/merge_court_records.py "${ARGS[@]:-}"
+          if [ "${IN_APPLY}" = "true" ]; then
+            echo "▶ merge_court_records.py --apply"
+            python3 scripts/etl/merge_court_records.py --apply
+          else
+            echo "▶ merge_court_records.py (dry-run)"
+            python3 scripts/etl/merge_court_records.py
+          fi
       - name: Summary
         if: always()
         run: |
