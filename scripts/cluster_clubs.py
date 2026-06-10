@@ -162,6 +162,29 @@ def is_generic(name: str | None) -> bool:
     return n in _GENERIC_NAMES or len(n) < 4
 
 
+# Mots de tête signalant un libellé d'équipement (et non un nom de club).
+_COURT_LEAD: frozenset[str] = frozenset({
+    "court", "courts", "kort", "terrain", "terrains", "piste", "pistes",
+    "bassin", "bassins", "cours", "pitch", "ground", "field",
+})
+
+
+def is_subcourt_label(name: str | None) -> bool:
+    """True pour les libellés de SOUS-COURT numérotés — pas un nom de club.
+
+    Ex : « Court de tennis 3 », « Terrain n°5 », « Court de tennis B 2 »,
+    « COURTS DE TENNIS EXTERIEURS (BETON) 9 ». Ces noms passent `is_generic`
+    (absents de la liste figée, ≥ 4 chars) et devenaient donc des NOMS DE CLUB
+    dans le ranking /disciplines (#497). Signal structurel : le nom normalisé
+    commence par un mot d'équipement générique ET se termine par un nombre
+    (éventuellement précédé d'une lettre ou de « n° »).
+    """
+    n = normalize_name(name)
+    if not n or not re.search(r"\d\s*$", n):
+        return False
+    return n.split()[0] in _COURT_LEAD
+
+
 def names_similar(a: str | None, b: str | None) -> bool:
     """Retourne True si les deux noms normalisés sont suffisamment proches."""
     if is_generic(a) or is_generic(b):
@@ -292,12 +315,28 @@ def build_clubs(
 
         grp = [venues[i] for i in idxs]
 
-        # Nom du club : le plus fréquent parmi les noms significatifs
-        sig_names = [v["name"] for v in grp if v.get("name") and not is_generic(v.get("name"))]
-        if sig_names:
-            club_name: str = Counter(sig_names).most_common(1)[0][0]
+        # Nom du club : le plus fréquent parmi les noms significatifs, en
+        # EXCLUANT les étiquettes de sous-court numérotées (« Court de tennis 3 »)
+        # — sinon un club finissait nommé d'après un de ses courts dans le
+        # ranking /disciplines (#497).
+        good_names = [
+            v["name"]
+            for v in grp
+            if v.get("name")
+            and not is_generic(v.get("name"))
+            and not is_subcourt_label(v.get("name"))
+        ]
+        if good_names:
+            club_name: str = Counter(good_names).most_common(1)[0][0]
         else:
-            club_name = family_slug.replace("_", " ").title()
+            # Aucun vrai nom dispo : on prend le moins mauvais nom non générique
+            # (le plus court = souvent le plus propre), sinon le nom de famille.
+            fallback = [
+                v["name"] for v in grp if v.get("name") and not is_generic(v.get("name"))
+            ]
+            club_name = (
+                min(fallback, key=len) if fallback else family_slug.replace("_", " ").title()
+            )
 
         # Centroïde géographique
         lat = sum(v["lat"] for v in grp) / len(grp)
@@ -768,6 +807,39 @@ def self_test() -> int:
     assert is_generic("tennis") is True       # nom de famille de sport seul
     assert is_generic("abc") is True          # < 4 chars
     assert is_generic("Tennis Club de Vincennes") is False
+
+    # ── is_subcourt_label (#497) ──────────────────────────────────────────
+    assert is_subcourt_label("Court de tennis 3") is True
+    assert is_subcourt_label("Terrain tennis 4") is True
+    assert is_subcourt_label("Court de tennis B 2") is True
+    assert is_subcourt_label("Terrain n°5") is True
+    assert is_subcourt_label("COURTS DE TENNIS EXTERIEURS (BETON) 9") is True
+    assert is_subcourt_label("Tennis Club Baillargues") is False  # vrai club
+    assert is_subcourt_label("La Croix-Catelan") is False
+    assert is_subcourt_label("Stade Roland Garros") is False  # pas de nombre final
+
+    # ── build_clubs : ignore les sous-courts pour nommer (#497) ───────────
+    grp_v = [
+        {"id": "a", "name": "Court de tennis 3", "lat": 48.0, "lon": 2.0, "city_id": None, "country_code": "FR"},
+        {"id": "b", "name": "Court de tennis 4", "lat": 48.00001, "lon": 2.0, "city_id": None, "country_code": "FR"},
+        {"id": "c", "name": "Tennis Club de Vincennes", "lat": 48.00002, "lon": 2.0, "city_id": None, "country_code": "FR"},
+    ]
+    uf_b = UnionFind(3)
+    uf_b.union(0, 1)
+    uf_b.union(0, 2)
+    clubs_b = build_clubs(grp_v, uf_b, "raquette")
+    assert len(clubs_b) == 1, clubs_b
+    assert clubs_b[0]["name"] == "Tennis Club de Vincennes", clubs_b[0]["name"]
+
+    # Cluster 100 % sous-courts → fallback sur le plus court, jamais un « N »
+    grp_only_courts = [
+        {"id": "a", "name": "Court de tennis 3", "lat": 48.0, "lon": 2.0, "city_id": None, "country_code": "FR"},
+        {"id": "b", "name": "Court de tennis 4", "lat": 48.00001, "lon": 2.0, "city_id": None, "country_code": "FR"},
+    ]
+    uf_c = UnionFind(2)
+    uf_c.union(0, 1)
+    clubs_c = build_clubs(grp_only_courts, uf_c, "raquette")
+    assert len(clubs_c) == 1, clubs_c
 
     # ── names_similar ────────────────────────────────────────────────────
     assert names_similar("Court 1", "Court 2") is False           # deux génériques
