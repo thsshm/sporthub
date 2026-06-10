@@ -11,6 +11,7 @@ import {
   venueQualityScore,
   type ScorableVenue,
 } from "@/lib/venue/quality-score";
+import { getVisibleVenueCount } from "@/lib/venue/visible-count";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -71,24 +72,19 @@ const resolveContext = cache(async (sport: string, country: string, city: string
     .maybeSingle();
   if (!cityRow) return null;
 
-  // count=exact ICI (pas "planned") : la query est bornée par city_id, donc
-  // l'index composite (primary_sport_slug, city_id) de la migration 0005 rend
-  // le COUNT(*) trivial (≤ quelques milliers de lignes même pour une ville
-  // dense). "planned" renvoyait une ESTIMATION du planner (ex : 6 pour
-  // padel/paris) qui divergeait du vrai nombre de lignes rendues (1) → titre,
-  // H1, meta et compteur carte mentaient au crawler/LLM (#335). NB : la page
-  // mondiale /sports/[sport] (non bornée par ville) garde "planned" elle.
   // Normalise l'affichage (#559) : « PARIS » → « Paris ». Le slug/URL (qui passe
   // par `city`) n'est pas touché — uniquement le nom affiché (titre/H1/breadcrumb).
   const cityRaw = cityRow as Ctx["city"];
   const cityCtx: Ctx["city"] = { ...cityRaw, name: formatCityName(cityRaw.name) };
-  const { count } = await sb
-    .from("venue")
-    .select("id", { count: "exact", head: true })
-    .eq("primary_sport_slug", sport)
-    .eq("city_id", cityCtx.id)
-    .eq("is_published", true)
-    .is("deleted_at", null);
+  // Compteur via la SOURCE COMMUNE (#556) : appartenance au sport ({primary} ∪
+  // venue_sport, MV #476) — même logique que la page mondiale /sports/[sport],
+  // sinon « Padel Paris : 8 » vs « page Padel » divergeaient. count=exact ICI
+  // (borné par city_id, trivial) ; la page mondiale garde "planned" (#335).
+  const count = await getVisibleVenueCount(sb, {
+    sportSlug: sport,
+    cityId: cityCtx.id,
+    exact: true,
+  });
 
   // Scope + sous-ensemble indexable (≥ seuil qualité, #464) — partagé entre
   // generateMetadata (noindex) et la page via le cache() (un seul fetch).
@@ -97,7 +93,7 @@ const resolveContext = cache(async (sport: string, country: string, city: string
   return {
     sport: sportDef,
     city: cityCtx,
-    total: count ?? 0,
+    total: count,
     indexable,
     scope,
   };
@@ -143,17 +139,31 @@ async function fetchScopeVenues(
   sportSlug: string,
   city: Ctx["city"],
 ): Promise<{ indexable: DisplayVenue[]; scope: DisplayVenue[] }> {
+  // 2 temps (#556) : ids par APPARTENANCE au sport ({primary} ∪ venue_sport,
+  // MV #476 — même logique que la page mondiale, sinon un court de padel d'un
+  // Tennis Club manquait sur « Padel Paris ») ; puis les champs riches du
+  // scoring qualité depuis `venue` (absents de la MV). Scope ville = borné.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: mvRows, error: mvError } = await (sb as any)
+    .from("mv_venue_sport_search")
+    .select("venue_id")
+    .eq("sport_slug", sportSlug)
+    .eq("city_id", city.id)
+    .order("venue_id")
+    .limit(MAX_SCOPE_VENUES);
+  if (mvError || !mvRows?.length) return { indexable: [], scope: [] };
+  const ids = (mvRows as { venue_id: string }[]).map((r) => r.venue_id);
+
   const { data, error } = await sb
     .from("venue")
     .select(
       "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code, city_id, website_url, phone, description, claim_status, enrichments",
     )
-    .eq("primary_sport_slug", sportSlug)
-    .eq("city_id", city.id)
+    .in("id", ids)
+    // Garde de fraîcheur : la MV est rafraîchie hebdo — une venue dépubliée
+    // entre-temps ne doit pas réapparaître.
     .eq("is_published", true)
-    .is("deleted_at", null)
-    .order("id")
-    .limit(MAX_SCOPE_VENUES);
+    .is("deleted_at", null);
 
   if (error || !data) return { indexable: [], scope: [] };
 
@@ -161,7 +171,8 @@ async function fetchScopeVenues(
     ...v,
     city_name: city.name,
     country_code: v.country_code ?? city.country_code ?? undefined,
-    sport_slugs: v.primary_sport_slug ? [v.primary_sport_slug] : [],
+    // Cette venue matche `sportSlug` par appartenance (primary ou venue_sport).
+    sport_slugs: [sportSlug],
   }));
   // `indexable` = sous-ensemble ≥ seuil qualité (même fonction pure que le
   // noindex). `scope` = tout le scope publié (non filtré) → FALLBACK d'affichage
