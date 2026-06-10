@@ -160,9 +160,13 @@ async function fetchVenues(
   if (filters.free) query = query.eq("fee_required", false);
   if (filters.paid) query = query.eq("fee_required", true);
 
+  // Ranking par qualité décroissante (#563) — les meilleurs lieux d'abord, pas
+  // l'ordre d'import. L'index (sport_slug, quality_score, venue_id) de la 0056
+  // sert ce tri (sport_slug en égalité). venue_id en tie-break (pagination stable).
   const { data, error, count } = await query
-    .range(offset, offset + PAGE_SIZE - 1)
-    .order("venue_id", { ascending: true });
+    .order("quality_score", { ascending: false })
+    .order("venue_id", { ascending: true })
+    .range(offset, offset + PAGE_SIZE - 1);
 
   if (error) return { venues: [], total: 0 };
 

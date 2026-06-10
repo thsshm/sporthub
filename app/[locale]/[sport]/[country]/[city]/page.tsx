@@ -6,7 +6,11 @@ import { Link } from "@/i18n/routing";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG, getRelatedSports } from "@/lib/families";
-import { isLowQualityVenue, type ScorableVenue } from "@/lib/venue/quality-score";
+import {
+  isLowQualityVenue,
+  venueQualityScore,
+  type ScorableVenue,
+} from "@/lib/venue/quality-score";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -164,6 +168,12 @@ async function fetchScopeVenues(
   // quand aucune venue n'atteint le seuil mais que des venues existent (#551 :
   // ne jamais montrer « No address » si total > 0 ; la page reste noindex car
   // thin, mais liste de vrais lieux au lieu d'une grille vide).
+  // Ranking par score qualité décroissant (#563) : les pages SEO priorisent les
+  // MEILLEURS lieux (adresse, contact, contenu, vérifié…), pas l'ordre d'import.
+  // id en tie-break → ordre déterministe (stable pour l'ISR/la pagination).
+  scope.sort(
+    (a, b) => venueQualityScore(b) - venueQualityScore(a) || a.id.localeCompare(b.id),
+  );
   const indexable = scope.filter((v) => !isLowQualityVenue(v));
   return { indexable, scope };
 }
