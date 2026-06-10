@@ -79,6 +79,9 @@ COUNTRY_BBOXES: dict[str, tuple[float, float, float, float]] = {
     "BR": (-33.8, -73.9, 5.3, -34.8),
     "AU": (-43.6, 113.3, -10.7, 153.6),
     "JP": (24.0, 122.9, 45.6, 145.8),
+    # Monde entier (#227 — couverture globale). Exclut l'Antarctique. Requête
+    # Overture lourde (scan global) mais le dataset est trié spatialement.
+    "WORLD": (-60.0, -180.0, 75.0, 180.0),
 }
 
 # Catégories Overture réelles (vérifiées sur release 2025-05-21.0).
