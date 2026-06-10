@@ -20,6 +20,7 @@ import { VenueAccessibility } from "@/components/venue/VenueAccessibility";
 import { VenueBookingLinks } from "@/components/venue/VenueBookingLinks";
 import { VenueRelated } from "@/components/venue/VenueRelated";
 import { VenueMiniMap } from "@/components/venue/VenueMiniMap";
+import { VenueProvenance } from "@/components/venue/VenueProvenance";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
 import { telHref } from "@/lib/venue/cta";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
@@ -263,6 +264,10 @@ export default async function VenuePage({ params }: Props) {
           {t("addPlaceCta")}
         </Link>
       </div>
+
+      {/* Provenance (#562) : source ouverte + dernière mise à jour → signal de
+          confiance discret en pied de fiche. */}
+      <VenueProvenance source={venue.source} updatedAt={venue.updated_at} locale={locale} />
     </article>
   );
 }

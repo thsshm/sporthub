@@ -192,6 +192,8 @@
     "infoCardTitle": "Practical info",
     "addPlacePrompt": "A spot missing from the map?",
     "addPlaceCta": "Add it in 1 minute",
+    "verifiedFrom": "Data verified from {source}",
+    "updatedAt": "Updated {date}",
     "reportError": "Report an error",
     "addVenueCta": "Add a place",
     "quality": {
