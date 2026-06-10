@@ -54,6 +54,10 @@ def to_row(it: dict) -> dict:
         "lon": float(it["lon"]),
         "family_slug": "retraites",
         "primary_sport_slug": sport,
+        # retreat_type = même valeur que le sport (yoga_retreat / wellness_retreat,
+        # qui SONT des retreat_type valides). Requis : la page /famille/retraites
+        # filtre sur retreat_type IS NOT NULL (#97).
+        "retreat_type": sport,
         "source": SOURCE,
         "external_id": ext,
         "is_published": True,
@@ -110,12 +114,13 @@ def run(args) -> int:
     for r in rows:
         cur.execute(
             """INSERT INTO venue (slug, name, lat, lon, family_slug, primary_sport_slug,
-                                  source, external_id, is_published)
+                                  retreat_type, source, external_id, is_published)
                VALUES (%(slug)s,%(name)s,%(lat)s,%(lon)s,%(family_slug)s,%(primary_sport_slug)s,
-                       %(source)s,%(external_id)s,%(is_published)s)
-               ON CONFLICT (source, external_id) DO NOTHING""", r)
+                       %(retreat_type)s,%(source)s,%(external_id)s,%(is_published)s)
+               ON CONFLICT (source, external_id)
+               DO UPDATE SET retreat_type = EXCLUDED.retreat_type""", r)
         ins += cur.rowcount
-    print(f"\n✅ venues insérées : {ins} (déjà présentes ignorées : {len(rows)-ins})")
+    print(f"\n✅ venues upsertées (retreat_type posé) : {ins} / {len(rows)}")
     # venue_sport (discipline primaire) pour toutes les venues de la source.
     cur.execute(
         """INSERT INTO venue_sport (venue_id, sport_slug, is_primary)
@@ -130,6 +135,7 @@ def run(args) -> int:
 def self_test() -> int:
     r = to_row({"qid": "Q42", "name": "Test Ashram", "lat": 48.85, "lon": 2.35, "cls": "ashram"})
     assert r["family_slug"] == "retraites" and r["primary_sport_slug"] == "yoga_retreat"
+    assert r["retreat_type"] == "yoga_retreat"  # = sport, pour /famille/retraites (#97)
     assert r["source"] == SOURCE and r["external_id"] == "wikidata/Q42"
     assert r["slug"].startswith("wikidata-retreats-")
     assert to_row({"qid": "Q1", "name": "X", "lat": 0, "lon": 0, "cls": "retreat center"})["primary_sport_slug"] == "wellness_retreat"
