@@ -1,0 +1,71 @@
+name: Data quality report
+
+# Rapport LECTURE SEULE de qualité data des venues SEO-visibles (#589) :
+# visibles vs masquées, mots suspects par sport, pages thin (<5 fiables),
+# mismatches (0 visible / total>0), doublons, courts implausibles, popular
+# searches sous le gate. Sert à décider quoi noindexer/corriger.
+#
+# Aucune écriture DB. Secrets requis (déjà configurés) :
+# SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+#
+# Manuel (workflow_dispatch) ou cron hebdo (lundi 05:00 UTC, après les imports
+# du dimanche → mesure l'état post-ingestion).
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: data-quality-report
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    name: data_quality_report.py
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run data_quality_report.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
+            exit 1
+          fi
+          python3 scripts/data_quality_report.py --json /tmp/data_quality_report.json \
+            | tee /tmp/data_quality_report.txt
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-quality-report
+          path: |
+            /tmp/data_quality_report.json
+            /tmp/data_quality_report.txt
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Data quality report (#589)"
+            echo '```'
+            cat /tmp/data_quality_report.txt 2>/dev/null || echo "(pas de sortie)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
