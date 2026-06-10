@@ -126,34 +126,58 @@ async function fetchVenues(sportSlug: string, page: number, filters: SportFilter
   // comme avant) → pas de COUNT exact sur les gros sports (gym 174k).
   // mv_venue_sport_search est une vue matérialisée → absente des types Supabase
   // générés ; on type le builder en `any` (justifié), comme le cast rpc ailleurs.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = (sb as any)
-    .from("mv_venue_sport_search")
-    .select(
-      `
+  const anyFilter =
+    filters.indoor ||
+    filters.lit ||
+    filters.wheelchair ||
+    filters.free ||
+    filters.paid;
+
+  // Builder de base : appartenance au sport via la MV. Réutilisé pour la
+  // requête qualité ET le fallback (#550).
+  const baseQuery = () =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb as any)
+      .from("mv_venue_sport_search")
+      .select(
+        `
       venue_id, slug, name, lat, lon, family_slug, primary_sport_slug, address,
       courts_count, country_code, city_name, city_country
     `,
-      { count: "planned" }
-    )
-    .eq("sport_slug", sportSlug)
-    // N'indexer/lister que les venues ≥ seuil qualité (#464, quality_score
-    // dénormalisé dans la MV). La carte reste exhaustive (API /api/venues).
-    .gte("quality_score", LOW_QUALITY_THRESHOLD);
+        { count: "planned" }
+      )
+      .eq("sport_slug", sportSlug);
 
-  // Filtres spécifiques sport (#467) — booléens venue-level. Sémantique alignée
-  // sur /api/venues?feat=… (KNOWN_FEAT) → carte et liste cohérentes.
+  // Requête principale : venues ≥ seuil qualité (#464) + filtres sport (#467).
+  // La carte reste exhaustive (API /api/venues), indépendante de cette liste.
+  let query = baseQuery().gte("quality_score", LOW_QUALITY_THRESHOLD);
   if (filters.indoor) query = query.eq("is_indoor", true);
   if (filters.lit) query = query.eq("has_lighting", true);
   if (filters.wheelchair) query = query.eq("is_wheelchair_accessible", true);
   if (filters.free) query = query.eq("fee_required", false);
   if (filters.paid) query = query.eq("fee_required", true);
 
-  const { data, error, count } = await query
+  const res = await query
     .range(offset, offset + PAGE_SIZE - 1)
     .order("venue_id", { ascending: true });
 
-  if (error) return { venues: [], total: 0 };
+  if (res.error) return { venues: [], total: 0 };
+  let data = res.data;
+  let count = res.count;
+
+  // Fallback (#550) : si aucune venue n'atteint le seuil qualité en page 1 sans
+  // filtre actif MAIS que le sport a des venues (toutes sous le seuil, ex.
+  // cross_country / wellness_retreat), on liste le scope non filtré → la page
+  // ne montre JAMAIS « No venue » quand des spots existent.
+  if ((!data || data.length === 0) && page === 1 && !anyFilter) {
+    const fb = await baseQuery()
+      .range(0, PAGE_SIZE - 1)
+      .order("venue_id", { ascending: true });
+    if (!fb.error && fb.data && fb.data.length > 0) {
+      data = fb.data;
+      count = fb.count;
+    }
+  }
 
   const venues = ((data as VenueRow[]) ?? []).map((v) => ({
     id: v.venue_id,
