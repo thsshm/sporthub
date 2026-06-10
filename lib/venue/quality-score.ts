@@ -16,6 +16,8 @@
 
 /** Sous-ensemble structurel de `VenueDetail` nécessaire au scoring. */
 export type ScorableVenue = {
+  /** Nom affiché — sert à la pénalité « organisation, pas une installation » (#588). */
+  name?: string | null;
   address?: string | null;
   city_id?: string | null;
   city_name?: string | null;
@@ -59,6 +61,83 @@ function hasText(v: string | null | undefined): boolean {
   return typeof v === "string" && v.trim().length > 0;
 }
 
+/** minuscule + sans accents — comparaison de mots robuste (même approche que
+ * scripts/etl/cleaning.py). */
+function normName(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * Termes signalant une ORGANISATION (fédération, instance, administration) et
+ * non une installation où s'entraîner (#588 — pages gym polluées par
+ * « Ligue … de gymnastique », « Comité départemental … », districts, etc.).
+ * Conservateur : termes peu ambigus uniquement, matchés à frontière de mot.
+ */
+const ORG_SIGNALS = [
+  "federation",
+  "ligue",
+  "comite",
+  "district",
+  "office municipal",
+  "office des sports",
+  "conseil departemental",
+  "conseil regional",
+  "conseil general",
+  "direction departementale",
+  "communaute de communes",
+  "syndicat intercommunal",
+  "ufolep",
+  "usep",
+] as const;
+
+/**
+ * Termes d'INSTALLATION qui neutralisent la pénalité org : « Salle de la
+ * Ligue », « District Fitness » (enseigne)… sont de vrais lieux d'entraînement.
+ */
+const FACILITY_SIGNALS = [
+  "salle",
+  "gymnase",
+  "studio",
+  "dojo",
+  "halle",
+  "complexe",
+  "stade",
+  "court",
+  "courts",
+  "terrain",
+  "piscine",
+  "fitness",
+  "gym",
+  "musculation",
+  "crossfit",
+] as const;
+
+const wordRe = (term: string) =>
+  new RegExp(`(?<![a-z])${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z])`);
+const ORG_PATTERNS = ORG_SIGNALS.map(wordRe);
+const FACILITY_PATTERNS = FACILITY_SIGNALS.map(wordRe);
+
+/**
+ * true si le nom désigne une organisation/instance (fédération, ligue,
+ * comité…) SANS signal d'installation. Ces entités ne sont pas des lieux où
+ * s'entraîner → à déprioriser des listes SEO (#588).
+ */
+export function isOrganizationName(name: string | null | undefined): boolean {
+  if (!hasText(name)) return false;
+  const n = normName(name as string);
+  if (!ORG_PATTERNS.some((p) => p.test(n))) return false;
+  return !FACILITY_PATTERNS.some((p) => p.test(n));
+}
+
+/** Pénalité appliquée au score quand le nom signale une organisation (#588).
+ * Assez forte pour faire passer un squelette org sous LOW_QUALITY_THRESHOLD
+ * (exclu des listes), tout en laissant visible — mais dépriorisée — une fiche
+ * org très complète (adresse + contact + contenu). */
+export const ORGANIZATION_PENALTY = 30;
+
 /** Score de qualité 0–100 (entier). */
 export function venueQualityScore(venue: ScorableVenue): number {
   const e = venue.enrichments ?? undefined;
@@ -78,7 +157,12 @@ export function venueQualityScore(venue: ScorableVenue): number {
   if (venue.claim_status === "verified") score += WEIGHTS.verified;
   if (hasText(venue.primary_sport_slug)) score += WEIGHTS.sport;
 
-  return Math.min(100, score);
+  // Pénalité « organisation, pas une installation » (#588) : les fédérations/
+  // ligues/comités descendent dans le ranking (#563) et, squelettes, passent
+  // sous le seuil noindex/liste (#464). Jamais sous 0.
+  if (isOrganizationName(venue.name)) score -= ORGANIZATION_PENALTY;
+
+  return Math.max(0, Math.min(100, score));
 }
 
 /** true si la fiche est trop pauvre pour être indexée. */
