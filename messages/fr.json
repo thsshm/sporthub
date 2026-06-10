@@ -382,10 +382,10 @@
   },
   "developers": {
     "metaTitle": "API SportHub — bientôt | Sport Hub",
-    "metaDescription": "Une API REST et des vector tiles pour interroger 250 000+ spots sportifs en données ouvertes. En préparation — demande l'accès anticipé.",
+    "metaDescription": "Une API REST et des vector tiles pour interroger {count} spots sportifs en données ouvertes. En préparation — demande l'accès anticipé.",
     "title": "API SportHub",
     "statusBadge": "En préparation",
-    "intro": "250 000+ spots sportifs agrégés depuis des sources ouvertes (OpenStreetMap, RES, Wikidata, Overture). Une API publique est en préparation pour que tu construises dessus.",
+    "intro": "{count} spots sportifs agrégés depuis des sources ouvertes (OpenStreetMap, RES, Wikidata, Overture). Une API publique est en préparation pour que tu construises dessus.",
     "plannedHeading": "Ce que l'API permettra",
     "planned1": "Rechercher des lieux par sport, ville ou zone géographique (bounding box).",
     "planned2": "Des vector tiles prêtes à l'emploi pour afficher les spots sur ta propre carte.",
