@@ -566,6 +566,24 @@ class SupabaseRest:
             )
         return len(venue_ids)
 
+    def reset_family(self, family_slug: str) -> None:
+        """Vide les clubs d'une famille AVANT re-clustering (option --reset, #497).
+
+        Ordre imposé par la FK venue.club_id → club.id :
+          1. PATCH venue SET club_id = NULL WHERE family_slug = X
+          2. DELETE club          WHERE family_slug = X
+        Idempotent (relançable). En dry-run : log sans écrire.
+        """
+        log = logging.getLogger(__name__)
+        if self.dry_run:
+            log.info("[dry-run] reset %s : DELETE club + NULL venue.club_id", family_slug)
+            return
+        qs = urllib.parse.urlencode({"family_slug": f"eq.{family_slug}"})
+        log.info("Reset %s : NULL venue.club_id…", family_slug)
+        self._req("PATCH", f"/venue?{qs}", body={"club_id": None}, prefer="return=minimal")
+        log.info("Reset %s : DELETE club…", family_slug)
+        self._req("DELETE", f"/club?{qs}", prefer="return=minimal")
+
     def import_clubs_batched(
         self, clubs: list[dict[str, Any]], batch_size: int = 250
     ) -> int:
@@ -639,6 +657,14 @@ def run(args: argparse.Namespace) -> int:
 
     for family in families:
         log.info("=== Famille : %s ===", family)
+
+        # 0. Reset optionnel (--reset) : repart d'une base propre AVANT de
+        # re-clusteriser. Indispensable pour RENOMMER des clubs déjà créés —
+        # import_clubs est ON CONFLICT slug DO NOTHING (ne met pas à jour un club
+        # existant) et venue.club_id n'est relié que s'il est NULL. Sans reset,
+        # un re-run ne corrige donc pas les noms (#497).
+        if args.reset and not is_dummy:
+            sb.reset_family(family)
 
         # 1. Chargement des venues
         if is_dummy:
@@ -764,6 +790,13 @@ Exemples
         type=int,
         default=None,
         help="Limite N venues par famille (smoke test).",
+    )
+    p.add_argument(
+        "--reset",
+        action="store_true",
+        help="Avant de clusteriser, vide les clubs de la/les famille(s) ciblée(s) "
+        "(DELETE club + NULL venue.club_id) pour repartir propre et RENOMMER les "
+        "clubs existants (#497). Sans effet en dry-run.",
     )
     p.add_argument(
         "--verbose", "-v",
