@@ -13,6 +13,7 @@ import {
   type ScorableVenue,
 } from "@/lib/venue/quality-score";
 import { getVisibleVenueCount } from "@/lib/venue/visible-count";
+import { isSportMismatch, sinkMismatches } from "@/lib/venue/sport-mismatch";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -195,8 +196,15 @@ async function fetchScopeVenues(
   scope.sort(
     (a, b) => venueQualityScore(b) - venueQualityScore(a) || a.id.localeCompare(b.id),
   );
-  const indexable = scope.filter((v) => !isLowQualityVenue(v));
-  return { indexable, scope };
+  // Exclusion des noms contradictoires (#553) : « piscine », « salle de
+  // musculation du tennis club »… ne se listent pas sur une page mono-sport,
+  // même bien notés (la carte reste exhaustive). Dans le fallback `scope`
+  // (page thin #551), on ne supprime pas : on RELÈGUE en fin — la page reste
+  // honnête/complète, les douteux ne sont plus des résultats prioritaires.
+  const indexable = scope.filter(
+    (v) => !isLowQualityVenue(v) && !isSportMismatch(v.name, sportSlug),
+  );
+  return { indexable, scope: sinkMismatches(scope, sportSlug) };
 }
 
 /** Demi-côté de la bbox « à proximité » (~0.7° ≈ 60-80 km selon latitude). */
