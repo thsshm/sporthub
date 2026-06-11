@@ -216,8 +216,25 @@ def build_overpass_query(
 
 # ── Overpass fetch ─────────────────────────────────────────────────────────────
 
+class OverpassTimeout(Exception):
+    """La requête a dépassé le timeout côté serveur Overpass.
+
+    Cas insidieux (#646) : Overpass renvoie alors HTTP 200 avec
+    `elements: []` ET un champ `remark` (« runtime error: Query timed out … »).
+    Sans le détecter, `leisure=marina` sur la France entière (≈ 60-73 s) ressort
+    « 0 élément » comme un vide LÉGITIME → la réconciliation soft-delete les
+    marinas existantes (54 perdues au run 27347551130). On lève donc cette
+    exception pour (a) ne jamais traiter ce 0 comme un vide réel, (b) laisser
+    `fetch_tag_elements` redécouper la bbox en tuiles plus petites.
+    """
+
+
 def fetch_overpass(query: str, retries: int = 3) -> list[dict]:
-    """Requête Overpass avec retry (rate-limit 429 → backoff 60s)."""
+    """Requête Overpass avec retry (rate-limit 429 → backoff 60s).
+
+    Lève `OverpassTimeout` si le serveur signale un timeout/dépassement mémoire
+    (remark) — non retryé ici : c'est au tiler de redécouper la bbox.
+    """
     data = urllib.parse.urlencode({"data": query}).encode()
     last_exc: Exception | None = None
     for attempt in range(retries):
@@ -233,8 +250,18 @@ def fetch_overpass(query: str, retries: int = 3) -> list[dict]:
             )
             with urllib.request.urlopen(req, timeout=120) as resp:
                 payload = json.loads(resp.read())
-                return payload.get("elements", [])
+                elements = payload.get("elements", [])
+                # Timeout serveur : 200 + elements vides + remark explicite.
+                remark = (payload.get("remark") or "").lower()
+                if not elements and ("timed out" in remark or "out of memory" in remark):
+                    raise OverpassTimeout(payload.get("remark", "timeout"))
+                return elements
+        except OverpassTimeout:
+            raise  # surtout pas de retry/backoff : le tiler doit redécouper.
         except urllib.error.HTTPError as e:
+            # 504 Gateway Timeout = timeout Overpass côté gateway → idem.
+            if e.code == 504:
+                raise OverpassTimeout(f"HTTP 504 ({query[:40]}…)") from e
             if e.code == 429:
                 wait = 60 * (attempt + 1)
                 print(f"    ⏳ rate-limit Overpass — attente {wait}s …", flush=True)
@@ -246,6 +273,71 @@ def fetch_overpass(query: str, retries: int = 3) -> list[dict]:
             last_exc = e
             time.sleep(5 * (attempt + 1))
     raise RuntimeError(f"Overpass échec après {retries} tentatives") from last_exc
+
+
+def split_bbox(
+    bbox: tuple[float, float, float, float],
+    rows: int,
+    cols: int,
+) -> list[tuple[float, float, float, float]]:
+    """Découpe une bbox (S, W, N, E) en `rows`×`cols` tuiles contiguës.
+
+    Pattern « densifier la grille » (#345/#646) : une grosse requête Overpass
+    qui timeoute est rejouée sur des tuiles plus petites. Pur, testable.
+    """
+    s, w, n, e = bbox
+    dlat = (n - s) / rows
+    dlon = (e - w) / cols
+    tiles: list[tuple[float, float, float, float]] = []
+    for i in range(rows):
+        for j in range(cols):
+            tiles.append((s + i * dlat, w + j * dlon, s + (i + 1) * dlat, w + (j + 1) * dlon))
+    return tiles
+
+
+def _fetch_one(tag_key: str, tag_value: str, bbox: tuple[float, float, float, float]) -> list[dict]:
+    """Une requête Overpass pour un tag dans une bbox (peut lever OverpassTimeout)."""
+    return fetch_overpass(build_overpass_query(tag_key, tag_value, bbox))
+
+
+def fetch_tag_elements(
+    tag_key: str,
+    tag_value: str,
+    bbox: tuple[float, float, float, float],
+    *,
+    max_depth: int = 2,
+    _depth: int = 0,
+    fetch_one=_fetch_one,
+) -> tuple[list[dict], bool]:
+    """Récupère les éléments d'un tag dans une bbox, en redécoupant sur timeout.
+
+    Sur `OverpassTimeout`, subdivise la bbox en 2×2 et rejoue chaque tuile
+    (récursif jusqu'à `max_depth` → 16 tuiles max). Renvoie (elements, ok) :
+    `ok=False` si une tuile timeoute ENCORE à profondeur max — le caller doit
+    alors considérer le fetch comme incomplet (pas de soft-delete). `fetch_one`
+    est injectable pour les tests (sans réseau).
+    """
+    try:
+        return fetch_one(tag_key, tag_value, bbox), True
+    except OverpassTimeout:
+        if _depth >= max_depth:
+            # Plus de subdivision possible → fetch incomplet, on le signale.
+            return [], False
+        print(
+            f"    ↳ timeout {tag_key}={tag_value} sur bbox → redécoupe 2×2 "
+            f"(profondeur {_depth + 1})",
+            flush=True,
+        )
+        merged: list[dict] = []
+        ok_all = True
+        for tile in split_bbox(bbox, 2, 2):
+            els, ok = fetch_tag_elements(
+                tag_key, tag_value, tile,
+                max_depth=max_depth, _depth=_depth + 1, fetch_one=fetch_one,
+            )
+            merged.extend(els)
+            ok_all = ok_all and ok
+        return merged, ok_all
 
 
 # ── Mapping Overpass → VenueRecord ────────────────────────────────────────────
@@ -330,14 +422,26 @@ def fetch_family_records(
         if limit and len(records) >= limit:
             break
         family_slug, sport_slug = TAG_MAP[(tag_key, tag_value)]
-        q = build_overpass_query(tag_key, tag_value, bbox)
         print(f"    ▶ Overpass {tag_key}={tag_value} …", flush=True)
         try:
-            elements = fetch_overpass(q)
+            # Fetch adaptatif (#646) : redécoupe la bbox en tuiles si la requête
+            # timeoute (ex. leisure=marina sur la France entière). `ok=False` =
+            # tuile encore en timeout à profondeur max → fetch incomplet.
+            elements, ok = fetch_tag_elements(tag_key, tag_value, bbox)
         except Exception as e:  # noqa: BLE001
             print(f"    ⚠ erreur Overpass {tag_key}={tag_value}: {e}", flush=True)
             fetch_failures += 1
             continue
+        if not ok:
+            # On garde les éléments récupérés (upsert partiel = on RESTAURE ce
+            # qu'on peut) mais on marque le fetch incomplet → réconciliation
+            # sautée (jamais soft-delete sur données partielles, cf. #97).
+            print(
+                f"    ⚠ {tag_key}={tag_value}: fetch incomplet (timeout persistant "
+                f"sur une tuile) → réconciliation sautée",
+                flush=True,
+            )
+            fetch_failures += 1
 
         for el in elements:
             r = element_to_record(el, family_slug, sport_slug)
@@ -526,6 +630,36 @@ def self_test() -> int:
     for country, (s, w, n, e) in COUNTRY_BBOXES.items():
         assert s < n, f"{country}: S >= N"
         assert w < e, f"{country}: W >= E"
+
+    # split_bbox (#646) : couvre la bbox sans trou ni débordement
+    fr = (41.3, -5.1, 51.1, 9.6)
+    tiles = split_bbox(fr, 2, 2)
+    assert len(tiles) == 4, f"2×2 → 4 tuiles, eu {len(tiles)}"
+    for s, w, n, e in tiles:
+        assert s < n and w < e, "tuile invalide"
+    # union des tuiles = bbox d'origine (coins extrêmes)
+    assert min(t[0] for t in tiles) == fr[0] and max(t[2] for t in tiles) == fr[2]
+    assert min(t[1] for t in tiles) == fr[1] and max(t[3] for t in tiles) == fr[3]
+    assert len(split_bbox(fr, 3, 4)) == 12
+
+    # fetch_tag_elements : sur timeout d'une grosse bbox, redécoupe et fusionne.
+    # Fake fetcher (sans réseau) : timeout si l'aire dépasse un seuil, sinon 1 él.
+    def fake_fetch(_tk, _tv, bb):
+        s, w, n, e = bb
+        if (n - s) * (e - w) > 50.0:  # bbox large → timeout simulé (FR ≈ 144)
+            raise OverpassTimeout("simulated")
+        return [{"type": "node", "id": 1, "lat": (s + n) / 2, "lon": (w + e) / 2}]
+
+    els, ok = fetch_tag_elements("leisure", "marina", fr, fetch_one=fake_fetch)
+    assert ok is True, "tiling aurait dû réussir sous le seuil"
+    assert len(els) == 4, f"4 tuiles sous le seuil → 4 éléments, eu {len(els)}"
+
+    # Timeout persistant même à profondeur max → ok=False (fetch incomplet)
+    def always_timeout(_tk, _tv, _bb):
+        raise OverpassTimeout("always")
+
+    els2, ok2 = fetch_tag_elements("leisure", "marina", fr, max_depth=1, fetch_one=always_timeout)
+    assert ok2 is False and els2 == [], "timeout persistant → (vide, ok=False)"
 
     print("✓ osm_import self-test OK")
     return 0
