@@ -1,0 +1,40 @@
+name: Reload PostgREST schema
+
+# Envoie `NOTIFY pgrst, 'reload schema'` à la base pour débloquer PostgREST
+# quand il reste coincé en PGRST002 (« Could not query the database for the
+# schema cache »). Non destructif. Secret : SUPABASE_DB_PASSWORD (déjà présent).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: reload-postgrest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  reload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: NOTIFY pgrst reload schema
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "::error::Secret SUPABASE_DB_PASSWORD manquant." >&2
+            exit 1
+          fi
+          pip install psycopg2-binary --quiet
+          python3 scripts/reload_postgrest.py
