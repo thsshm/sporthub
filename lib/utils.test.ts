@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appleMapsUrl,
+  chunk,
   cn,
   formatCount,
   googleMapsUrl,
@@ -111,5 +112,33 @@ describe("whatsappShareUrl", () => {
   it("encode les caractères spéciaux", () => {
     const url = whatsappShareUrl("café & co", "https://x.com");
     expect(url).toContain("caf%C3%A9");
+  });
+});
+
+describe("chunk", () => {
+  it("découpe en lots de taille max", () => {
+    expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+  });
+
+  it("renvoie un seul lot si size >= longueur", () => {
+    expect(chunk([1, 2, 3], 10)).toEqual([[1, 2, 3]]);
+  });
+
+  it("renvoie [] pour un tableau vide", () => {
+    expect(chunk([], 3)).toEqual([]);
+  });
+
+  it("couvre tous les éléments sans perte ni doublon (régression #633)", () => {
+    // 890 = densité réelle de gym×Paris qui faisait déborder l'URL du .in().
+    const ids = Array.from({ length: 890 }, (_, i) => i);
+    const batches = chunk(ids, 100);
+    expect(batches).toHaveLength(9);
+    expect(batches.every((b) => b.length <= 100)).toBe(true);
+    expect(batches.flat()).toEqual(ids);
+  });
+
+  it("rejette une taille non positive", () => {
+    expect(() => chunk([1], 0)).toThrow();
+    expect(() => chunk([1], -1)).toThrow();
   });
 });

@@ -53,7 +53,9 @@ const POPULATED_PAGES = [
   "/en/gym/fr/lyon",
   // Extension #634 : URLs de l'audit produit (régression #633 vécue sur
   // gym/paris — total par APPARTENANCE (MV) > 0 mais liste fetchée par
-  // primary_sport_slug vide → « No address » avec « 890 total »).
+  // primary_sport_slug vide → « No address » avec « 890 total »). Le fix #633
+  // batche le filtre `.in(ids)` de fetchScopeVenues (URL GET débordait sur les
+  // villes denses) → ces URLs gardent contre la régression.
   "/en/tennis/fr/lyon",
   "/en/gym/fr/paris",
   "/en/gym/fr/toulouse",
