@@ -20,6 +20,7 @@
     "ctaDiscoverSports": "Découvrir les sports",
     "familiesTitle": "Explorer par famille",
     "familiesSubtitle": "13 familles de sport · cliquez sur une famille ou un sport",
+    "topSportsTitle": "Sports populaires",
     "spotsCount": "{count, plural, =0 {à venir} one {1 spot} other {{count} spots}}",
     "comingSoon": "à venir",
     "dataSourcesTitle": "Données ouvertes",

@@ -55,7 +55,24 @@ export default async function HomePage({
         <p className="mt-1 text-sm text-muted-foreground">
           {t("familiesSubtitle")}
         </p>
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
+        {/* Accès direct aux sports populaires (#610) — le visiteur trouve son
+            sport sans devoir scanner les 13 familles ; le détail suit dessous. */}
+        <nav className="mt-5 flex flex-wrap gap-2" aria-label={t("topSportsTitle")}>
+          {(["tennis", "padel", "gym", "yoga", "football", "surf"] as const).map(
+            (s) => (
+              <Link
+                key={s}
+                href={`/sports/${s}`}
+                className="rounded-full border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-foreground"
+              >
+                {tSports(s)}
+              </Link>
+            ),
+          )}
+        </nav>
+
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {FAMILIES.map((family) => {
             const count = counts[family.slug] ?? 0;
             // Seuil "data significative" : sous 10 venues on traite la famille
