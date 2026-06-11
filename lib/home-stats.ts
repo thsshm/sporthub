@@ -54,6 +54,12 @@ export async function getTotalSpots(): Promise<number> {
 // ─── Recherches populaires (sport × ville) — #462 ──────────────────────────
 
 export type PopularCombo = { sport: string; citySlug: string; cityLabel: string };
+/** Combo + son nombre de lieux fiables (affiché sur la home, #614). */
+export type PopularComboWithCount = PopularCombo & { count: number };
+
+/** Au-delà de ce nombre de lieux fiables, le combo porte un badge « couverture
+ * élevée » (#614) — signal de confiance « beaucoup de spots ici ». */
+export const HIGH_COVERAGE_FOR_POPULAR = 40;
 
 /** Seuil minimum de lieux pour qu'un combo sport×ville soit affiché sur la home.
  * En dessous, la page programmatique est trop maigre (« No address ») → on la
@@ -88,8 +94,10 @@ const POPULAR_CANDIDATES: PopularCombo[] = [
 export function keepPopularCombos(
   withCount: { combo: PopularCombo; count: number }[],
   min: number,
-): PopularCombo[] {
-  return withCount.filter((x) => x.count >= min).map((x) => x.combo);
+): PopularComboWithCount[] {
+  return withCount
+    .filter((x) => x.count >= min)
+    .map((x) => ({ ...x.combo, count: x.count }));
 }
 
 /**
@@ -103,7 +111,7 @@ export function keepPopularCombos(
  * static + unstable_cache → la home reste ISR.
  */
 export const getPopularCombos = unstable_cache(
-  async (): Promise<PopularCombo[]> => {
+  async (): Promise<PopularComboWithCount[]> => {
     const sb = getSupabaseStaticClient();
     const citySlugs = [...new Set(POPULAR_CANDIDATES.map((c) => c.citySlug))];
     const { data: cities } = await sb
