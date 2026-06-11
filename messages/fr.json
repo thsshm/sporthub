@@ -158,7 +158,7 @@
     "exploreOthers": "Explorer les autres sports",
     "previous": "← Précédent",
     "next": "Suivant →",
-    "mapHint": "Carte interactive — pan/zoom recharge les venues {sport} du viewport (jusqu'à 2 000).",
+    "mapHint": "Déplacez la carte pour découvrir plus de lieux de {sport} dans cette zone. Astuce : zoomez pour des résultats plus précis.",
     "listModeAll": "Tous les venues",
     "listModeViewport": "Dans cette vue ({count})",
     "viewportHint": "La liste suit la carte — déplacez-la pour découvrir d'autres venues.",
@@ -312,7 +312,7 @@
     "myLocationDenied": "Géolocalisation refusée par le navigateur.",
     "myLocationUnavailable": "Position indisponible. Réessaie ou cherche manuellement.",
     "autoUpdate": "Mise à jour auto",
-    "autoUpdateHint": "Recharge les spots à chaque pan/zoom",
+    "autoUpdateHint": "Mettre à jour les lieux quand je déplace la carte",
     "searchInThisArea": "Rechercher dans cette zone",
     "emptyState": {
       "zoomTooLowTitle": "Zoomez sur une zone",

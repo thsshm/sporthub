@@ -158,7 +158,7 @@
     "exploreOthers": "Explore other sports",
     "previous": "← Previous",
     "next": "Next →",
-    "mapHint": "Interactive map — pan/zoom reloads the {sport} venues in view (up to 2 000).",
+    "mapHint": "Move the map to discover more {sport} venues in this area. Tip: zoom in for more precise results.",
     "listModeAll": "All venues",
     "listModeViewport": "In this view ({count})",
     "viewportHint": "The list follows the map — move it to discover other venues.",
@@ -312,7 +312,7 @@
     "myLocationDenied": "Location access denied by browser.",
     "myLocationUnavailable": "Location unavailable. Try again or search manually.",
     "autoUpdate": "Auto-update",
-    "autoUpdateHint": "Reload spots on every pan/zoom",
+    "autoUpdateHint": "Update venues as I move the map",
     "searchInThisArea": "Search this area",
     "emptyState": {
       "zoomTooLowTitle": "Zoom in on an area",
