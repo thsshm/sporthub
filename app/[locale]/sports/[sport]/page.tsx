@@ -216,8 +216,22 @@ async function fetchVenues(
   // (« tennis » sur /padel, loisir…) relégués, ordre qualité préservé par rang.
   // applyQuality exclut en plus les contradictions dures (#553) ; le fallback ne
   // fait que reléguer. Démotion avant exclusion.
+  // #607 : provenance pour le badge de confiance sur les cards. `source` n'est
+  // PAS dans la MV `mv_venue_sport_search` → 2e requête légère sur `venue` (≤
+  // PAGE_SIZE ids déjà paginés), même pattern 2-temps que la page ville. Best-
+  // effort : en cas d'erreur, on n'affiche simplement pas le badge.
+  const ids = mapped.map((v) => v.id);
+  const sourceById = new Map<string, string | null>();
+  if (ids.length > 0) {
+    const { data: srcRows } = await sb.from("venue").select("id, source").in("id", ids);
+    for (const r of (srcRows as { id: string; source: string | null }[] | null) ?? []) {
+      sourceById.set(r.id, r.source);
+    }
+  }
+  const enriched = mapped.map((v) => ({ ...v, source: sourceById.get(v.id) ?? null }));
+
   const venues = sinkMismatches(
-    applyQuality ? mapped.filter((v) => !isSportMismatch(v.name, sportSlug)) : mapped,
+    applyQuality ? enriched.filter((v) => !isSportMismatch(v.name, sportSlug)) : enriched,
     sportSlug,
   );
   return { venues, total: count ?? 0 };
