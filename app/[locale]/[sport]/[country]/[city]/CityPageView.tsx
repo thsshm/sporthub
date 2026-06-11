@@ -14,6 +14,7 @@ import {
 } from "@/lib/venue/quality-score";
 import { getVisibleVenueCount } from "@/lib/venue/visible-count";
 import { isSportMismatch, sinkMismatches } from "@/lib/venue/sport-mismatch";
+import { groupCourtRecords } from "@/lib/venue/group-courts";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -208,7 +209,12 @@ async function fetchScopeVenues(
   }
   if (rows.length === 0) return { indexable: [], scope: [] };
 
-  const scope: DisplayVenue[] = rows.map((v) => ({
+  // Regroupement court-level (#635) : « Court de Padel 1/2/3 », « Sportfield 16
+  // piste 1/2/3 »… sont collapsés en UNE card de club (nom + courts_count agrégé)
+  // AVANT scoring/tri/pagination, pour que la page liste des venues et non des
+  // pistes isolées. Display-only : la donnée brute n'est pas touchée (merge DB =
+  // #554). Conservateur : même source+sport+coords arrondies exigés.
+  const scope: DisplayVenue[] = groupCourtRecords(rows).map((v) => ({
     ...v,
     city_name: city.name,
     country_code: v.country_code ?? city.country_code ?? undefined,
