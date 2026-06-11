@@ -1008,7 +1008,9 @@ export default function MapClient({
           <Popup
             latitude={selectedClub.lat}
             longitude={selectedClub.lon}
-            anchor="bottom"
+            // Ancre dynamique (#649) : maplibre garde la popup dans le conteneur
+            // (bascule près d'un bord) au lieu de la couper. La popup club étant
+            // plus haute (liste de courts), c'est d'autant plus utile.
             onClose={() => setSelectedClub(null)}
             closeButton
             closeOnClick={false}
@@ -1067,7 +1069,11 @@ export default function MapClient({
               <Popup
                 latitude={selected.lat}
                 longitude={selected.lon}
-                anchor="bottom"
+                // Pas d'ancre forcée (#649) : maplibre choisit dynamiquement
+                // l'ancre pour que la carte reste DANS le conteneur (préférence
+                // « bottom » = ouverture vers le haut quand il y a la place, mais
+                // bascule vers le bas/les côtés près d'un bord). Avant, `anchor=
+                // "bottom"` figé coupait la fiche pour un pin près du bord haut.
                 onClose={() => setSelected(null)}
                 closeButton
                 closeOnClick={false}
