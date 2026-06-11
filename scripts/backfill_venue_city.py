@@ -316,6 +316,26 @@ def diag_page(args: argparse.Namespace) -> int:
             mv = len(mvrows)
         except Exception as exc:  # noqa: BLE001
             mv = f"erreur ({exc})"
+        # REPRODUIT EXACTEMENT getVisibleVenueCount : count=exact + head (#556).
+        # Sans index (sport_slug, city_id) ce COUNT(*) scanne tout le sport →
+        # timeout sur gym (140k) → erreur → la page affiche 0. On chronomètre.
+        headers = {"apikey": key, "Authorization": "Bearer " + key,
+                   "Prefer": "count=exact", "Range-Unit": "items", "Range": "0-0"}
+        path = (f"mv_venue_sport_search?select=venue_id&sport_slug=eq.{args.sport}"
+                f"&city_id=eq.{c['id']}")
+        t0 = time.monotonic()
+        try:
+            r = urllib.request.Request(url + "/rest/v1/" + path, headers=headers)
+            with urllib.request.urlopen(r, timeout=60) as resp:
+                cr = resp.headers.get("Content-Range", "?")
+                cnt_exact = f"{resp.status} Content-Range={cr}"
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "replace")[:200]
+            cnt_exact = f"ERREUR HTTP {e.code} : {body}"
+        except Exception as e:  # noqa: BLE001
+            cnt_exact = f"ERREUR {e}"
+        dt = time.monotonic() - t0
+        print(f"      → COUNT(*) exact (= getVisibleVenueCount) : {cnt_exact}  [{dt:.1f}s]")
         marker = "  ⟵ résolue par la page (1ʳᵉ par id.asc)" if i == 0 else ""
         print(f"  [{i}] id={c['id']} name={c['name']!r} "
               f"lat={c['lat']} lon={c['lon']} → table venue={n} | "
