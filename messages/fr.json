@@ -164,6 +164,7 @@
     "viewportHint": "La liste suit la carte — déplacez-la pour découvrir d'autres venues.",
     "mapVisibleOfTotal": "{visible} dans la vue · {total} au total",
     "mapInView": "{count} dans la vue",
+    "mapInArea": "{count} dans cette zone",
     "metaDescription": "Carte et liste des clubs et terrains de {sport} partout dans le monde — Sport Hub.",
     "popularCities": "Villes populaires"
   },
