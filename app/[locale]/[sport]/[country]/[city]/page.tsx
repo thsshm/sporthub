@@ -26,6 +26,7 @@ import {
 } from "@/lib/seo/metadata";
 import { sportActionKey } from "@/lib/seo/sport-action";
 import { formatCityName } from "@/lib/format-city";
+import { chunk } from "@/lib/utils";
 
 const PAGE_SIZE = 24;
 const SITE_URL = "https://sporthubmap.com";
@@ -166,20 +167,40 @@ async function fetchScopeVenues(
   if (mvError || !mvRows?.length) return { indexable: [], scope: [] };
   const ids = (mvRows as { venue_id: string }[]).map((r) => r.venue_id);
 
-  const { data, error } = await sb
-    .from("venue")
-    .select(
-      "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code, city_id, website_url, phone, description, claim_status, enrichments, source",
-    )
-    .in("id", ids)
-    // Garde de fraîcheur : la MV est rafraîchie hebdo — une venue dépubliée
-    // entre-temps ne doit pas réapparaître.
-    .eq("is_published", true)
-    .is("deleted_at", null);
+  // #633 — BATCHER le filtre `.in("id", ids)`. Une ville dense (gym×Paris ≈ 890
+  // venues) produisait une URL GET de plusieurs dizaines de Ko → 414/erreur
+  // PostgREST → `error` → scope vide → page « No address » alors que total > 0.
+  // On émet une requête par lot d'IDs (URL bornée) en parallèle, puis on fusionne.
+  // Résilient : un lot en échec est loggé sans vider toute la page. `source` =
+  // signal de provenance affiché sur la carte (#607).
+  const SELECT =
+    "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code, city_id, website_url, phone, description, claim_status, enrichments, source";
+  const batches = await Promise.all(
+    chunk(ids, 100).map((batch) =>
+      sb
+        .from("venue")
+        .select(SELECT)
+        .in("id", batch)
+        // Garde de fraîcheur : la MV est rafraîchie hebdo — une venue dépubliée
+        // entre-temps ne doit pas réapparaître.
+        .eq("is_published", true)
+        .is("deleted_at", null),
+    ),
+  );
+  const rows: VenueRow[] = [];
+  for (const b of batches) {
+    if (b.error) {
+      console.error(
+        `[fetchScopeVenues] sport=${sportSlug} city=${city.id} batch error → ` +
+          `${b.error.message ?? b.error.code ?? b.error}`,
+      );
+      continue;
+    }
+    if (b.data) rows.push(...(b.data as VenueRow[]));
+  }
+  if (rows.length === 0) return { indexable: [], scope: [] };
 
-  if (error || !data) return { indexable: [], scope: [] };
-
-  const scope: DisplayVenue[] = (data as VenueRow[]).map((v) => ({
+  const scope: DisplayVenue[] = rows.map((v) => ({
     ...v,
     city_name: city.name,
     country_code: v.country_code ?? city.country_code ?? undefined,

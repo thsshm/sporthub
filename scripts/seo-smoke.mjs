@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Smoke test SEO des pages publiques critiques (#587).
+ * Smoke test SEO des pages publiques critiques (#587, étendu #634).
  *
  * Détecte les régressions vécues (cf. #550/#551/#552/#556/#466) :
  *   - page sport « No venue » alors que le sport est peuplé ;
@@ -51,6 +51,14 @@ const POPULATED_PAGES = [
   // le COUNT(*) timeout → page vide en SILENCE. Garde-fou si un futur rebuild de la
   // MV oublie de recréer cet index (0056 l'avait DROP+CREATE).
   "/en/gym/fr/lyon",
+  // Extension #634 : URLs de l'audit produit (régression #633 vécue sur
+  // gym/paris — total par APPARTENANCE (MV) > 0 mais liste fetchée par
+  // primary_sport_slug vide → « No address » avec « 890 total »). Le fix #633
+  // batche le filtre `.in(ids)` de fetchScopeVenues (URL GET débordait sur les
+  // villes denses) → ces URLs gardent contre la régression.
+  "/en/tennis/fr/lyon",
+  "/en/gym/fr/paris",
+  "/en/gym/fr/toulouse",
 ];
 
 const failures = [];
@@ -101,6 +109,13 @@ async function checkPopulatedPage(path) {
   }
   if (html.includes(NO_VENUE)) fail(path, `affiche « ${NO_VENUE} » (sport réputé peuplé)`);
   if (html.includes(NO_ADDRESS)) fail(path, `affiche « ${NO_ADDRESS} » (ville réputée peuplée)`);
+  // #634 — check positif : au-delà de l'absence du message vide, la page doit
+  // RÉELLEMENT lister des venues (≥ 1 lien /venue/). Attrape une grille vide
+  // silencieuse (ex. fetch qui échoue → liste vide sans état « No address »,
+  // ou divergence count-par-appartenance vs liste-par-primary, régression #633).
+  if (!/href="[^"]*\/venue\//.test(html)) {
+    fail(path, "aucun lien /venue/ dans le HTML (liste vide alors que la page est réputée peuplée)");
+  }
   for (const stale of STALE_COUNTS) {
     if (html.includes(stale)) fail(path, `compteur périmé hardcodé « ${stale} »`);
   }
