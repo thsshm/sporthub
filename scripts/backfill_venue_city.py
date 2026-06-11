@@ -304,9 +304,22 @@ def diag_page(args: argparse.Namespace) -> int:
             last_id = chunk[-1]["id"]
             if len(chunk) < 1000:
                 break
+        # Ce que la PAGE lit réellement : mv_venue_sport_search (pas la table venue).
+        # Si l'écart venue↔MV est grand → MV périmée (refresh hebdo en retard).
+        mv = 0
+        try:
+            mvrows = json.loads(req(
+                url, key,
+                path=(f"mv_venue_sport_search?select=venue_id&sport_slug=eq.{args.sport}"
+                      f"&city_id=eq.{c['id']}&limit=10000"),
+            ))
+            mv = len(mvrows)
+        except Exception as exc:  # noqa: BLE001
+            mv = f"erreur ({exc})"
         marker = "  ⟵ résolue par la page (1ʳᵉ par id.asc)" if i == 0 else ""
         print(f"  [{i}] id={c['id']} name={c['name']!r} "
-              f"lat={c['lat']} lon={c['lon']} → {n} venues {args.sport}{marker}")
+              f"lat={c['lat']} lon={c['lon']} → table venue={n} | "
+              f"MV (ce que lit la page)={mv}{marker}")
     if len(rows) > 1:
         print("\n  ⚠ DOUBLON détecté : plusieurs lignes city pour ce slug. La page "
               "n'en lit qu'une → si la data pend sur une autre, page vide.")
