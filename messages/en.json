@@ -147,6 +147,10 @@
   },
   "sport": {
     "venuesIndexed": "{count, plural, =0 {No venue} one {1 venue indexed} other {{count} venues indexed}}",
+    "heroSubtitle": "Find {sport} clubs and courts near you",
+    "ctaNearMe": "Near me",
+    "ctaLocating": "Locating…",
+    "ctaOpenMap": "Open map",
     "page": "page {current} / {total}",
     "emptyMessage": "No venue for this sport yet.",
     "exploreOthers": "Explore other sports",

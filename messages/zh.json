@@ -147,6 +147,10 @@
   },
   "sport": {
     "venuesIndexed": "{count, plural, =0 {无场所} other {已收录 {count} 个场所}}",
+    "heroSubtitle": "在你附近找到{sport}俱乐部和场地",
+    "ctaNearMe": "附近",
+    "ctaLocating": "定位中…",
+    "ctaOpenMap": "打开地图",
     "page": "第 {current} 页 / 共 {total} 页",
     "emptyMessage": "该运动暂无场所。",
     "exploreOthers": "浏览其他运动",

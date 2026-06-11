@@ -9,6 +9,7 @@ import { LOW_QUALITY_THRESHOLD } from "@/lib/venue/quality-score";
 import { isSportMismatch, sinkMismatches } from "@/lib/venue/sport-mismatch";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportVenuesSection } from "./SportVenuesSection";
+import { SportPageCtaBar } from "./SportPageCtaBar";
 import type { VenuePin } from "@/lib/supabase/types";
 import {
   buildBreadcrumbJsonLd,
@@ -339,9 +340,14 @@ export default async function SportPage({ params, searchParams }: Props) {
           <span aria-hidden="true">{sport.emoji || family?.emoji}</span>
           {sportName}
         </h1>
-        {/* Première vue : compteur seul, sans pagination technique (#604).
-            La navigation par page reste en bas de liste (vraie nav prev/suiv). */}
-        <p className="mt-2 text-muted-foreground">
+        <p className="mt-2 text-base text-muted-foreground">
+          {t("heroSubtitle", { sport: sportName.toLowerCase() })}
+        </p>
+        {/* CTAs — "Near me" (geolocation, client) + "Open map" link (#603). */}
+        <SportPageCtaBar />
+        {/* Compteur seul, sans pagination technique (#604) — la navigation par
+            page reste en bas de liste (vraie nav prev/suiv). */}
+        <p className="mt-4 text-sm text-muted-foreground">
           {t("venuesIndexed", { count: displayTotal })}
         </p>
       </header>
