@@ -1,6 +1,8 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { ChevronDown } from "lucide-react";
 import { FAMILIES } from "@/lib/families";
 import { FamilySwitcher } from "@/app/[locale]/map/FamilySwitcher";
 
@@ -57,8 +59,11 @@ type Props = {
   className?: string;
 };
 
-/** Petit badge compteur aligné à droite d'une option de filtre (#279). */
+/** Petit badge compteur aligné à droite d'une option de filtre (#279).
+ * Nombre localisé (#641) : « 1,234 » sur /en, « 1 234 » sur /fr — le "fr-FR"
+ * en dur s'affichait sur toutes les locales. */
 function CountBadge({ counts, k }: { counts?: Record<string, number>; k: string }) {
+  const locale = useLocale();
   if (!counts) return null;
   const n = counts[k] ?? 0;
   return (
@@ -67,7 +72,7 @@ function CountBadge({ counts, k }: { counts?: Record<string, number>; k: string 
         n === 0 ? "text-muted-foreground/40" : "text-muted-foreground"
       }`}
     >
-      {n.toLocaleString("fr-FR")}
+      {n.toLocaleString(locale)}
     </span>
   );
 }
@@ -110,6 +115,13 @@ export function SportFilters({
     selectedCriteria.size > 0 ||
     selectedSurfaces.size > 0 ||
     !autoUpdate;
+
+  // Filtres avancés (critères + surfaces) repliés par défaut (#641) : le
+  // panneau affichait familles + critères + surfaces d'un coup (« interface
+  // d'admin »). Ouvert au mount UNIQUEMENT si l'un d'eux est déjà actif
+  // (deep-link ?indoor=1…) — on ne cache jamais un filtre qui influence la carte.
+  const advancedCount = selectedCriteria.size + selectedSurfaces.size;
+  const [advancedOpen, setAdvancedOpen] = useState(() => advancedCount > 0);
   const resetAll = () => {
     onChange(new Set(FAMILIES.map((f) => f.slug)));
     onCriteriaChange(new Set());
@@ -230,57 +242,86 @@ export function SportFilters({
         </ul>
       </div>
 
-      {/* Critères universels */}
-      <div className="flex flex-col gap-2 border-t pt-3">
-        <h3 className="text-sm font-semibold">{tMap("criteriaTitle")}</h3>
-        <ul className="space-y-0.5">
-          {CRITERIA.map((c) => {
-            const name = tFeat(c.key);
-            return (
-              <li key={c.key}>
-                <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent">
-                  <input
-                    type="checkbox"
-                    checked={selectedCriteria.has(c.key)}
-                    onChange={() => toggleCriterion(c.key)}
-                    className="h-3.5 w-3.5 cursor-pointer"
-                    aria-label={name}
-                  />
-                  <span aria-hidden="true">{c.emoji}</span>
-                  <span className="truncate">{name}</span>
-                  <CountBadge counts={criteriaCounts} k={c.key} />
-                </label>
-              </li>
-            );
-          })}
-        </ul>
+      {/* Disclosure « Plus de filtres » (#641) : critères + surfaces repliés
+          par défaut. aria-expanded pour l'accessibilité ; badge du nb de
+          filtres actifs quand replié — jamais de filtre actif masqué en silence. */}
+      <div className="border-t pt-3">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((o) => !o)}
+          aria-expanded={advancedOpen}
+          className="flex w-full items-center justify-between gap-2 rounded px-1.5 py-1 text-sm font-semibold hover:bg-accent"
+        >
+          <span>
+            {tMap("moreFilters")}
+            {!advancedOpen && advancedCount > 0 && (
+              <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+                {advancedCount}
+              </span>
+            )}
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 transition-transform ${advancedOpen ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
       </div>
 
-      {/* Surface des terrains (#99) — filtre RPC sur venue_sport.surface */}
-      <div className="flex flex-col gap-2 border-t pt-3">
-        <h3 className="text-sm font-semibold">{tSurface("title")}</h3>
-        <ul className="space-y-0.5">
-          {SURFACES.map((s) => {
-            const name = tSurface(s.key);
-            return (
-              <li key={s.key}>
-                <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent">
-                  <input
-                    type="checkbox"
-                    checked={selectedSurfaces.has(s.key)}
-                    onChange={() => toggleSurface(s.key)}
-                    className="h-3.5 w-3.5 cursor-pointer"
-                    aria-label={name}
-                  />
-                  <span aria-hidden="true">{s.emoji}</span>
-                  <span className="truncate">{name}</span>
-                  <CountBadge counts={surfaceCounts} k={s.key} />
-                </label>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      {advancedOpen && (
+        <>
+          {/* Critères universels */}
+          <div className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold">{tMap("criteriaTitle")}</h3>
+            <ul className="space-y-0.5">
+              {CRITERIA.map((c) => {
+                const name = tFeat(c.key);
+                return (
+                  <li key={c.key}>
+                    <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent">
+                      <input
+                        type="checkbox"
+                        checked={selectedCriteria.has(c.key)}
+                        onChange={() => toggleCriterion(c.key)}
+                        className="h-3.5 w-3.5 cursor-pointer"
+                        aria-label={name}
+                      />
+                      <span aria-hidden="true">{c.emoji}</span>
+                      <span className="truncate">{name}</span>
+                      <CountBadge counts={criteriaCounts} k={c.key} />
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Surface des terrains (#99) — filtre RPC sur venue_sport.surface */}
+          <div className="flex flex-col gap-2 border-t pt-3">
+            <h3 className="text-sm font-semibold">{tSurface("title")}</h3>
+            <ul className="space-y-0.5">
+              {SURFACES.map((s) => {
+                const name = tSurface(s.key);
+                return (
+                  <li key={s.key}>
+                    <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent">
+                      <input
+                        type="checkbox"
+                        checked={selectedSurfaces.has(s.key)}
+                        onChange={() => toggleSurface(s.key)}
+                        className="h-3.5 w-3.5 cursor-pointer"
+                        aria-label={name}
+                      />
+                      <span aria-hidden="true">{s.emoji}</span>
+                      <span className="truncate">{name}</span>
+                      <CountBadge counts={surfaceCounts} k={s.key} />
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </>
+      )}
 
       {/* Toggle mise à jour auto (recharge en pan/zoom) */}
       <div className="flex flex-col gap-1 border-t pt-3">

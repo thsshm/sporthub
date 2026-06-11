@@ -608,11 +608,11 @@ export function MapWithSearch({
       <button
         type="button"
         onClick={() => setMobileFiltersOpen(true)}
-        aria-label="Ouvrir les filtres"
+        aria-label={tMap("openFilters")}
         className="absolute left-4 top-4 z-20 flex items-center gap-1.5 rounded-md border bg-background/95 px-3 py-2 text-sm shadow-md backdrop-blur md:hidden"
       >
         <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-        Filtres
+        {tMap("filtersTitle")}
       </button>
 
       {/* Drawer filtres mobile */}
@@ -625,11 +625,11 @@ export function MapWithSearch({
           />
           <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-background shadow-lg">
             <div className="flex items-center justify-between border-b px-4 py-3">
-              <span className="text-sm font-semibold">Filtres familles</span>
+              <span className="text-sm font-semibold">{tMap("filtersTitle")}</span>
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(false)}
-                aria-label="Fermer les filtres"
+                aria-label={tMap("closeFilters")}
                 className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
