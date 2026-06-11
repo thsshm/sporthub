@@ -594,41 +594,43 @@ class SupabaseRest:
     def reset_family(self, family_slug: str, batch_size: int = 200) -> None:
         """Vide les clubs d'une famille AVANT re-clustering (option --reset, #497).
 
-        Ordre imposé par la FK venue.club_id → club.id :
-          1. NULL venue.club_id (venues de la famille qui pointent un club) ;
-          2. DELETE club WHERE family_slug = X.
+        **Piloté par les `id` de CLUBS** (table petite), PAS par les venues :
+        paginer les venues `family_slug=X AND club_id NOT NULL` triées par `id`
+        faisait scanner Postgres en travers (filtre sparse ≠ ordre id) →
+        statement_timeout 57014 sur les pages avancées (#572, 2 échecs prod).
 
-        **Batché par lots d'`id`** : un PATCH/DELETE monobloc sur ~47k venues
-        dépasse le statement_timeout Postgres (57014) — vécu en prod (#572,
-        reset raquette). Chaque lot reste court ; le retry HTTP de `_req` couvre
-        les 5xx transitoires. Idempotent. En dry-run : log sans écrire.
+        Pour chaque lot de clubs :
+          1. PATCH venue SET club_id=NULL WHERE club_id IN (lot)  ← index FK
+             venue.club_id → rapide, couvre les venues publiées ET non publiées ;
+          2. DELETE club WHERE id IN (lot).
+        Le seul GET paginé porte sur `club` (petite table → pas de timeout).
+        Idempotent. En dry-run : log sans écrire.
         """
         log = logging.getLogger(__name__)
         if self.dry_run:
-            log.info("[dry-run] reset %s : DELETE club + NULL venue.club_id (batché)", family_slug)
+            log.info("[dry-run] reset %s : détache venues + DELETE clubs (par lots de clubs)", family_slug)
             return
 
-        # 1) NULL club_id — uniquement les venues qui en ont un (moins d'écriture,
-        #    et lève la contrainte FK avant le DELETE des clubs).
-        venue_ids = self._paged_ids(
-            "/venue", {"family_slug": f"eq.{family_slug}", "club_id": "not.is.null"}
-        )
-        log.info(
-            "Reset %s : NULL club_id sur %d venues (lots de %d)…",
-            family_slug, len(venue_ids), batch_size,
-        )
-        for i in range(0, len(venue_ids), batch_size):
-            chunk = ",".join(venue_ids[i : i + batch_size])
-            qs = urllib.parse.urlencode({"id": f"in.({chunk})"})
-            self._req("PATCH", f"/venue?{qs}", body={"club_id": None}, prefer="return=minimal")
-
-        # 2) DELETE les clubs de la famille — batché par id (peut être ~10k).
         club_ids = self._paged_ids("/club", {"family_slug": f"eq.{family_slug}"})
-        log.info("Reset %s : DELETE %d clubs (lots de %d)…", family_slug, len(club_ids), batch_size)
+        log.info(
+            "Reset %s : %d clubs à vider (détache venues puis DELETE, lots de %d)…",
+            family_slug, len(club_ids), batch_size,
+        )
         for i in range(0, len(club_ids), batch_size):
-            chunk = ",".join(club_ids[i : i + batch_size])
-            qs = urllib.parse.urlencode({"id": f"in.({chunk})"})
-            self._req("DELETE", f"/club?{qs}", prefer="return=minimal")
+            quoted = ",".join(club_ids[i : i + batch_size])
+            # 1) Détache toute venue pointant un de ces clubs (lève la FK).
+            self._req(
+                "PATCH",
+                f"/venue?{urllib.parse.urlencode({'club_id': f'in.({quoted})'})}",
+                body={"club_id": None},
+                prefer="return=minimal",
+            )
+            # 2) Supprime ces clubs.
+            self._req(
+                "DELETE",
+                f"/club?{urllib.parse.urlencode({'id': f'in.({quoted})'})}",
+                prefer="return=minimal",
+            )
 
     def refresh_top_clubs_mv(self) -> None:
         """Rafraîchit mv_top_clubs_by_sport (RPC SECURITY DEFINER, migration 0038)
