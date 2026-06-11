@@ -490,6 +490,11 @@ export default async function ProgrammaticPage({ params, searchParams }: Props) 
                 })) as VenuePin[]
               }
               totalSportVenues={ctx.total}
+              cityCenter={
+                ctx.city.lat != null && ctx.city.lon != null
+                  ? { lat: ctx.city.lat, lon: ctx.city.lon }
+                  : undefined
+              }
             />
           </div>
 
