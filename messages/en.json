@@ -164,6 +164,7 @@
     "viewportHint": "The list follows the map — move it to discover other venues.",
     "mapVisibleOfTotal": "{visible} in view · {total} total",
     "mapInView": "{count} in view",
+    "mapInArea": "{count} in this area",
     "metaDescription": "Map and list of {sport} clubs and courts worldwide — Sport Hub.",
     "popularCities": "Popular cities"
   },

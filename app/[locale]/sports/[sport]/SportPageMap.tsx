@@ -197,14 +197,24 @@ export function SportPageMap({
         <span>{sportName}</span>
       </div>
 
-      {/* Compteur "N dans la vue / M au total" — i18n (#466 : était hardcodé EN). */}
+      {/* Compteur de la vue — i18n (#466 : était hardcodé EN).
+          #656 : sur une page sport×ville (cityCenter présent), la carte n'est PAS
+          bornée à la ville — elle montre l'aire métropolitaine du viewport, donc
+          `visibleCount` peut DÉPASSER le total ville (« 295 dans la vue · 160 au
+          total » = impossible). On bascule alors sur un libellé scope-zone
+          (« N dans cette zone ») : aucune comparaison à un total d'un autre
+          scope. Le compteur ville reste porté par le header de la liste. Sur la
+          page nationale (pas de cityCenter), total = total national et
+          in-view ≤ total → on garde « N dans la vue · M au total ». */}
       <div className="pointer-events-none absolute bottom-2 left-2 z-10 rounded bg-background/90 px-2 py-1 text-[11px] shadow backdrop-blur">
-        {totalSportVenues != null
-          ? tSport("mapVisibleOfTotal", {
-              visible: formatCount(visibleCount),
-              total: formatCount(totalSportVenues),
-            })
-          : tSport("mapInView", { count: formatCount(visibleCount) })}
+        {cityCenter
+          ? tSport("mapInArea", { count: formatCount(visibleCount) })
+          : totalSportVenues != null
+            ? tSport("mapVisibleOfTotal", {
+                visible: formatCount(visibleCount),
+                total: formatCount(totalSportVenues),
+              })
+            : tSport("mapInView", { count: formatCount(visibleCount) })}
       </div>
     </div>
   );
