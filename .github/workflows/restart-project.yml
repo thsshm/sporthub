@@ -1,0 +1,51 @@
+name: Restart Supabase project
+
+# Redémarre les services du projet Supabase (PostgREST, pooler, etc.) via la
+# Management API — pour les cas où la couche API du projet est coincée alors
+# que Postgres répond (vécu 2026-06-11 : après l'upgrade de plan, requêtes REST
+# suspendues → 504 sur toutes les pages SSR, alors que la connexion directe
+# CI ↔ Postgres marchait). Le dashboard étant lui-même inutilisable dans ces
+# moments-là, ce workflow est le bouton « Restart project » en CLI.
+#
+# ⚠️ Provoque ~1-2 min d'indisponibilité totale de la base (REST + direct).
+# À n'utiliser que quand l'API du projet est déjà HS.
+#
+# Secret requis : SUPABASE_ACCESS_TOKEN (déjà présent, cf. apply-migrations).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: db-restart
+  cancel-in-progress: false
+
+env:
+  SUPABASE_PROJECT_REF: qwfvcrisfmnrfzsrnjwn
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Restart via Management API
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          code=$(curl -s -o /tmp/out -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/restart")
+          echo "HTTP $code"
+          cat /tmp/out || true
+          case "$code" in
+            2*) echo "Restart demandé." ;;
+            *) echo "::error::Échec du restart (HTTP $code)"; exit 1 ;;
+          esac
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Restart Supabase project"
+            echo "- Projet : ${SUPABASE_PROJECT_REF}"
+            echo "- Résultat : ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
