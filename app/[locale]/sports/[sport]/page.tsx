@@ -343,8 +343,9 @@ export default async function SportPage({ params, searchParams }: Props) {
         <p className="mt-2 text-base text-muted-foreground">
           {t("heroSubtitle", { sport: sportName.toLowerCase() })}
         </p>
-        {/* CTAs — "Near me" (geolocation, client) + "Open map" link (#603). */}
-        <SportPageCtaBar />
+        {/* CTAs — "Near me" (geolocation, client) + "Open map" link (#603).
+            familySlug → la carte conserve le filtre famille du sport (#605). */}
+        <SportPageCtaBar familySlug={sport.family_slug} />
         {/* Compteur seul, sans pagination technique (#604) — la navigation par
             page reste en bas de liste (vraie nav prev/suiv). */}
         <p className="mt-4 text-sm text-muted-foreground">
