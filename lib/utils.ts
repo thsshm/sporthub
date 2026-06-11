@@ -57,3 +57,22 @@ export function wazeUrl(lat: number, lon: number): string {
 export function whatsappShareUrl(text: string, url: string): string {
   return `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
 }
+
+/**
+ * Découpe un tableau en lots de `size` éléments max.
+ *
+ * Usage clé (#633) : batcher un filtre PostgREST `.in("id", ids)` — une liste de
+ * plusieurs centaines d'UUID dans l'URL d'un GET dépasse la limite de longueur
+ * (≈ 8 KB côté Kong/PostgREST) → 414/erreur, donc page « No address » alors que
+ * des centaines de venues existent. On émet plutôt N requêtes bornées + fusion.
+ */
+export function chunk<T>(arr: readonly T[], size: number): T[][] {
+  if (!Number.isInteger(size) || size <= 0) {
+    throw new Error(`chunk: size must be a positive integer, got ${size}`);
+  }
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+}
