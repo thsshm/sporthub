@@ -158,7 +158,7 @@
     "exploreOthers": "浏览其他运动",
     "previous": "← 上一页",
     "next": "下一页 →",
-    "mapHint": "交互地图 — 拖动/缩放重新加载视图中的{sport}场所(最多 2 000 个)。",
+    "mapHint": "移动地图以发现该区域更多的{sport}场所。提示:放大可获得更精确的结果。",
     "listModeAll": "全部场所",
     "listModeViewport": "当前视图({count})",
     "viewportHint": "列表随地图变化 — 移动地图以查看其他场所。",
@@ -313,7 +313,7 @@
     "myLocationDenied": "浏览器拒绝定位权限。",
     "myLocationUnavailable": "无法获取位置。请重试或手动搜索。",
     "autoUpdate": "自动更新",
-    "autoUpdateHint": "拖动/缩放时自动重新加载场所",
+    "autoUpdateHint": "移动地图时更新场所",
     "searchInThisArea": "搜索此区域",
     "emptyState": {
       "zoomTooLowTitle": "请放大查看",
