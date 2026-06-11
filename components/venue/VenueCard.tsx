@@ -1,15 +1,26 @@
 /**
  * Card de venue pour les grilles et listes — Server Component.
- * Affiche nom, famille, ville, sports, lien vers la page détail.
+ *
+ * Hiérarchie (#606) : titre = nom, ligne localisation, chips sport, terrains
+ * (dé-emphasé), puis un footer d'actions. L'action principale « Itinéraire »
+ * (Google Maps) est toujours visible ; « Détails » = clic sur le corps de la
+ * carte ; « Signaler une erreur » reste secondaire (mailto, comme la fiche).
+ *
+ * ⚠️ Contrainte a11y : pas de <a> imbriqué dans un <a>. Le corps (header +
+ * content) est UN Link vers la fiche ; les actions du footer sont des <a>
+ * frères à l'intérieur de la Card, jamais à l'intérieur du Link. Le
+ * FavoriteButton reste en overlay positionné hors du Link (cf. #98).
  */
 import Link from "next/link";
-import { MapPin } from "lucide-react";
+import { MapPin, Navigation } from "lucide-react";
 import { getTranslations } from "next-intl/server";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { SportChips } from "@/components/venue/SportChips";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
 import { formatCityName } from "@/lib/format-city";
+import { googleMapsUrl } from "@/lib/utils";
+import { SITE_URL } from "@/lib/seo/sitemap-shards";
 import type { VenuePin } from "@/lib/supabase/types";
 
 type Props = {
@@ -36,11 +47,18 @@ export async function VenueCard({ venue }: Props) {
     ? tFamilies(venue.family_slug)
     : venue.family_slug;
 
+  // Actions : Itinéraire (Google Maps, comme la fiche) + Signaler (mailto
+  // pré-rempli, même format que /venue/[slug]). Construites côté serveur,
+  // fonctionnelles sans JS.
+  const mapsHref = googleMapsUrl(venue.lat, venue.lon, venue.name);
+  const venueUrl = `${SITE_URL}/venue/${venue.slug}`;
+  const reportHref = `mailto:hello@sporthubmap.com?subject=${encodeURIComponent(
+    t("reportErrorSubject", { name: venue.name })
+  )}&body=${encodeURIComponent(t("reportErrorBody", { url: venueUrl }))}`;
+
   return (
-    <div className="group relative block">
-      {/* FavoriteButton est en overlay positionné absolu hors du Link
-          parent : un click stopPropagation/preventDefault, donc on évite
-          d'imbriquer un <button> dans un <a> (a11y + nesting validity). */}
+    <div className="group relative">
+      {/* FavoriteButton en overlay hors du Link (a11y + nesting validity). */}
       <div className="absolute right-2 top-2 z-10">
         <FavoriteButton
           venueId={venue.id}
@@ -51,15 +69,20 @@ export async function VenueCard({ venue }: Props) {
         />
       </div>
 
-      <Link href={`/venue/${venue.slug}`} className="block" tabIndex={0}>
-        <Card className="h-full transition-shadow hover:shadow-md group-focus-visible:ring-2 group-focus-visible:ring-ring">
-          {/* Bande couleur famille */}
-          <div
-            className="h-1.5 rounded-t-lg"
-            style={{ backgroundColor: familyColor }}
-            aria-hidden="true"
-          />
+      <Card className="flex h-full flex-col transition-shadow hover:shadow-md">
+        {/* Bande couleur famille */}
+        <div
+          className="h-1.5 rounded-t-lg"
+          style={{ backgroundColor: familyColor }}
+          aria-hidden="true"
+        />
 
+        {/* Corps cliquable → fiche détail (action « Détails »). */}
+        <Link
+          href={`/venue/${venue.slug}`}
+          className="block flex-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          tabIndex={0}
+        >
           <CardHeader className="pb-2 pr-12 pt-4">
             <div className="flex items-start gap-2">
               <span
@@ -75,7 +98,7 @@ export async function VenueCard({ venue }: Props) {
             </div>
           </CardHeader>
 
-          <CardContent className="pb-4">
+          <CardContent className="pb-3">
             {/* Localisation */}
             {location && (
               <p className="mb-2 flex items-center gap-1 text-sm text-muted-foreground">
@@ -92,15 +115,36 @@ export async function VenueCard({ venue }: Props) {
               <SportChips sportSlugs={venue.sport_slugs.slice(0, 4)} className="mt-1" />
             )}
 
-            {/* Courts / installations */}
+            {/* Terrains — dé-emphasé (#606) : badge discret, jamais mis en avant
+                comme une donnée certaine (plausibilité des counts traitée en
+                amont #555). */}
             {venue.courts_count != null && venue.courts_count > 0 && (
               <p className="mt-2 text-xs text-muted-foreground">
                 {t("courtsCount", { count: venue.courts_count })}
               </p>
             )}
           </CardContent>
-        </Card>
-      </Link>
+        </Link>
+
+        {/* Footer d'actions — hors du Link parent (frères <a>). */}
+        <CardFooter className="mt-auto gap-3 border-t px-4 py-2.5 text-sm">
+          <a
+            href={mapsHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline"
+          >
+            <Navigation className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {t("directions")}
+          </a>
+          <a
+            href={reportHref}
+            className="ml-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
+          >
+            {t("reportError")}
+          </a>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
