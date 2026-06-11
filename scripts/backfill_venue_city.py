@@ -270,6 +270,49 @@ def diagnose(args: argparse.Namespace) -> int:
     return 0
 
 
+def diag_page(args: argparse.Namespace) -> int:
+    """Reproduit la résolution de /[sport]/fr/<ville> : résout TOUTES les lignes
+    `city` (country+slug) — révèle les DOUBLONS de ville — puis compte, par
+    city_id, les venues `primary_sport_slug=<sport>` publiées (ce que la page
+    liste). Si deux lignes 'paris' existent et que les venues pendent sur l'une
+    pendant que la page résout l'autre → page vide malgré la data. Aucune écriture."""
+    url, key = load_env()
+    country = args.country.upper()
+    slug = args.city_slug
+    rows = json.loads(req(
+        url, key,
+        path=(f"city?select=id,name,slug,lat,lon&country_code=eq.{country}"
+              f"&slug=eq.{slug}&order=id.asc"),
+    ))
+    print(f"▶ city country={country} slug={slug} → {len(rows)} ligne(s) :")
+    if not rows:
+        print("  ⚠ aucune ville ne matche ce slug — la page renverrait 404.")
+        return 0
+    for i, c in enumerate(rows):
+        # fetch ids (publiés, sport) → len = ce que la page compterait pour ce city_id
+        n, last_id = 0, ""
+        while True:
+            path = (f"venue?select=id&primary_sport_slug=eq.{args.sport}"
+                    f"&city_id=eq.{c['id']}&is_published=eq.true&deleted_at=is.null"
+                    f"&order=id.asc&limit=1000")
+            if last_id:
+                path += f"&id=gt.{last_id}"
+            chunk = json.loads(req(url, key, path=path))
+            if not chunk:
+                break
+            n += len(chunk)
+            last_id = chunk[-1]["id"]
+            if len(chunk) < 1000:
+                break
+        marker = "  ⟵ résolue par la page (1ʳᵉ par id.asc)" if i == 0 else ""
+        print(f"  [{i}] id={c['id']} name={c['name']!r} "
+              f"lat={c['lat']} lon={c['lon']} → {n} venues {args.sport}{marker}")
+    if len(rows) > 1:
+        print("\n  ⚠ DOUBLON détecté : plusieurs lignes city pour ce slug. La page "
+              "n'en lit qu'une → si la data pend sur une autre, page vide.")
+    return 0
+
+
 def fetch_venues_in_cities(url, key, city_ids: list[str]) -> list[dict]:
     """Venues (non supprimées) rattachées à l'une des `city_ids`."""
     rows, last_id, page = [], "", 1000
@@ -423,7 +466,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="Lecture seule : distribution city_id→slug pour --bbox/--sport")
     p.add_argument("--bbox", default="4.81,45.74,4.87,45.79",
                    help="W,S,E,N pour --diagnose (défaut : Lyon intra-muros)")
-    p.add_argument("--sport", default="tennis", help="primary_sport_slug pour --diagnose")
+    p.add_argument("--sport", default="tennis", help="primary_sport_slug pour --diagnose/--diag-page")
+    p.add_argument("--diag-page", action="store_true",
+                   help="Lecture seule : reproduit la résolution de /[sport]/fr/<ville> (doublons city)")
+    p.add_argument("--city-slug", default="paris", help="slug ville pour --diag-page")
+    p.add_argument("--country", default="fr", help="country_code pour --diag-page")
     p.add_argument("--consolidate-arr", action="store_true",
                    help="Re-rattache les venues d'arrondissements (Paris/Lyon/Marseille) au parent")
     p.add_argument("--self-test", action="store_true")
@@ -432,6 +479,8 @@ def main(argv: list[str] | None = None) -> int:
         return self_test()
     if args.diagnose:
         return diagnose(args)
+    if args.diag_page:
+        return diag_page(args)
     if args.consolidate_arr:
         return consolidate_arrondissements(args)
     return run(args)
