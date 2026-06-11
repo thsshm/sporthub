@@ -129,6 +129,7 @@ type VenueRow = {
   description: string | null;
   claim_status: ScorableVenue["claim_status"];
   enrichments: ScorableVenue["enrichments"];
+  source: string | null; // provenance — signal de confiance sur la carte (#607)
 };
 
 type DisplayVenue = Omit<VenueRow, "country_code"> & {
@@ -168,7 +169,7 @@ async function fetchScopeVenues(
   const { data, error } = await sb
     .from("venue")
     .select(
-      "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code, city_id, website_url, phone, description, claim_status, enrichments",
+      "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code, city_id, website_url, phone, description, claim_status, enrichments, source",
     )
     .in("id", ids)
     // Garde de fraîcheur : la MV est rafraîchie hebdo — une venue dépubliée

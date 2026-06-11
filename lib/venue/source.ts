@@ -48,5 +48,10 @@ const SOURCES: Record<string, VenueSourceMeta> = {
 /** Retourne la provenance affichable, ou null si la source est inconnue/interne. */
 export function getVenueSourceMeta(source: string | null | undefined): VenueSourceMeta | null {
   if (!source) return null;
-  return SOURCES[source.trim().toLowerCase()] ?? null;
+  const s = source.trim().toLowerCase();
+  // Exact d'abord, puis fallback sur le PRÉFIXE avant le 1er « - » : les sources
+  // réelles sont souvent suffixées (res-raquette, res-boules, wikidata-retreats…)
+  // → sans ça le badge ne s'affichait jamais pour elles (gap #562/#607). osm/
+  // overture restent exacts ; les internes (hyrox, playtomic…) → null.
+  return SOURCES[s] ?? SOURCES[s.split("-")[0]] ?? null;
 }
