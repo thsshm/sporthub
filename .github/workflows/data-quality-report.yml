@@ -47,7 +47,9 @@ jobs:
             echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
             exit 1
           fi
-          python3 scripts/data_quality_report.py --json /tmp/data_quality_report.json \
+          python3 scripts/data_quality_report.py \
+            --json /tmp/data_quality_report.json \
+            --markdown /tmp/data_quality_report.md \
             | tee /tmp/data_quality_report.txt
 
       - name: Upload report
@@ -58,14 +60,21 @@ jobs:
           path: |
             /tmp/data_quality_report.json
             /tmp/data_quality_report.txt
+            /tmp/data_quality_report.md
           if-no-files-found: ignore
 
       - name: Summary
         if: always()
         run: |
-          {
-            echo "### Data quality report (#589)"
-            echo '```'
-            cat /tmp/data_quality_report.txt 2>/dev/null || echo "(pas de sortie)"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          # Le rapport Markdown (#645) s'affiche directement dans le résumé Actions
+          # — « pires pages à corriger » en tête. Fallback sur le texte brut.
+          if [ -f /tmp/data_quality_report.md ]; then
+            cat /tmp/data_quality_report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### Data quality report"
+              echo '```'
+              cat /tmp/data_quality_report.txt 2>/dev/null || echo "(pas de sortie)"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
