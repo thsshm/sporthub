@@ -69,6 +69,25 @@ export default async function HomePage({
               .slice(0, 4)
               .map((slug) => SPORTS_BY_SLUG[slug])
               .filter(Boolean);
+            // En-tête de carte (emoji + nom + compteur). Le `group-hover:underline`
+            // est un no-op hors d'un ancêtre `.group` (cas non-cliquable ci-dessous).
+            const familyHead = (
+              <>
+                <span className="text-3xl leading-none" aria-hidden="true">
+                  {family.emoji}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate font-semibold leading-tight group-hover:underline" title={tFamilies(family.slug)}>
+                    {tFamilies(family.slug)}
+                  </h3>
+                  <p
+                    className={`mt-0.5 text-xs ${hasVenues ? "text-muted-foreground" : "text-muted-foreground/60"}`}
+                  >
+                    {t("spotsCount", { count: displayCount })}
+                  </p>
+                </div>
+              </>
+            );
             return (
               <div
                 key={family.slug}
@@ -80,24 +99,19 @@ export default async function HomePage({
                   aria-hidden="true"
                 />
                 <div className="flex flex-1 flex-col p-4">
-                  <Link
-                    href={`/sports/${family.sports[0]}`}
-                    className="group flex items-center gap-3"
-                  >
-                    <span className="text-3xl leading-none" aria-hidden="true">
-                      {family.emoji}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate font-semibold leading-tight group-hover:underline" title={tFamilies(family.slug)}>
-                        {tFamilies(family.slug)}
-                      </h3>
-                      <p
-                        className={`mt-0.5 text-xs ${hasVenues ? "text-muted-foreground" : "text-muted-foreground/60"}`}
-                      >
-                        {t("spotsCount", { count: displayCount })}
-                      </p>
-                    </div>
-                  </Link>
+                  {/* Cliquable seulement si data significative ; sinon "coming
+                      soon" non-cliquable → ne pas mener vers une page /sports
+                      quasi vide depuis la home (#470). */}
+                  {hasVenues ? (
+                    <Link
+                      href={`/sports/${family.sports[0]}`}
+                      className="group flex items-center gap-3"
+                    >
+                      {familyHead}
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-3">{familyHead}</div>
+                  )}
 
                   {hasVenues && topSports.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1">
