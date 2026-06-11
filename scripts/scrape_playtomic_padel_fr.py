@@ -450,17 +450,15 @@ def build_new_venue_rows(report: list[dict]) -> list[dict]:
             "external_id": tid,
             "is_published": True,
         }
-        if r.get("address"):
-            row["address"] = r["address"]
+        # ⚠️ PostgREST exige que TOUTES les lignes d'un POST groupé aient
+        # EXACTEMENT les mêmes clés (sinon HTTP 400). On pose donc TOUJOURS les
+        # champs optionnels (None si absent) → lignes uniformes.
         website = r.get("website_url") or ""
-        if website.startswith("http"):
-            row["website_url"] = website
-        if r.get("booking_url"):
-            row["booking_url"] = r["booking_url"]
-        if r.get("courts_indoor") is not None:
-            row["courts_indoor"] = r["courts_indoor"]
-        if r.get("courts_outdoor") is not None:
-            row["courts_outdoor"] = r["courts_outdoor"]
+        row["address"] = r.get("address") or None
+        row["website_url"] = website if website.startswith("http") else None
+        row["booking_url"] = r.get("booking_url") or None
+        row["courts_indoor"] = r.get("courts_indoor")
+        row["courts_outdoor"] = r.get("courts_outdoor")
         rows.append(row)
     return rows
 
@@ -759,10 +757,23 @@ def self_test() -> int:
     assert nr["country_code"] == "FR" and nr["is_published"] is True
     assert nr["slug"].startswith("playtomic-") and len(nr["slug"]) == len("playtomic-") + 10
     assert nr["courts_indoor"] == 6 and nr["courts_outdoor"] == 0
-    assert "website_url" not in nr, nr  # texte libre ≠ URL → rejeté
+    assert nr["website_url"] is None, nr  # texte libre ≠ URL → None (pas absent)
     assert nr["booking_url"] == "https://playtomic.io/tenant/n1"
     # déterminisme du slug (ré-exécutable, upsert (source, external_id)).
     assert build_new_venue_rows(rep_new)[0]["slug"] == nr["slug"]
+
+    # CLÉS UNIFORMES entre toutes les lignes (sinon PostgREST POST groupé → 400).
+    rep_multi = rep_new + [
+        # candidat SANS address/website/booking → doit avoir les mêmes clés.
+        {"playtomic_id": "n9", "playtomic_name": "Bare Padel", "lat": 43.6,
+         "lon": 1.4, "courts_indoor": 2, "courts_outdoor": 0, "match": None},
+    ]
+    multi = build_new_venue_rows(rep_multi)
+    assert len(multi) == 2, multi
+    assert {frozenset(r.keys()) for r in multi} == {frozenset(multi[0].keys())}, \
+        "lignes hétérogènes → 400 PostgREST"
+    bare = next(r for r in multi if r["external_id"] == "n9")
+    assert bare["address"] is None and bare["website_url"] is None and bare["booking_url"] is None
 
     print("✓ scrape_playtomic_padel_fr self-test OK")
     return 0
