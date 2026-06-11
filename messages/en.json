@@ -199,6 +199,7 @@
     "coordinates": "GPS coordinates",
     "notFoundTitle": "Venue not found",
     "courtsCount": "{count, plural, =0 {no court} one {1 court} other {{count} courts}}",
+    "multipleCourts": "Multiple courts",
     "infoCardTitle": "Practical info",
     "addPlacePrompt": "A spot missing from the map?",
     "addPlaceCta": "Add it in 1 minute",
