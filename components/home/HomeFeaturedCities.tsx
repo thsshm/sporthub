@@ -137,17 +137,22 @@ export async function HomeFeaturedCities() {
               href={`/map?city=${city.slug}`}
               className="group flex flex-col rounded-lg border bg-card p-4 transition-shadow hover:shadow-md"
             >
-              <span className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                {city.country_code}
+              {/* Ville = ancre visuelle (#609) : nom en gras, normalisé (« PARIS »
+                  → « Paris », #559) ; le code pays passe en suffixe discret (il
+                  dominait la carte auparavant). */}
+              <span className="flex items-center gap-1.5">
+                <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span
+                  className="min-w-0 flex-1 truncate text-base font-semibold group-hover:underline"
+                  title={formatCityName(city.name)}
+                >
+                  {formatCityName(city.name)}
+                </span>
+                <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+                  {city.country_code}
+                </span>
               </span>
-              <span
-                className="mt-1 truncate text-base font-semibold group-hover:underline"
-                title={formatCityName(city.name)}
-              >
-                {formatCityName(city.name)}
-              </span>
-              <span className="mt-1 text-xs text-muted-foreground">
+              <span className="mt-1.5 text-xs text-muted-foreground">
                 {t("venuesCount", { count: city.count })}
               </span>
             </Link>
