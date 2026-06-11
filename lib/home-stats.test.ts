@@ -44,4 +44,20 @@ describe("keepPopularCombos (#462)", () => {
     ];
     expect(keepPopularCombos(withCount, 5)).toEqual([]);
   });
+
+  it("exclut une combo populaire mais vide côté page — cas Gym Paris (#644)", () => {
+    // Avec le compteur COMMUN (getVisibleVenueCount), gym/paris remonte 0
+    // (page vide) → ne doit PAS être promu ; les combos valides suivantes
+    // restent (fallback implicite).
+    const withCount = [
+      { combo: mk("gym", "paris"), count: 0 },
+      { combo: mk("padel", "paris"), count: 23 },
+      { combo: mk("tennis", "lyon"), count: 8 },
+    ];
+    const kept = keepPopularCombos(withCount, 5);
+    expect(
+      kept.some((c) => c.sport === "gym" && c.citySlug === "paris"),
+    ).toBe(false);
+    expect(kept.map((c) => c.citySlug)).toEqual(["paris", "lyon"]);
+  });
 });
