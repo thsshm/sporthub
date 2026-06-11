@@ -82,6 +82,24 @@ Stratégie d'internationalisation des URLs publiques, livrée en 2 PRs
   `URLS_PER_SHARD = 45_000` reste le facteur contraignant : **inchangé**,
   aucun ajustement requis. Constante + test dans `lib/seo/sitemap-shards.ts`.
 
+## Pagination sport×ville : `?page=N` → `/page/N`
+
+Les pages programmatiques `/[sport]/[country]/[city]` paginent désormais par
+**segment de route** (`/tennis/fr/lyon/page/2`) au lieu d'une query-string
+(`?page=2`). Raison : lire `searchParams` est une API dynamique Next.js qui force
+le rendu `no-store` et empêche l'ISR — la page restait recalculée à chaque hit
+(2 requêtes DB par visite, et c'est ce qui exposait le `count` au statement_timeout
+du rôle anon, cf. bug gym×ville). En passant par un segment de route + le client
+`getSupabaseStaticClient` (service_role, pas de `cookies()`), la page **redevient
+ISR-cacheable** (`revalidate = 86400`), donc rapide au crawl.
+
+- **Page 1** = chemin canonique inchangé (`/tennis/fr/lyon`).
+- **Pages 2+** = `/tennis/fr/lyon/page/N` (auto-canonical par page).
+- `/page/1` → **308** vers le chemin canonique (pas de doublon).
+- `?page=N` legacy : V2 n'étant pas encore indexée, aucun 301 n'est requis au
+  cutover. Si des liens `?page=N` traînent, ajouter une règle de redirect query→
+  path dans le `middleware.ts` (non fait pour ne pas alourdir un fichier critique).
+
 ## Mapping schéma DB V1 → V2
 
 ### Tables V1 (SQLite) → Tables V2 (Postgres)
