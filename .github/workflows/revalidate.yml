@@ -1,0 +1,82 @@
+name: Revalidate ISR
+
+# Flush du cache ISR / Data Cache (durable) des pages SEO après une data-op.
+# Le Data Cache de Vercel survit aux redeploys → seul ce déclenchement on-demand
+# (ou le TTL 24 h) reflète un fix (backfill, index, refresh MV) immédiatement.
+#
+# Auth : POST /api/revalidate avec `Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>`
+# (la route accepte ce secret en repli, déjà dispo ici — aucune config Vercel requise).
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "URL de base (défaut : alias prod main)"
+        type: string
+        required: false
+        default: "https://sporthub-git-main-gautier-ths.vercel.app"
+      paths:
+        description: "Chemins exacts à revalider, séparés par des virgules (optionnel)"
+        type: string
+        required: false
+        default: ""
+      flush_routes:
+        description: "Flush TOUTES les pages sport×ville + page sport (gros marteau)"
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: revalidate
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  revalidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/revalidate
+        env:
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BASE: ${{ inputs.base }}
+          IN_PATHS: ${{ inputs.paths }}
+          IN_FLUSH: ${{ inputs.flush_routes }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEY:-}" ]; then
+            echo "::error::Secret SUPABASE_SERVICE_ROLE_KEY manquant." >&2
+            exit 1
+          fi
+          # Construit le tableau JSON paths depuis la liste CSV (vide → []).
+          PATHS_JSON="[]"
+          if [ -n "${IN_PATHS:-}" ]; then
+            PATHS_JSON=$(printf '%s' "$IN_PATHS" | tr ',' '\n' | sed '/^$/d' \
+              | python3 -c 'import sys,json; print(json.dumps([l.strip() for l in sys.stdin]))')
+          fi
+          # routes : defaults (flush=true) ou [] (flush=false, on ne touche que paths).
+          if [ "$IN_FLUSH" = "true" ]; then
+            BODY=$(printf '{"paths": %s}' "$PATHS_JSON")   # routes omis → defaults serveur
+          else
+            BODY=$(printf '{"paths": %s, "routes": []}' "$PATHS_JSON")
+          fi
+          echo "▶ POST $BASE/api/revalidate  body=$BODY"
+          HTTP=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+            -X POST "$BASE/api/revalidate" \
+            -H "Authorization: Bearer $KEY" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+          echo "HTTP $HTTP"; cat /tmp/resp.json; echo
+          [ "$HTTP" = "200" ] || { echo "::error::revalidate a échoué (HTTP $HTTP)"; exit 1; }
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Revalidate ISR"
+            echo "- Base : ${{ inputs.base }}"
+            echo "- Flush routes SEO : ${{ inputs.flush_routes }}"
+            echo "- Paths : ${{ inputs.paths || '(aucun)' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
