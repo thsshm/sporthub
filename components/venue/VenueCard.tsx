@@ -22,6 +22,7 @@ import { formatCityName } from "@/lib/format-city";
 import { googleMapsUrl } from "@/lib/utils";
 import { SITE_URL } from "@/lib/seo/sitemap-shards";
 import { getVenueSourceMeta } from "@/lib/venue/source";
+import { plausibleCourtCount } from "@/lib/venue/courts-plausibility";
 import type { VenuePin } from "@/lib/supabase/types";
 
 type Props = {
@@ -48,6 +49,8 @@ export async function VenueCard({ venue }: Props) {
   const familyName = tFamilies.has(venue.family_slug)
     ? tFamilies(venue.family_slug)
     : venue.family_slug;
+  // Count de terrains plausible (#636) : null = aberrant → on n'affiche rien.
+  const courts = plausibleCourtCount(venue.courts_count, venue.family_slug);
   // Signal de confiance (#607) : provenance ouverte (OSM/RES/Wikidata/Overture).
   // Sans lien (le contenu est déjà dans un <Link> → pas d'<a> imbriqué). null
   // pour les sources internes (hyrox…) → pas de badge.
@@ -121,12 +124,14 @@ export async function VenueCard({ venue }: Props) {
               <SportChips sportSlugs={venue.sport_slugs.slice(0, 4)} className="mt-1" />
             )}
 
-            {/* Terrains — dé-emphasé (#606) : badge discret, jamais mis en avant
-                comme une donnée certaine (plausibilité des counts traitée en
-                amont #555). */}
-            {venue.courts_count != null && venue.courts_count > 0 && (
+            {/* Terrains — dé-emphasé (#606) : badge discret. Gate de plausibilité
+                (#636) : un count aberrant (tennis « 112 courts », agrégation au
+                mauvais niveau) est MASQUÉ plutôt qu'affiché comme une donnée
+                sûre. `plausibleCourtCount` (#590) renvoie null au-delà du cap par
+                famille — déterministe, miroir du cap data #555. */}
+            {courts != null && (
               <p className="mt-2 text-xs text-muted-foreground">
-                {t("courtsCount", { count: venue.courts_count })}
+                {t("courtsCount", { count: courts })}
               </p>
             )}
 

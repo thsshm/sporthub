@@ -26,4 +26,15 @@ describe("plausibleCourtCount", () => {
     expect(plausibleCourtCount(undefined, "raquette")).toBeNull();
     expect(plausibleCourtCount(-3, "raquette")).toBeNull();
   });
+
+  // Régression #636 : les cartes de liste (VenueCard) affichaient des counts
+  // aberrants pour le tennis (famille raquette, cap 40).
+  it("masque les counts tennis aberrants vus sur /tennis/fr/lyon (#636)", () => {
+    for (const n of [112, 84, 60, 48]) {
+      expect(plausibleCourtCount(n, "raquette")).toBeNull();
+    }
+    // …mais garde un gros club crédible (≤ 40).
+    expect(plausibleCourtCount(28, "raquette")).toBe(28);
+    expect(plausibleCourtCount(40, "raquette")).toBe(40);
+  });
 });
