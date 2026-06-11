@@ -198,6 +198,7 @@
     "coordinates": "Coordonnées GPS",
     "notFoundTitle": "Venue introuvable",
     "courtsCount": "{count, plural, =0 {aucun terrain} one {1 terrain} other {{count} terrains}}",
+    "multipleCourts": "Plusieurs terrains",
     "infoCardTitle": "Informations pratiques",
     "addPlacePrompt": "Un lieu manque sur la carte ?",
     "addPlaceCta": "Ajoutez-le en 1 minute",

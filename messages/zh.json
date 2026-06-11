@@ -198,6 +198,7 @@
     "coordinates": "GPS 坐标",
     "notFoundTitle": "场所未找到",
     "courtsCount": "{count, plural, =0 {无场地} other {{count} 个场地}}",
+    "multipleCourts": "多片场地",
     "infoCardTitle": "实用信息",
     "addPlacePrompt": "地图上缺少某个场所？",
     "addPlaceCta": "1 分钟内添加",
