@@ -19,6 +19,7 @@ import { SportChips } from "@/components/venue/SportChips";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
 import { formatCityName } from "@/lib/format-city";
+import { formatVenueName } from "@/lib/format-venue-name";
 import { googleMapsUrl } from "@/lib/utils";
 import { SITE_URL } from "@/lib/seo/sitemap-shards";
 import { getVenueSourceMeta } from "@/lib/venue/source";
@@ -109,7 +110,7 @@ export async function VenueCard({ venue }: Props) {
                 {emoji}
               </span>
               <h3 className="line-clamp-2 text-base font-semibold leading-tight group-hover:underline">
-                {venue.name}
+                {formatVenueName(venue.name)}
               </h3>
             </div>
           </CardHeader>
