@@ -11,7 +11,7 @@
  */
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/routing";
-import { getPopularCombos } from "@/lib/home-stats";
+import { getPopularCombos, HIGH_COVERAGE_FOR_POPULAR } from "@/lib/home-stats";
 
 export async function HomePopularSearches() {
   const combos = await getPopularCombos();
@@ -46,11 +46,24 @@ export async function HomePopularSearches() {
               <li key={`${c.sport}-${c.citySlug}`}>
                 <Link
                   href={`/${c.sport}/fr/${c.citySlug}`}
-                  className="inline-flex items-center gap-1 rounded-full border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+                  className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-sm transition-colors hover:bg-accent"
                 >
                   <span className="font-medium">{sportLabel}</span>
                   <span className="text-muted-foreground">·</span>
                   <span className="text-muted-foreground">{c.cityLabel}</span>
+                  {/* Nombre de lieux fiables → la recherche paraît curée (#614). */}
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+                    {t("venuesCount", { count: c.count })}
+                  </span>
+                  {c.count >= HIGH_COVERAGE_FOR_POPULAR && (
+                    <span
+                      className="text-emerald-600 dark:text-emerald-400"
+                      title={t("highCoverage")}
+                      aria-label={t("highCoverage")}
+                    >
+                      ★
+                    </span>
+                  )}
                 </Link>
               </li>
             );

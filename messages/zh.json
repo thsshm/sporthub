@@ -50,7 +50,9 @@
   "popularSearches": {
     "title": "热门搜索",
     "subtitle": "最受欢迎的运动 × 城市页面。",
-    "viewAll": "所有城市"
+    "viewAll": "所有城市",
+    "venuesCount": "{count, plural, other {{count} 个可靠场所}}",
+    "highCoverage": "覆盖率高"
   },
   "faq": {
     "title": "常见问题",

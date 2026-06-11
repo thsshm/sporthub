@@ -50,7 +50,9 @@
   "popularSearches": {
     "title": "Popular searches",
     "subtitle": "The most visited sport × city pages.",
-    "viewAll": "All cities"
+    "viewAll": "All cities",
+    "venuesCount": "{count, plural, one {1 reliable spot} other {{count} reliable spots}}",
+    "highCoverage": "High coverage"
   },
   "faq": {
     "title": "Frequently asked questions",
