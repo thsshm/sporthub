@@ -12,7 +12,7 @@
  * FavoriteButton reste en overlay positionné hors du Link (cf. #98).
  */
 import Link from "next/link";
-import { MapPin, Navigation } from "lucide-react";
+import { MapPin, Navigation, ShieldCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { SportChips } from "@/components/venue/SportChips";
@@ -21,6 +21,7 @@ import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
 import { formatCityName } from "@/lib/format-city";
 import { googleMapsUrl } from "@/lib/utils";
 import { SITE_URL } from "@/lib/seo/sitemap-shards";
+import { getVenueSourceMeta } from "@/lib/venue/source";
 import type { VenuePin } from "@/lib/supabase/types";
 
 type Props = {
@@ -30,6 +31,7 @@ type Props = {
     sport_slugs?: string[];
     address?: string | null;
     courts_count?: number | null;
+    source?: string | null;
   };
 };
 
@@ -46,6 +48,10 @@ export async function VenueCard({ venue }: Props) {
   const familyName = tFamilies.has(venue.family_slug)
     ? tFamilies(venue.family_slug)
     : venue.family_slug;
+  // Signal de confiance (#607) : provenance ouverte (OSM/RES/Wikidata/Overture).
+  // Sans lien (le contenu est déjà dans un <Link> → pas d'<a> imbriqué). null
+  // pour les sources internes (hyrox…) → pas de badge.
+  const sourceMeta = getVenueSourceMeta(venue.source);
 
   // Actions : Itinéraire (Google Maps, comme la fiche) + Signaler (mailto
   // pré-rempli, même format que /venue/[slug]). Construites côté serveur,
@@ -121,6 +127,14 @@ export async function VenueCard({ venue }: Props) {
             {venue.courts_count != null && venue.courts_count > 0 && (
               <p className="mt-2 text-xs text-muted-foreground">
                 {t("courtsCount", { count: venue.courts_count })}
+              </p>
+            )}
+
+            {/* Provenance — signal de confiance (#607) */}
+            {sourceMeta && (
+              <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <ShieldCheck className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
+                <span>{t("verifiedFrom", { source: sourceMeta.label })}</span>
               </p>
             )}
           </CardContent>
