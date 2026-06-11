@@ -16,6 +16,7 @@ import { EmptyStateOverlay } from "@/app/[locale]/map/EmptyStateOverlay";
 import { ViewModeToggle } from "@/app/[locale]/map/ViewModeToggle";
 import { VenueListPanel } from "@/app/[locale]/map/VenueListPanel";
 import { ExplorePicker, type PickerSelection } from "@/app/[locale]/map/ExplorePicker";
+import { MapLoading } from "@/components/map/MapLoading";
 import { MapLegend } from "@/app/[locale]/map/MapLegend";
 import { FAMILIES } from "@/lib/families";
 import { formatCount } from "@/lib/utils";
@@ -57,25 +58,7 @@ const GEO_PROMPTED_KEY = "sporthub_geo_prompted";
 
 const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-full w-full items-center justify-center bg-muted/20">
-      <div className="flex items-center gap-2 rounded-md bg-background/95 px-4 py-2 text-sm text-muted-foreground shadow-md backdrop-blur">
-        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeDasharray="60"
-            strokeDashoffset="40"
-            strokeLinecap="round"
-          />
-        </svg>
-        Chargement de la carte…
-      </div>
-    </div>
-  ),
+  loading: () => <MapLoading variant="spinner" />,
 });
 
 // Carte de repli sans WebGL (#466) — chargée seulement quand WebGL manque.

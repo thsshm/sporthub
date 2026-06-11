@@ -13,15 +13,12 @@ import {
   jsonLdHtml,
 } from "@/lib/seo/metadata";
 import type { VenuePin } from "@/lib/supabase/types";
+import { MapLoading } from "@/components/map/MapLoading";
 
 // Carte chargée côté client uniquement (MapLibre = browser-only).
 const MapClient = dynamic(() => import("@/app/[locale]/map/MapClient"), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-full w-full items-center justify-center bg-muted/20 text-sm text-muted-foreground">
-      Chargement de la carte…
-    </div>
-  ),
+  loading: () => <MapLoading />,
 });
 
 const PAGE_SIZE = 24;
