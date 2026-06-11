@@ -35,7 +35,9 @@ env:
 jobs:
   push:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 45 min : certaines migrations de data-repair scannent venue (267k) sous
+    # charge concurrente d'imports → 15 min ne suffisait pas (#497).
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
