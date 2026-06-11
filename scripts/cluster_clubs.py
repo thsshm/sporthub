@@ -566,23 +566,69 @@ class SupabaseRest:
             )
         return len(venue_ids)
 
-    def reset_family(self, family_slug: str) -> None:
+    def _paged_ids(self, path: str, filt: dict[str, str], page_size: int = 1000) -> list[str]:
+        """Pagine (keyset par `id`) tous les `id` d'une table pour un filtre.
+
+        Keyset (`id > dernier`) et NON OFFSET : sur les familles denses, OFFSET
+        force Postgres à scanner/sauter les lignes → statement timeout (cf.
+        fetch_venues). L'`id` UUID donne un ordre total stable, suffisant.
+        """
+        ids: list[str] = []
+        last: str | None = None
+        while True:
+            params = dict(filt)
+            params.update({"select": "id", "order": "id.asc", "limit": page_size})
+            if last is not None:
+                params["id"] = f"gt.{last}"
+            rows: list[dict[str, Any]] = self._req(
+                "GET", f"{path}?{urllib.parse.urlencode(params)}"
+            )
+            if not rows:
+                break
+            ids.extend(r["id"] for r in rows)
+            last = rows[-1]["id"]
+            if len(rows) < page_size:
+                break
+        return ids
+
+    def reset_family(self, family_slug: str, batch_size: int = 200) -> None:
         """Vide les clubs d'une famille AVANT re-clustering (option --reset, #497).
 
         Ordre imposé par la FK venue.club_id → club.id :
-          1. PATCH venue SET club_id = NULL WHERE family_slug = X
-          2. DELETE club          WHERE family_slug = X
-        Idempotent (relançable). En dry-run : log sans écrire.
+          1. NULL venue.club_id (venues de la famille qui pointent un club) ;
+          2. DELETE club WHERE family_slug = X.
+
+        **Batché par lots d'`id`** : un PATCH/DELETE monobloc sur ~47k venues
+        dépasse le statement_timeout Postgres (57014) — vécu en prod (#572,
+        reset raquette). Chaque lot reste court ; le retry HTTP de `_req` couvre
+        les 5xx transitoires. Idempotent. En dry-run : log sans écrire.
         """
         log = logging.getLogger(__name__)
         if self.dry_run:
-            log.info("[dry-run] reset %s : DELETE club + NULL venue.club_id", family_slug)
+            log.info("[dry-run] reset %s : DELETE club + NULL venue.club_id (batché)", family_slug)
             return
-        qs = urllib.parse.urlencode({"family_slug": f"eq.{family_slug}"})
-        log.info("Reset %s : NULL venue.club_id…", family_slug)
-        self._req("PATCH", f"/venue?{qs}", body={"club_id": None}, prefer="return=minimal")
-        log.info("Reset %s : DELETE club…", family_slug)
-        self._req("DELETE", f"/club?{qs}", prefer="return=minimal")
+
+        # 1) NULL club_id — uniquement les venues qui en ont un (moins d'écriture,
+        #    et lève la contrainte FK avant le DELETE des clubs).
+        venue_ids = self._paged_ids(
+            "/venue", {"family_slug": f"eq.{family_slug}", "club_id": "not.is.null"}
+        )
+        log.info(
+            "Reset %s : NULL club_id sur %d venues (lots de %d)…",
+            family_slug, len(venue_ids), batch_size,
+        )
+        for i in range(0, len(venue_ids), batch_size):
+            chunk = ",".join(venue_ids[i : i + batch_size])
+            qs = urllib.parse.urlencode({"id": f"in.({chunk})"})
+            self._req("PATCH", f"/venue?{qs}", body={"club_id": None}, prefer="return=minimal")
+
+        # 2) DELETE les clubs de la famille — batché par id (peut être ~10k).
+        club_ids = self._paged_ids("/club", {"family_slug": f"eq.{family_slug}"})
+        log.info("Reset %s : DELETE %d clubs (lots de %d)…", family_slug, len(club_ids), batch_size)
+        for i in range(0, len(club_ids), batch_size):
+            chunk = ",".join(club_ids[i : i + batch_size])
+            qs = urllib.parse.urlencode({"id": f"in.({chunk})"})
+            self._req("DELETE", f"/club?{qs}", prefer="return=minimal")
 
     def refresh_top_clubs_mv(self) -> None:
         """Rafraîchit mv_top_clubs_by_sport (RPC SECURITY DEFINER, migration 0038)
@@ -662,6 +708,16 @@ def run(args: argparse.Namespace) -> int:
 
     sb = SupabaseRest(args.supabase_url, args.supabase_key, dry_run=args.dry_run)
     families = [args.family] if args.family else CLUB_FAMILIES
+
+    # Garde-fou : --reset sans --family viderait les clubs des 7 familles d'un
+    # coup (opération longue et lourde, lancée par erreur #572). On l'exige
+    # explicite. Le dry-run n'écrit rien → autorisé pour visualiser.
+    if args.reset and not args.family and not args.dry_run:
+        log.error(
+            "--reset SANS --family est refusé (reset de TOUTES les familles). "
+            "Relancez en ciblant une famille, ex. --family raquette --reset --no-dry-run."
+        )
+        return 2
 
     total_venues = 0
     total_clusters = 0
