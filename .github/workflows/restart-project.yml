@@ -31,9 +31,15 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          code=$(curl -s -o /tmp/out -w "%{http_code}" -X POST \
+          # Il n'existe pas de POST /restart public : le levier documenté dans
+          # l'OpenAPI de la Management API est le flag `restart_database` du
+          # PUT config Postgres (config vide + restart → redémarre l'instance
+          # et ses services attenants, PostgREST/pooler inclus).
+          code=$(curl -s -o /tmp/out -w "%{http_code}" -X PUT \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/restart")
+            -H "Content-Type: application/json" \
+            -d '{"restart_database": true}' \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/config/database/postgres")
           echo "HTTP $code"
           cat /tmp/out || true
           case "$code" in
