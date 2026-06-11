@@ -1,0 +1,18 @@
+-- ════════════════════════════════════════════════════════════════════════
+-- Migration 0061 : NO-OP (reset raquette reporté) — #497
+-- ════════════════════════════════════════════════════════════════════════
+-- Contenu d'origine : UPDATE venue SET club_id=NULL + DELETE club pour la
+-- famille raquette, afin de re-clusteriser avec les noms corrigés (#567).
+--
+-- Annulé : l'UPDATE sur venue (267k) ne PASSE PAS tant que la table est sous
+-- forte contention de locks (imports concurrents d'autres jobs) — timeout à
+-- 3,5 min, puis blocage > 15 min même avec statement_timeout=0. Laisser cette
+-- migration en échec BLOQUERAIT l'application de toutes les migrations suivantes
+-- (db push s'arrête sur la 1re en erreur). On la neutralise donc (no-op) pour
+-- débloquer le pipeline partagé.
+--
+-- Le reset raquette reste À FAIRE, lors d'une accalmie de l'activité concurrente
+-- sur `venue`, via le workflow cluster-clubs (family=raquette, reset=true — code
+-- batché #651) OU une nouvelle migration dédiée. Tout le reste de #497 (nommage
+-- #567, refresh MV #575) est déjà en place ; il ne manque que cette exécution.
+SELECT 1;

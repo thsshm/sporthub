@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { getSupabaseStaticClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
 import { LOW_QUALITY_THRESHOLD } from "@/lib/venue/quality-score";
+import { getVisibleVenueCount } from "@/lib/venue/visible-count";
 
 /**
  * Counts de venues publiées par famille — source unique partagée par le H1 de
@@ -126,26 +127,19 @@ export const getPopularCombos = unstable_cache(
       POPULAR_CANDIDATES.map(async (combo) => {
         const cityId = cityIdBySlug.get(combo.citySlug);
         if (!cityId) return { combo, count: 0 };
-        try {
-          const { count } = await sb
-            .from("venue")
-            .select("id", { count: "exact", head: true })
-            .eq("primary_sport_slug", combo.sport)
-            .eq("city_id", cityId)
-            .eq("is_published", true)
-            .is("deleted_at", null)
-            // Gate QUALITÉ (#552) : on compte les venues réellement listées en
-            // SSR (≥ seuil qualité, comme la page ville #520/#551), pas juste
-            // publiées. Sinon une combo « peuplée » mais 100% squelettes (ex.
-            // pétanque/Marseille) passait le gate puis affichait « No address ».
-            // → une popular search a maintenant ≥ MIN_VENUES_FOR_POPULAR lieux
-            // VISIBLES ; les combos qui échouent sont remplacées par d'autres du
-            // pool POPULAR_CANDIDATES (fallback implicite via keepPopularCombos).
-            .gte("quality_score", LOW_QUALITY_THRESHOLD);
-          return { combo, count: count ?? 0 };
-        } catch {
-          return { combo, count: 0 };
-        }
+        // SOURCE COMMUNE (#644/#556) : on compte EXACTEMENT comme la page ville
+        // (helper getVisibleVenueCount → mv_venue_sport_search + seuil qualité).
+        // Avant, getPopularCombos comptait sur `venue.primary_sport_slug` (≠ la
+        // page) → une combo « peuplée » côté gate mais vide côté page passait
+        // quand même (bug Gym Paris). Désormais gate ⇔ page : si la page est
+        // vide, la combo est exclue ; keepPopularCombos garde les suivantes.
+        const count = await getVisibleVenueCount(sb, {
+          sportSlug: combo.sport,
+          cityId,
+          minQualityScore: LOW_QUALITY_THRESHOLD,
+          exact: true,
+        });
+        return { combo, count };
       }),
     );
 

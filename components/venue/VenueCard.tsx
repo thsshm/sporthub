@@ -19,9 +19,11 @@ import { SportChips } from "@/components/venue/SportChips";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
 import { formatCityName } from "@/lib/format-city";
+import { formatVenueName } from "@/lib/format-venue-name";
 import { googleMapsUrl } from "@/lib/utils";
 import { SITE_URL } from "@/lib/seo/sitemap-shards";
 import { getVenueSourceMeta } from "@/lib/venue/source";
+import { getCourtCountDisplay } from "@/lib/venue/courts-plausibility";
 import type { VenuePin } from "@/lib/supabase/types";
 
 type Props = {
@@ -52,6 +54,15 @@ export async function VenueCard({ venue }: Props) {
   // Sans lien (le contenu est déjà dans un <Link> → pas d'<a> imbriqué). null
   // pour les sources internes (hyrox…) → pas de badge.
   const sourceMeta = getVenueSourceMeta(venue.source);
+  // Garde-fou d'affichage du nombre de terrains (#636) : sur les cards SEO on ne
+  // montre JAMAIS un count invraisemblable (« 112 courts ») — au-delà du seuil
+  // par sport/famille on bascule sur « Plusieurs terrains », et on masque
+  // totalement l'absurde. Le sport de la page (sport_slugs[0]) affine le seuil
+  // (tennis 30 vs padel 16, même famille raquette).
+  const courtCount = getCourtCountDisplay(venue.courts_count, {
+    sportSlug: venue.sport_slugs?.[0],
+    familySlug: venue.family_slug,
+  });
 
   // Actions : Itinéraire (Google Maps, comme la fiche) + Signaler (mailto
   // pré-rempli, même format que /venue/[slug]). Construites côté serveur,
@@ -99,7 +110,7 @@ export async function VenueCard({ venue }: Props) {
                 {emoji}
               </span>
               <h3 className="line-clamp-2 text-base font-semibold leading-tight group-hover:underline">
-                {venue.name}
+                {formatVenueName(venue.name)}
               </h3>
             </div>
           </CardHeader>
@@ -124,9 +135,11 @@ export async function VenueCard({ venue }: Props) {
             {/* Terrains — dé-emphasé (#606) : badge discret, jamais mis en avant
                 comme une donnée certaine (plausibilité des counts traitée en
                 amont #555). */}
-            {venue.courts_count != null && venue.courts_count > 0 && (
+            {courtCount.kind !== "none" && (
               <p className="mt-2 text-xs text-muted-foreground">
-                {t("courtsCount", { count: venue.courts_count })}
+                {courtCount.kind === "exact"
+                  ? t("courtsCount", { count: courtCount.count })
+                  : t("multipleCourts")}
               </p>
             )}
 

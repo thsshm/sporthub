@@ -14,6 +14,7 @@ import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenueDetail } from "@/lib/supabase/types";
 import { wikimediaThumb } from "@/lib/venue/wikimedia";
 import { venueQualityBadge } from "@/lib/venue/quality-score";
+import { formatVenueName } from "@/lib/format-venue-name";
 
 type Props = {
   venue: VenueDetail;
@@ -89,7 +90,7 @@ export async function VenueHero({ venue, cityName, locale }: Props) {
 
       {/* Titre + badge qualité (#467) */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">{venue.name}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{formatVenueName(venue.name)}</h1>
         {qualityBadge && (
           <span
             className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${

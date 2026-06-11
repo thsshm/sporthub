@@ -10,6 +10,7 @@
 import { getTranslations } from "next-intl/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { VenueCard } from "@/components/venue/VenueCard";
+import { dedupeRelatedVenues } from "@/lib/venue/related-dedup";
 import type { VenuePin } from "@/lib/supabase/types";
 
 type Props = {
@@ -56,7 +57,9 @@ async function fetchRelated({
     .neq("id", currentVenueId)
     .eq("is_published", true)
     .is("deleted_at", null)
-    .limit(6);
+    // On récupère plus large (12) car la dédup (#657) va retirer les records
+    // court-level d'un même lieu réel ; on tronquera à 6 après dédup.
+    .limit(12);
 
   if (primarySportSlug) {
     query = query.eq("primary_sport_slug", primarySportSlug);
@@ -66,7 +69,8 @@ async function fetchRelated({
 
   const { data, error } = await query;
   if (error || !data) return [];
-  return data as RelatedRow[];
+  // Dédup par nom normalisé + proximité → un lieu réel n'apparaît qu'une fois.
+  return dedupeRelatedVenues(data as RelatedRow[]).slice(0, 6);
 }
 
 export async function VenueRelated(props: Props) {

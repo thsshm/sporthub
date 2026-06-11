@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   venueQualityScore,
+  venueQualityScoreForSport,
   isLowQualityVenue,
   venueQualityBadge,
   isOrganizationName,
@@ -190,5 +191,48 @@ describe("isOrganizationName / ORGANIZATION_PENALTY (#588)", () => {
       venueQualityScore(sameButFacility) - ORGANIZATION_PENALTY
     );
     expect(venueQualityScore({ name: "Ligue X" })).toBe(0);
+  });
+});
+
+describe("venueQualityScoreForSport (#637) — complétude + signal nom↔sport", () => {
+  // Base identique (adresse 20 + ville 10 = 30) → on isole l'effet du signal.
+  const base: ScorableVenue = { address: "1 rue X", city_name: "Paris" };
+
+  it("signal positif → score relevé vs base neutre", () => {
+    const padelClub = { ...base, name: "Casa Padel Paris" };
+    const neutre = { ...base, name: "Espace Jean Moulin" };
+    expect(venueQualityScoreForSport(padelClub, "padel")).toBe(venueQualityScore(neutre) + 15);
+  });
+
+  it("signal suspect → score abaissé (mais > 0, démotion pas exclusion)", () => {
+    const tennisOnPadel = { ...base, name: "Tennis Club de Lyon" };
+    // 30 − 20 = 10 ; reste listable côté carte/scope, juste dépriorisé.
+    expect(venueQualityScoreForSport(tennisOnPadel, "padel")).toBe(10);
+  });
+
+  it("multi-sport légitime : le signal positif l'emporte sur le suspect", () => {
+    const mixed = { ...base, name: "Tennis & Padel Club" };
+    expect(venueQualityScoreForSport(mixed, "padel")).toBe(venueQualityScore(base) + 15);
+  });
+
+  it("gym : un vrai gym remonte, un laser game descend", () => {
+    const gym = { ...base, name: "Basic-Fit Bastille" };
+    const laser = { ...base, name: "Laser Game Évolution" };
+    expect(venueQualityScoreForSport(gym, "gym")).toBeGreaterThan(
+      venueQualityScoreForSport(laser, "gym"),
+    );
+  });
+
+  it("tennis : ordonne club > entrée neutre", () => {
+    const club = { ...base, name: "Tennis Club de Lyon" };
+    const neutre = { ...base, name: "Espace Sportif" };
+    expect(venueQualityScoreForSport(club, "tennis")).toBeGreaterThan(
+      venueQualityScoreForSport(neutre, "tennis"),
+    );
+  });
+
+  it("borné 0–100", () => {
+    const contradiction = { ...base, name: "Piscine municipale" };
+    expect(venueQualityScoreForSport(contradiction, "tennis")).toBeGreaterThanOrEqual(0);
   });
 });

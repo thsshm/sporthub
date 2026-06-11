@@ -7,6 +7,7 @@ import type { VenueDetail } from "@/lib/supabase/types";
 import { getFamilyEmoji } from "@/lib/families";
 import { parseOpeningHours, toSchemaOpeningHours } from "@/lib/venue/opening-hours";
 import { isLowQualityVenue } from "@/lib/venue/quality-score";
+import { formatVenueName } from "@/lib/format-venue-name";
 
 const SITE_URL = "https://sporthubmap.com";
 const SITE_NAME = "Sport Hub";
@@ -117,10 +118,13 @@ export function buildVenueMetadata(
 ): Metadata {
   const emoji = getFamilyEmoji(venue.family_slug);
   const location = cityName ?? venue.address ?? "";
-  const title = `${venue.name}${location ? ` · ${location}` : ""}`;
+  // Nom d'affichage normalisé (#658) : « courts de tennis couverts » → casse
+  // phrase pour un <title>/OG propre. La donnée stockée reste brute.
+  const displayName = formatVenueName(venue.name);
+  const title = `${displayName}${location ? ` · ${location}` : ""}`;
   const description =
     venue.description ??
-    `${emoji} Retrouve ${venue.name}${location ? ` à ${location}` : ""} sur Sport Hub — horaires, contacts, sports pratiqués.`;
+    `${emoji} Retrouve ${displayName}${location ? ` à ${location}` : ""} sur Sport Hub — horaires, contacts, sports pratiqués.`;
 
   const photoUrl = (venue.enrichments as { photo_url?: string })?.photo_url;
   const ogImage = photoUrl ?? DEFAULT_OG_IMAGE;
