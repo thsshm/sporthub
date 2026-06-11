@@ -18,6 +18,7 @@ import {
 } from "@/lib/seo/metadata";
 
 const PAGE_SIZE = 24;
+const POPULAR_CITIES_LIMIT = 10;
 
 type Props = {
   params: { locale: string; sport: string };
@@ -114,6 +115,23 @@ type VenueRow = {
   city_name: string | null;
   city_country: string | null;
 };
+
+type PopularCity = {
+  city_name: string;
+  city_slug: string;
+  country_code: string;
+  venue_count: number;
+};
+
+async function fetchPopularCities(sportSlug: string): Promise<PopularCity[]> {
+  const sb = getSupabaseServerClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb as any).rpc("top_cities_for_sport", {
+    p_sport_slug: sportSlug,
+    p_limit: POPULAR_CITIES_LIMIT,
+  });
+  return (data as PopularCity[]) ?? [];
+}
 
 async function fetchVenues(
   sportSlug: string,
@@ -228,7 +246,14 @@ export default async function SportPage({ params, searchParams }: Props) {
   const selectedCriteria: string[] = FILTER_KEYS.filter((k) => filters[k]);
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
-  let { venues, total } = await fetchVenues(sportSlug, page, filters);
+  // Villes populaires uniquement page 1 sans filtre actif — fetch parallèle
+  // avec les venues pour ne pas allonger le TTFB (#604).
+  const showPopularCities = page === 1 && !anyFilterActive;
+  const [venueResult, popularCities] = await Promise.all([
+    fetchVenues(sportSlug, page, filters),
+    showPopularCities ? fetchPopularCities(sportSlug) : Promise.resolve([] as PopularCity[]),
+  ]);
+  let { venues, total } = venueResult;
   // #550 — fallback anti « No venue » : si le filtre qualité ne laisse AUCUNE
   // venue sur cette page (sport dont 100% des venues sont des squelettes OSM,
   // ex. padel), on re-fetch SANS le gate qualité. On ne masque jamais un sport
@@ -320,6 +345,27 @@ export default async function SportPage({ params, searchParams }: Props) {
           {t("venuesIndexed", { count: displayTotal })}
         </p>
       </header>
+
+      {/* Villes populaires — page 1 sans filtre uniquement (#604). */}
+      {showPopularCities && popularCities.length > 0 && (
+        <div className="mt-5">
+          <p className="mb-2 text-sm font-medium text-muted-foreground">
+            {t("popularCities")}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {popularCities.map((city) => (
+              <Link
+                key={city.city_slug}
+                href={`/${sportSlug}/${city.country_code.toLowerCase()}/${city.city_slug}`}
+                className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm hover:bg-accent"
+              >
+                {city.city_name}
+                <span className="text-xs text-muted-foreground">({city.venue_count})</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filtres spécifiques sport (#467) — puces-liens SSR, sans JS, crawlables.
           Limités aux booléens venue-level (couvert / éclairage) pour rester
@@ -425,7 +471,7 @@ export default async function SportPage({ params, searchParams }: Props) {
               ) : (
                 <span className="rounded-md border px-3 py-2 opacity-40">{t("previous")}</span>
               )}
-              <span className="text-muted-foreground">
+              <span className="text-xs text-muted-foreground/70">
                 {t("page", { current: page, total: totalPages })}
               </span>
               {page < totalPages ? (
