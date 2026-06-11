@@ -47,6 +47,16 @@ on:
         type: boolean
         required: false
         default: false
+      diag_page:
+        description: "Lecture seule : reproduit /[sport]/fr/<ville> (doublons city)"
+        type: boolean
+        required: false
+        default: false
+      city_slug:
+        description: "slug ville pour diag_page"
+        type: string
+        required: false
+        default: "paris"
 
 concurrency:
   group: backfill-venue-city
@@ -80,11 +90,18 @@ jobs:
           IN_BBOX: ${{ inputs.bbox || '4.81,45.74,4.87,45.79' }}
           IN_SPORT: ${{ inputs.sport || 'tennis' }}
           IN_CONSOLIDATE: ${{ inputs.consolidate_arr || 'false' }}
+          IN_DIAGPAGE: ${{ inputs.diag_page || 'false' }}
+          IN_CITYSLUG: ${{ inputs.city_slug || 'paris' }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
             echo "::error::Secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants." >&2
             exit 1
+          fi
+          if [ "$IN_DIAGPAGE" = "true" ]; then
+            echo "▶ backfill_venue_city.py --diag-page --city-slug $IN_CITYSLUG --sport $IN_SPORT"
+            python3 scripts/backfill_venue_city.py --diag-page --city-slug "$IN_CITYSLUG" --sport "$IN_SPORT"
+            exit 0
           fi
           if [ "$IN_DIAGNOSE" = "true" ]; then
             echo "▶ backfill_venue_city.py --diagnose --bbox $IN_BBOX --sport $IN_SPORT"

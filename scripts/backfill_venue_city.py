@@ -270,6 +270,82 @@ def diagnose(args: argparse.Namespace) -> int:
     return 0
 
 
+def diag_page(args: argparse.Namespace) -> int:
+    """Reproduit la résolution de /[sport]/fr/<ville> : résout TOUTES les lignes
+    `city` (country+slug) — révèle les DOUBLONS de ville — puis compte, par
+    city_id, les venues `primary_sport_slug=<sport>` publiées (ce que la page
+    liste). Si deux lignes 'paris' existent et que les venues pendent sur l'une
+    pendant que la page résout l'autre → page vide malgré la data. Aucune écriture."""
+    url, key = load_env()
+    country = args.country.upper()
+    slug = args.city_slug
+    rows = json.loads(req(
+        url, key,
+        path=(f"city?select=id,name,slug,lat,lon&country_code=eq.{country}"
+              f"&slug=eq.{slug}&order=id.asc"),
+    ))
+    print(f"▶ city country={country} slug={slug} → {len(rows)} ligne(s) :")
+    if not rows:
+        print("  ⚠ aucune ville ne matche ce slug — la page renverrait 404.")
+        return 0
+    for i, c in enumerate(rows):
+        # fetch ids (publiés, sport) → len = ce que la page compterait pour ce city_id
+        n, last_id = 0, ""
+        while True:
+            path = (f"venue?select=id&primary_sport_slug=eq.{args.sport}"
+                    f"&city_id=eq.{c['id']}&is_published=eq.true&deleted_at=is.null"
+                    f"&order=id.asc&limit=1000")
+            if last_id:
+                path += f"&id=gt.{last_id}"
+            chunk = json.loads(req(url, key, path=path))
+            if not chunk:
+                break
+            n += len(chunk)
+            last_id = chunk[-1]["id"]
+            if len(chunk) < 1000:
+                break
+        # Ce que la PAGE lit réellement : mv_venue_sport_search (pas la table venue).
+        # Si l'écart venue↔MV est grand → MV périmée (refresh hebdo en retard).
+        mv = 0
+        try:
+            mvrows = json.loads(req(
+                url, key,
+                path=(f"mv_venue_sport_search?select=venue_id&sport_slug=eq.{args.sport}"
+                      f"&city_id=eq.{c['id']}&limit=10000"),
+            ))
+            mv = len(mvrows)
+        except Exception as exc:  # noqa: BLE001
+            mv = f"erreur ({exc})"
+        # REPRODUIT EXACTEMENT getVisibleVenueCount : count=exact + head (#556).
+        # Sans index (sport_slug, city_id) ce COUNT(*) scanne tout le sport →
+        # timeout sur gym (140k) → erreur → la page affiche 0. On chronomètre.
+        headers = {"apikey": key, "Authorization": "Bearer " + key,
+                   "Prefer": "count=exact", "Range-Unit": "items", "Range": "0-0"}
+        path = (f"mv_venue_sport_search?select=venue_id&sport_slug=eq.{args.sport}"
+                f"&city_id=eq.{c['id']}")
+        t0 = time.monotonic()
+        try:
+            r = urllib.request.Request(url + "/rest/v1/" + path, headers=headers)
+            with urllib.request.urlopen(r, timeout=60) as resp:
+                cr = resp.headers.get("Content-Range", "?")
+                cnt_exact = f"{resp.status} Content-Range={cr}"
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "replace")[:200]
+            cnt_exact = f"ERREUR HTTP {e.code} : {body}"
+        except Exception as e:  # noqa: BLE001
+            cnt_exact = f"ERREUR {e}"
+        dt = time.monotonic() - t0
+        print(f"      → COUNT(*) exact (= getVisibleVenueCount) : {cnt_exact}  [{dt:.1f}s]")
+        marker = "  ⟵ résolue par la page (1ʳᵉ par id.asc)" if i == 0 else ""
+        print(f"  [{i}] id={c['id']} name={c['name']!r} "
+              f"lat={c['lat']} lon={c['lon']} → table venue={n} | "
+              f"MV (ce que lit la page)={mv}{marker}")
+    if len(rows) > 1:
+        print("\n  ⚠ DOUBLON détecté : plusieurs lignes city pour ce slug. La page "
+              "n'en lit qu'une → si la data pend sur une autre, page vide.")
+    return 0
+
+
 def fetch_venues_in_cities(url, key, city_ids: list[str]) -> list[dict]:
     """Venues (non supprimées) rattachées à l'une des `city_ids`."""
     rows, last_id, page = [], "", 1000
@@ -423,7 +499,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="Lecture seule : distribution city_id→slug pour --bbox/--sport")
     p.add_argument("--bbox", default="4.81,45.74,4.87,45.79",
                    help="W,S,E,N pour --diagnose (défaut : Lyon intra-muros)")
-    p.add_argument("--sport", default="tennis", help="primary_sport_slug pour --diagnose")
+    p.add_argument("--sport", default="tennis", help="primary_sport_slug pour --diagnose/--diag-page")
+    p.add_argument("--diag-page", action="store_true",
+                   help="Lecture seule : reproduit la résolution de /[sport]/fr/<ville> (doublons city)")
+    p.add_argument("--city-slug", default="paris", help="slug ville pour --diag-page")
+    p.add_argument("--country", default="fr", help="country_code pour --diag-page")
     p.add_argument("--consolidate-arr", action="store_true",
                    help="Re-rattache les venues d'arrondissements (Paris/Lyon/Marseille) au parent")
     p.add_argument("--self-test", action="store_true")
@@ -432,6 +512,8 @@ def main(argv: list[str] | None = None) -> int:
         return self_test()
     if args.diagnose:
         return diagnose(args)
+    if args.diag_page:
+        return diag_page(args)
     if args.consolidate_arr:
         return consolidate_arrondissements(args)
     return run(args)

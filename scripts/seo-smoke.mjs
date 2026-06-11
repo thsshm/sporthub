@@ -46,6 +46,11 @@ const POPULATED_PAGES = [
   "/en/petanque/fr/marseille",
   "/en/football/fr/lille",
   "/en/basketball/fr/rennes",
+  // gym = le PLUS GROS sport (~140k). La page sport×ville utilise getVisibleVenueCount
+  // en count:'exact' → sans l'index (sport_slug, city_id) de la MV (migration 0058)
+  // le COUNT(*) timeout → page vide en SILENCE. Garde-fou si un futur rebuild de la
+  // MV oublie de recréer cet index (0056 l'avait DROP+CREATE).
+  "/en/gym/fr/lyon",
 ];
 
 const failures = [];
@@ -82,8 +87,18 @@ function extractSpotsCount(html) {
 }
 
 async function checkPopulatedPage(path) {
-  const { status, html } = await fetchPage(path);
+  let { status, html } = await fetchPage(path);
   if (status !== 200) return fail(path, `HTTP ${status} (attendu 200)`);
+  // Retry-sur-vide : l'app a des renders vides TRANSITOIRES (fenêtre de REFRESH
+  // de la MV, cold start) — vu en live le 2026-06-11. Un seul fetch ferait
+  // « crier au loup » le cron. On re-fetch une fois avant de conclure : un vide
+  // persistant échoue toujours, un transitoire est absorbé.
+  const isEmpty = (h) => h.includes(NO_VENUE) || h.includes(NO_ADDRESS);
+  if (isEmpty(html)) {
+    await new Promise((r) => setTimeout(r, 2500));
+    ({ status, html } = await fetchPage(path));
+    if (status !== 200) return fail(path, `HTTP ${status} au retry (attendu 200)`);
+  }
   if (html.includes(NO_VENUE)) fail(path, `affiche « ${NO_VENUE} » (sport réputé peuplé)`);
   if (html.includes(NO_ADDRESS)) fail(path, `affiche « ${NO_ADDRESS} » (ville réputée peuplée)`);
   for (const stale of STALE_COUNTS) {
