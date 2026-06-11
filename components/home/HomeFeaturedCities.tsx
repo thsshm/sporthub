@@ -137,18 +137,18 @@ export async function HomeFeaturedCities() {
               href={`/map?city=${city.slug}`}
               className="group flex flex-col rounded-lg border bg-card p-4 transition-shadow hover:shadow-md"
             >
-              <span className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                {city.country_code}
+              {/* Hiérarchie (#609) : le NOM de ville est le titre ; le code pays
+                  passe en secondaire (muté, après le compteur) au lieu de
+                  dominer la carte en majuscules en première ligne. */}
+              <span className="flex items-center gap-1.5 text-base font-semibold group-hover:underline">
+                <MapPin className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <span className="truncate" title={formatCityName(city.name)}>
+                  {formatCityName(city.name)}
+                </span>
               </span>
-              <span
-                className="mt-1 truncate text-base font-semibold group-hover:underline"
-                title={formatCityName(city.name)}
-              >
-                {formatCityName(city.name)}
-              </span>
-              <span className="mt-1 text-xs text-muted-foreground">
+              <span className="mt-1.5 text-xs text-muted-foreground">
                 {t("venuesCount", { count: city.count })}
+                <span className="ml-1 opacity-60">· {city.country_code}</span>
               </span>
             </Link>
           ))}
