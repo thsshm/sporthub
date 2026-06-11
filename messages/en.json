@@ -204,6 +204,7 @@
     "verifiedFrom": "Data verified from {source}",
     "updatedAt": "Updated {date}",
     "reportError": "Report an error",
+    "directionsShort": "Directions",
     "addVenueCta": "Add a place",
     "quality": {
       "verified": "Verified",
