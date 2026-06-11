@@ -81,13 +81,17 @@ export const SPORT_RULES: Record<string, SportRule> = {
     ],
   },
   gym: {
-    // musculation/fitness sont POSITIFS pour le gym (cf. #553).
+    // musculation/fitness sont POSITIFS pour le gym (cf. #553). Le positif
+    // l'emporte sur le suspect → un vrai gym qui propose aussi grappling/aquabike
+    // n'est jamais rétrogradé (garde-fou #639 : ne pas retirer CrossFit/Pilates/
+    // coaching/multi-sport valides).
     positive: [
       w("gym"),
       w("fitness"),
       /basic.?fit/,
       /keep.?cool/,
       /fitness park/,
+      /salle de sport/,
       w("crossfit"),
       w("studio"),
       w("coaching"),
@@ -95,15 +99,22 @@ export const SPORT_RULES: Record<string, SportRule> = {
       w("pilates"),
     ],
     contradiction: [/\bpiscines?\b/, /\bnatation\b/, /\bboulodromes?\b/, /\bpatinoires?\b/],
-    // fédération/ligue/comité (organisation) + loisir non-entraînement.
+    // Bruit réel des pages gym (#588/#639, exemples Toulouse) : organisations
+    // (fédération/ligue/comité), loisir non-entraînement (laser game, bowling,
+    // centre de loisirs) et activités d'un AUTRE sport (grappling = combat,
+    // aquavélo/aquabike = aquatique). Rétrogradés seulement, jamais exclus.
     suspicious: [
       w("federation"),
       w("ligue"),
       w("comite"),
       /laser game/,
+      w("bowling"),
       /centre de loisirs/,
       /base de loisirs/,
       /office municipal/,
+      w("grappling"),
+      w("aquavelo"),
+      w("aquabike"),
     ],
   },
   football: {
