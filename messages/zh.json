@@ -20,6 +20,7 @@
     "ctaDiscoverSports": "浏览运动",
     "familiesTitle": "按家族浏览",
     "familiesSubtitle": "13 个运动家族 · 点击家族或具体运动",
+    "topSportsTitle": "热门运动",
     "spotsCount": "{count, plural, =0 {即将推出} other {{count} 个场所}}",
     "comingSoon": "即将推出",
     "dataSourcesTitle": "开放数据",
