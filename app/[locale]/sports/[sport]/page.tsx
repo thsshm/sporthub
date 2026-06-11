@@ -314,11 +314,10 @@ export default async function SportPage({ params, searchParams }: Props) {
           <span aria-hidden="true">{sport.emoji || family?.emoji}</span>
           {sportName}
         </h1>
+        {/* Première vue : compteur seul, sans pagination technique (#604).
+            La navigation par page reste en bas de liste (vraie nav prev/suiv). */}
         <p className="mt-2 text-muted-foreground">
           {t("venuesIndexed", { count: displayTotal })}
-          {totalPages > 1 && (
-            <span className="text-sm"> · {t("page", { current: page, total: totalPages })}</span>
-          )}
         </p>
       </header>
 
