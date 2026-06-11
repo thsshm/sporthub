@@ -35,6 +35,10 @@ type Props = {
   onVenuesData?: (venues: VenuePin[], center: { lat: number; lon: number }) => void;
   /** Cible de flyTo (clic sur un item de la liste viewport). */
   flyTarget?: FlyTarget | null;
+  /** Centre explicite (pages sport×ville #608) : la carte ouvre SUR LA VILLE
+   * au lieu de géolocaliser le visiteur. Désactive la géoloc auto (sur une page
+   * « Tennis à Lyon » l'utilisateur veut voir Lyon, pas sa propre ville). */
+  cityCenter?: { lat: number; lon: number } | null;
 };
 
 /**
@@ -58,6 +62,7 @@ export function SportPageMap({
   selectedCriteria,
   onVenuesData,
   flyTarget,
+  cityCenter,
 }: Props) {
   const tSport = useTranslations("sport");
   const tSports = useTranslations("sports");
@@ -89,6 +94,8 @@ export function SportPageMap({
   // Gardée par GEO_PROMPTED_KEY : on ne redemande jamais la permission en auto.
   const precisePosRef = useRef(false);
   useEffect(() => {
+    // Page sport×ville (#608) : on reste centré sur la VILLE, pas de géoloc.
+    if (cityCenter) return;
     if (typeof window === "undefined" || !("geolocation" in navigator)) return;
     try {
       if (window.localStorage.getItem(GEO_PROMPTED_KEY) === "1") return;
@@ -124,6 +131,7 @@ export function SportPageMap({
   // recentrage instantané sur la région du visiteur dès le mount. La géoloc
   // précise ci-dessus raffine ensuite (zoom 12) si elle est autorisée.
   useEffect(() => {
+    if (cityCenter) return; // page ville (#608) : centrée sur la ville, pas le visiteur
     let cancelled = false;
     (async () => {
       try {
@@ -150,6 +158,10 @@ export function SportPageMap({
   // Calc initial center + zoom depuis les venues initiaux (fallback si géoloc
   // indisponible / refusée → on garde une vue France raisonnable).
   const initial = (() => {
+    // Page sport×ville (#608) : on ouvre directement SUR LA VILLE au zoom rue.
+    if (cityCenter) {
+      return { lat: cityCenter.lat, lon: cityCenter.lon, zoom: 12 };
+    }
     if (initialVenues.length === 0) {
       return { lat: 46.5, lon: 2.5, zoom: 5 };
     }
