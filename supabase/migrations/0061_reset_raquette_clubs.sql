@@ -15,6 +15,13 @@
 -- est indexée (idx_venue_family) → l'UPDATE ciblé reste rapide.
 --
 -- Idempotent : re-jouable sans effet si raquette est déjà vide.
+--
+-- ⚠️ statement_timeout désactivé pour CETTE transaction : le 1er essai a
+-- timeouté à ~3,5 min (cap de la connexion db-push) — la table venue (267k) est
+-- sous forte contention de locks (imports concurrents d'autres jobs). On laisse
+-- l'UPDATE attendre les locks aussi longtemps que nécessaire. SET LOCAL = limité
+-- à la transaction de la migration.
+SET LOCAL statement_timeout = 0;
 
 -- 1) Détache les venues raquette de leur club (lève la FK venue.club_id → club.id).
 UPDATE venue
