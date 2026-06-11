@@ -38,6 +38,16 @@ export async function getVisibleVenueCount(
   if (opts.cityId) q = q.eq("city_id", opts.cityId);
   if (opts.minQualityScore != null) q = q.gte("quality_score", opts.minQualityScore);
   const { count, error } = await q;
-  if (error) return 0;
+  if (error) {
+    // NE PAS avaler en silence : une erreur ici (typiquement un statement_timeout
+    // sur un COUNT(*) exact mal indexé) se déguiserait en « page légitimement
+    // vide » et passerait inaperçue (cf. bug gym×ville 0058). On loggue pour la
+    // rendre visible (logs Vercel / Sentry) tout en conservant le fallback 0.
+    console.error(
+      `[getVisibleVenueCount] sport=${opts.sportSlug} city=${opts.cityId ?? "—"} ` +
+        `exact=${opts.exact !== false} → ${error.message ?? error.code ?? error}`,
+    );
+    return 0;
+  }
   return count ?? 0;
 }
