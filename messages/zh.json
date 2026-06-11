@@ -162,6 +162,7 @@
     "listModeAll": "全部场所",
     "listModeViewport": "当前视图({count})",
     "viewportHint": "列表随地图变化 — 移动地图以查看其他场所。",
+    "listModeAllHint": "全球列表，按质量排序 — 使用「附近」或地图查找近处场所。",
     "mapVisibleOfTotal": "视图中 {visible} · 共 {total}",
     "mapInView": "视图中 {count}",
     "mapInArea": "该区域内 {count}",

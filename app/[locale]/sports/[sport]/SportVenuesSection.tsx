@@ -116,6 +116,13 @@ export function SportVenuesSection({
           </button>
         </div>
         {mode === "view" && <p className="text-xs text-muted-foreground">{t("viewportHint")}</p>}
+        {/* Scope de la liste « ancrée » = mondiale (triée qualité), pas locale
+            (#640) : on le dit explicitement pour qu'un visiteur comprenne que la
+            liste n'est pas « près de lui » et l'oriente vers Près de moi / la
+            carte. */}
+        {mode === "all" && (
+          <p className="text-xs text-muted-foreground">{t("listModeAllHint")}</p>
+        )}
       </div>
 
       <div className="mt-6">

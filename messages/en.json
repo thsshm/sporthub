@@ -162,6 +162,7 @@
     "listModeAll": "All venues",
     "listModeViewport": "In this view ({count})",
     "viewportHint": "The list follows the map — move it to discover other venues.",
+    "listModeAllHint": "Global list, sorted by quality — use “Near me” or the map for nearby spots.",
     "mapVisibleOfTotal": "{visible} in view · {total} total",
     "mapInView": "{count} in view",
     "mapInArea": "{count} in this area",
