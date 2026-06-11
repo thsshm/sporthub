@@ -1,3 +1,5 @@
+import { sportSignalScore } from "@/lib/venue/sport-rules";
+
 /**
  * Score de qualité d'une venue (#464).
  *
@@ -168,6 +170,22 @@ export function venueQualityScore(venue: ScorableVenue): number {
 /** true si la fiche est trop pauvre pour être indexée. */
 export function isLowQualityVenue(venue: ScorableVenue): boolean {
   return venueQualityScore(venue) < LOW_QUALITY_THRESHOLD;
+}
+
+/**
+ * Score qualité AJUSTÉ POUR UN SPORT (#637) — combine la complétude
+ * (`venueQualityScore`, #464) et le signal nom↔sport (`sportSignalScore`, #638).
+ * Positif → +15, suspect → −20, contradiction → −40 ; borné 0–100, déterministe.
+ *
+ * Sert au **ranking** des listes SEO mono-sport (un club « padel » remonte, un
+ * « Tennis Club » sans signal padel descend) — PAS à l'exclusion : un lieu
+ * multi-sport légitime (présent dans `venue_sport` pour ce sport) reste listé,
+ * simplement dépriorisé (garde-fou #637 : démotion avant exclusion). L'exclusion
+ * dure reste `isLowQualityVenue` (complétude) + `isSportMismatch` (contradiction).
+ */
+export function venueQualityScoreForSport(venue: ScorableVenue, sportSlug: string): number {
+  const score = venueQualityScore(venue) + sportSignalScore(venue.name, sportSlug);
+  return Math.max(0, Math.min(100, score));
 }
 
 /**

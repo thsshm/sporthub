@@ -8,7 +8,7 @@ import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG, getRelatedSports } from "@/lib/families";
 import {
   isLowQualityVenue,
-  venueQualityScore,
+  venueQualityScoreForSport,
   LOW_QUALITY_THRESHOLD,
   type ScorableVenue,
 } from "@/lib/venue/quality-score";
@@ -220,11 +220,15 @@ async function fetchScopeVenues(
   // quand aucune venue n'atteint le seuil mais que des venues existent (#551 :
   // ne jamais montrer « No address » si total > 0 ; la page reste noindex car
   // thin, mais liste de vrais lieux au lieu d'une grille vide).
-  // Ranking par score qualité décroissant (#563) : les pages SEO priorisent les
-  // MEILLEURS lieux (adresse, contact, contenu, vérifié…), pas l'ordre d'import.
+  // Ranking par score qualité décroissant (#563) AJUSTÉ POUR LE SPORT (#637) :
+  // complétude (adresse, contact, contenu, vérifié…) + signal nom↔sport (#638) →
+  // un club « padel » remonte, un « Tennis Club » sans signal padel descend. Pure
+  // démotion : le lieu reste listé (#637, anti sur-filtrage multi-sport).
   // id en tie-break → ordre déterministe (stable pour l'ISR/la pagination).
   scope.sort(
-    (a, b) => venueQualityScore(b) - venueQualityScore(a) || a.id.localeCompare(b.id),
+    (a, b) =>
+      venueQualityScoreForSport(b, sportSlug) - venueQualityScoreForSport(a, sportSlug) ||
+      a.id.localeCompare(b.id),
   );
   // Exclusion des noms contradictoires (#553) : « piscine », « salle de
   // musculation du tennis club »… ne se listent pas sur une page mono-sport,

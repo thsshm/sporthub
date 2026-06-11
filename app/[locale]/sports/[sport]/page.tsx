@@ -211,9 +211,15 @@ async function fetchVenues(
   // sport 100% sous seuil #550), on RELÈGUE seulement en fin de page pour ne
   // pas re-créer « No venue » ; si le filtre vide la page qualité, le caller
   // bascule déjà sur ce fallback.
-  const venues = applyQuality
-    ? mapped.filter((v) => !isSportMismatch(v.name, sportSlug))
-    : sinkMismatches(mapped, sportSlug);
+  // #637 : après le tri DB par quality_score (complétude), on RÉ-ORDONNE la page
+  // par signal nom↔sport (#638) — positifs (« padel club ») remontés, suspects
+  // (« tennis » sur /padel, loisir…) relégués, ordre qualité préservé par rang.
+  // applyQuality exclut en plus les contradictions dures (#553) ; le fallback ne
+  // fait que reléguer. Démotion avant exclusion.
+  const venues = sinkMismatches(
+    applyQuality ? mapped.filter((v) => !isSportMismatch(v.name, sportSlug)) : mapped,
+    sportSlug,
+  );
   return { venues, total: count ?? 0 };
 }
 
