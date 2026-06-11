@@ -162,6 +162,7 @@
     "listModeAll": "Tous les venues",
     "listModeViewport": "Dans cette vue ({count})",
     "viewportHint": "La liste suit la carte — déplacez-la pour découvrir d'autres venues.",
+    "listModeAllHint": "Liste mondiale, triée par qualité — utilisez « Près de moi » ou la carte pour les lieux proches.",
     "mapVisibleOfTotal": "{visible} dans la vue · {total} au total",
     "mapInView": "{count} dans la vue",
     "mapInArea": "{count} dans cette zone",
