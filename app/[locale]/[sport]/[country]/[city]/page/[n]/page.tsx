@@ -12,6 +12,10 @@ import { parsePageSegment } from "@/lib/seo/pagination";
 // STATIQUE/ISR comme la page 1 : N vient du segment de route, pas de
 // searchParams. Remplace l'ancien `?page=N` (query = rendu dynamique, #191).
 export const revalidate = 86400; // 24 h
+// force-static : idem page 1 — force la mise en cache ISR (sinon rendu on-demand
+// no-store). Le redirect /page/1 et le notFound (hors plage) restent OK en static
+// (build vérifié → `○`).
+export const dynamic = "force-static";
 
 type PageParams = CityPageParams & { n: string };
 
