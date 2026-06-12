@@ -55,21 +55,8 @@ const C_RAQUETTE = [
 ];
 const C_BALLON = [...C_RAQUETTE];
 
-// Équipement ÉQUESTRE — jamais un terrain de padel/tennis (#695, faux positifs
-// live « Écuries de propriétaires - manège, carrière, pistes de galop »). Mots
-// sans ambiguïté seulement → exclusion dure sûre.
-const C_EQUESTRIAN = [
-  /\bmanege\b/,
-  /\becuries?\b/,
-  /\bhippodromes?\b/,
-  /\bharas\b/,
-  /\bhippiques?\b/,
-  /\bequestres?\b/,
-  /\bequitation\b/,
-  /\bponeys?\b/,
-];
-
-// Pêche / plans d'eau — listés comme négatifs padel dans #695. Jamais du padel.
+// Pêche / plans d'eau — listés comme négatifs padel dans #695 (« étang de
+// pêche »…). Jamais un lieu de padel → exclusion dure.
 const C_FISHING = [/\bpeche\b/, /\betangs?\b/, /\bpisciculture\b/];
 
 /**
@@ -91,15 +78,33 @@ export const SPORT_RULES: Record<string, SportRule> = {
       /padel club/,
       /padelshot/,
       /padel indoor/,
-      /we are padel/,
     ],
-    // Équipement clairement AUTRE → exclu des listes SEO padel (#695) : famille
-    // raquette « autre » (piscine/muscu…), équestre et pêche (jamais du padel).
-    contradiction: [...C_RAQUETTE, ...C_EQUESTRIAN, ...C_FISHING],
-    // tennis/squash SANS signal padel (le positif l'emporte) + circuits/karting :
-    // possibles mais douteux → rétrogradés seulement, jamais exclus (« Tennis &
-    // Padel Club » garde son signal positif et reste prioritaire).
-    suspicious: [w("tennis"), w("squash"), /\bcircuit\b/, /\bkarting\b/, /\bgalop\b/],
+    // #695 : la rétrogradation ne suffisait pas — les équipements ÉQUESTRES et
+    // les courts TENNIS-only restaient « SEO-visibles » sur la page padel
+    // (vécu : « Écuries … manège, carrière, pistes de galop », « COURT DE
+    // TENNIS EXT »). Promus en EXCLUSION :
+    //  - équestre : termes sans ambiguïté pour un lieu de padel ;
+    //  - tennis-only : regex composée « contient tennis ET aucun signal
+    //    padel/paddle » — un nom mixte (« Esprit Padel & Tennis ») garde son
+    //    signal positif et n'est jamais exclu. La contradiction primant sur le
+    //    positif (#553), l'override doit vivre DANS la regex.
+    contradiction: [
+      ...C_RAQUETTE,
+      /\bmanege\b/,
+      /\becuries?\b/,
+      /\bhippodromes?\b/,
+      /\bharas\b/,
+      /\bhippiques?\b/,
+      /\bequestres?\b/,
+      /\bequitation\b/,
+      /\bgalop\b/,
+      /\bponeys?\b/,
+      ...C_FISHING,
+      /^(?!.*padel)(?!.*paddle).*(?<![a-z])tennis(?![a-z])/,
+    ],
+    // squash-only (#695), circuits/karting : douteux mais pas impossibles
+    // (complexes de loisirs avec padel) → rétrogradés seulement.
+    suspicious: [w("squash"), /\bcircuit\b/, /\bkarting\b/],
   },
   gym: {
     // musculation/fitness sont POSITIFS pour le gym (cf. #553). Le positif

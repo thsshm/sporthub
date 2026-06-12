@@ -10,6 +10,12 @@ import {
 // searchParams (la pagination passe par /page/N), client service_role sans
 // cookies() → page cachée 24 h, crawl SEO rapide (cf. #191 + bug gym×ville).
 export const revalidate = 86400; // 24 h
+// `force-static` : SANS ça, Next défère ce segment dynamique en rendu on-demand
+// NON caché (le fetch Supabase est `no-store` par défaut → page servie `no-store`,
+// vérifié en prod). La page n'a AUCUNE API dynamique (build `dynamic:'error'` →
+// `○ Static`), donc on FORCE le cache → vraie ISR (le fetch service_role est mis
+// en cache pour `revalidate`). C'est ce qui complète réellement #674.
+export const dynamic = "force-static";
 
 export async function generateMetadata({
   params,
