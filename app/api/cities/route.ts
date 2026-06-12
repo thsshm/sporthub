@@ -25,16 +25,42 @@ export async function GET(req: Request): Promise<Response> {
   // Traite `q` comme littéral : échappe les wildcards LIKE.
   const safe = q.replace(/[\\%_]/g, "\\$&");
   const sb = getSupabaseAnonEdgeClient();
+  // On récupère un sur-ensemble (population est quasi-NULL en base → tri PG peu
+  // fiable : "Paris 01" remontait avant "Paris", "Lyoffans" avant "Lyon"), puis
+  // on RE-CLASSE en JS par pertinence avant de couper à 8.
   const { data, error } = await sb
     .from("city")
-    .select("slug, name, country_code")
+    .select("slug, name, country_code, population")
     .ilike("name", `${safe}%`)
     .order("population", { ascending: false, nullsFirst: false })
-    .limit(8);
+    .limit(40);
 
   if (error) return NextResponse.json({ cities: [] });
+
+  const ql = q.toLowerCase();
+  const ranked = (data ?? [])
+    .map((c) => ({
+      slug: c.slug,
+      name: c.name,
+      country_code: c.country_code,
+      // Rang : match exact d'abord, puis nom le plus court ("Paris" < "Paris 01",
+      // "Lyon" < "Lyoffans"), puis population décroissante, puis alpha.
+      _exact: c.name.toLowerCase() === ql ? 0 : 1,
+      _len: c.name.length,
+      _pop: typeof c.population === "number" ? c.population : -1,
+    }))
+    .sort(
+      (a, b) =>
+        a._exact - b._exact ||
+        a._len - b._len ||
+        b._pop - a._pop ||
+        a.name.localeCompare(b.name),
+    )
+    .slice(0, 8)
+    .map(({ slug, name, country_code }) => ({ slug, name, country_code }));
+
   return NextResponse.json(
-    { cities: (data ?? []) as CitySuggestion[] },
+    { cities: ranked as CitySuggestion[] },
     { headers: { "Cache-Control": "public, max-age=300, s-maxage=86400" } },
   );
 }
