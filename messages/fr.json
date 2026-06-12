@@ -163,6 +163,7 @@
     "ctaLocating": "Localisation…",
     "ctaOpenMap": "Voir la carte",
     "page": "page {current} / {total}",
+    "pageShort": "page {current}",
     "emptyMessage": "Aucun venue pour ce sport pour l'instant.",
     "exploreOthers": "Explorer les autres sports",
     "previous": "← Précédent",

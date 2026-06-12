@@ -163,6 +163,7 @@
     "ctaLocating": "定位中…",
     "ctaOpenMap": "打开地图",
     "page": "第 {current} 页 / 共 {total} 页",
+    "pageShort": "第 {current} 页",
     "emptyMessage": "该运动暂无场所。",
     "exploreOthers": "浏览其他运动",
     "previous": "← 上一页",

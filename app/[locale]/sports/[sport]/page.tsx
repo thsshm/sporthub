@@ -506,7 +506,12 @@ export default async function SportPage({ params, searchParams }: Props) {
                 <span className="rounded-md border px-3 py-2 opacity-40">{t("previous")}</span>
               )}
               <span className="text-xs text-muted-foreground/70">
-                {t("page", { current: page, total: totalPages })}
+                {/* #640 : sur la liste GLOBALE le total est énorme (« / 1295 »)
+                    et inutile à l'utilisateur → on masque le total au-delà de 20
+                    pages (la nav prev/suiv reste, crawlable). */}
+                {totalPages > 20
+                  ? t("pageShort", { current: page })
+                  : t("page", { current: page, total: totalPages })}
               </span>
               {page < totalPages ? (
                 <Link

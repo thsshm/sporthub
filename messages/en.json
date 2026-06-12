@@ -163,6 +163,7 @@
     "ctaLocating": "Locating…",
     "ctaOpenMap": "Open map",
     "page": "page {current} / {total}",
+    "pageShort": "page {current}",
     "emptyMessage": "No venue for this sport yet.",
     "exploreOthers": "Explore other sports",
     "previous": "← Previous",
