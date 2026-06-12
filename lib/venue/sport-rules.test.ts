@@ -7,12 +7,13 @@ import {
 } from "@/lib/venue/sport-rules";
 
 describe("getSportSignal — padel (#638)", () => {
-  it("positif : un nom qui contient padel/paddle/casa padel", () => {
+  it("positif : padel/paddle/casa padel + enseignes (#695)", () => {
     expect(getSportSignal("Casa Padel Saint-Denis", "padel")).toBe("positive");
     expect(getSportSignal("Padellers Lyon", "padel")).toBe("positive");
     expect(getSportSignal("Le Paddle Club", "padel")).toBe("positive");
+    expect(getSportSignal("Padelshot Nantes", "padel")).toBe("positive");
   });
-  it("EXCLUSION (#695) : tennis-only SANS signal padel et équestre", () => {
+  it("EXCLUSION (#695) : tennis-only SANS signal padel, équestre et pêche", () => {
     // Faux positifs vécus sur /en/sports/padel (P0 #695) — désormais exclus
     // des listes SEO (plus seulement rétrogradés).
     expect(getSportSignal("COURT DE TENNIS EXT", "padel")).toBe("contradiction");
@@ -23,9 +24,13 @@ describe("getSportSignal — padel (#638)", () => {
     expect(getSportSignal("Manège équestre", "padel")).toBe("contradiction");
     expect(getSportSignal("Hippodrome de Vincennes", "padel")).toBe("contradiction");
     expect(getSportSignal("Haras des Poneys", "padel")).toBe("contradiction");
+    expect(getSportSignal("Centre équestre du Val", "padel")).toBe("contradiction");
+    // Pêche / plans d'eau (#695) — jamais du padel.
+    expect(getSportSignal("Étang de pêche du Moulin", "padel")).toBe("contradiction");
   });
-  it("suspect (rétrogradé seulement) : circuit/karting", () => {
+  it("suspect (rétrogradé seulement) : squash-only, circuit/karting", () => {
     expect(getSportSignal("Circuit de karting", "padel")).toBe("suspicious");
+    expect(getSportSignal("Squash Club Marseille", "padel")).toBe("suspicious");
   });
   it("le signal PADEL l'emporte sur tennis (multi-sport légitime, #695)", () => {
     // La regex tennis-only embarque l'override : un nom mixte n'est pas exclu.

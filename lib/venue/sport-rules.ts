@@ -55,6 +55,10 @@ const C_RAQUETTE = [
 ];
 const C_BALLON = [...C_RAQUETTE];
 
+// Pêche / plans d'eau — listés comme négatifs padel dans #695 (« étang de
+// pêche »…). Jamais un lieu de padel → exclusion dure.
+const C_FISHING = [/\bpeche\b/, /\betangs?\b/, /\bpisciculture\b/];
+
 /**
  * Carte de règles. Volontairement courte et factuelle (exemples réels des audits
  * #553/#637/#638) ; élargir au cas par cas, jamais en masse (faux positifs).
@@ -66,7 +70,15 @@ export const SPORT_RULES: Record<string, SportRule> = {
     suspicious: [], // pool/muscu sont déjà des contradictions ; multisport = générique
   },
   padel: {
-    positive: [w("padel"), w("paddle"), /casa padel/, w("padellers"), /padel club/],
+    positive: [
+      w("padel"),
+      w("paddle"),
+      /casa padel/,
+      w("padellers"),
+      /padel club/,
+      /padelshot/,
+      /padel indoor/,
+    ],
     // #695 : la rétrogradation ne suffisait pas — les équipements ÉQUESTRES et
     // les courts TENNIS-only restaient « SEO-visibles » sur la page padel
     // (vécu : « Écuries … manège, carrière, pistes de galop », « COURT DE
@@ -82,14 +94,17 @@ export const SPORT_RULES: Record<string, SportRule> = {
       /\becuries?\b/,
       /\bhippodromes?\b/,
       /\bharas\b/,
-      /\bhippique\b/,
+      /\bhippiques?\b/,
+      /\bequestres?\b/,
+      /\bequitation\b/,
       /\bgalop\b/,
       /\bponeys?\b/,
+      ...C_FISHING,
       /^(?!.*padel)(?!.*paddle).*(?<![a-z])tennis(?![a-z])/,
     ],
-    // circuits/karting : douteux mais pas impossibles (complexes de loisirs
-    // avec padel) → rétrogradés seulement.
-    suspicious: [/\bcircuit\b/, /\bkarting\b/],
+    // squash-only (#695), circuits/karting : douteux mais pas impossibles
+    // (complexes de loisirs avec padel) → rétrogradés seulement.
+    suspicious: [w("squash"), /\bcircuit\b/, /\bkarting\b/],
   },
   gym: {
     // musculation/fitness sont POSITIFS pour le gym (cf. #553). Le positif
