@@ -11,6 +11,7 @@ import { dedupeRelatedVenues } from "@/lib/venue/related-dedup";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportVenuesSection } from "./SportVenuesSection";
 import { SportPageCtaBar } from "./SportPageCtaBar";
+import { SportCitySearch } from "@/components/sports/SportCitySearch";
 import type { VenuePin } from "@/lib/supabase/types";
 import {
   buildBreadcrumbJsonLd,
@@ -373,6 +374,11 @@ export default async function SportPage({ params, searchParams }: Props) {
         {/* CTAs — "Near me" (geolocation, client) + "Open map" link (#603).
             familySlug → la carte conserve le filtre famille du sport (#605). */}
         <SportPageCtaBar familySlug={sport.family_slug} />
+        {/* Recherche ville → page programmatique /[sport]/[country]/[city] (#640) :
+            discovery par lieu, au-delà des seules villes populaires ci-dessous. */}
+        <div className="mt-3">
+          <SportCitySearch sportSlug={sportSlug} placeholder={tMap("searchPlaceholder")} />
+        </div>
         {/* Compteur seul, sans pagination technique (#604) — la navigation par
             page reste en bas de liste (vraie nav prev/suiv). */}
         <p className="mt-4 text-sm text-muted-foreground">
