@@ -12,7 +12,7 @@
  * FavoriteButton reste en overlay positionné hors du Link (cf. #98).
  */
 import Link from "next/link";
-import { MapPin, Navigation, ShieldCheck } from "lucide-react";
+import { Globe, MapPin, Navigation, ShieldCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { SportChips } from "@/components/venue/SportChips";
@@ -21,6 +21,7 @@ import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
 import { formatCityName } from "@/lib/format-city";
 import { formatVenueName } from "@/lib/format-venue-name";
 import { googleMapsUrl } from "@/lib/utils";
+import { safeExternalUrl } from "@/lib/url";
 import { SITE_URL } from "@/lib/seo/sitemap-shards";
 import { getVenueSourceMeta } from "@/lib/venue/source";
 import { getCourtCountDisplay } from "@/lib/venue/courts-plausibility";
@@ -34,6 +35,7 @@ type Props = {
     address?: string | null;
     courts_count?: number | null;
     source?: string | null;
+    website_url?: string | null;
   };
 };
 
@@ -68,6 +70,11 @@ export async function VenueCard({ venue }: Props) {
   // pré-rempli, même format que /venue/[slug]). Construites côté serveur,
   // fonctionnelles sans JS.
   const mapsHref = googleMapsUrl(venue.lat, venue.lon, venue.name);
+  // Action « Site web » (#642) — secondaire, seulement quand la venue a une URL
+  // sûre (http(s) ; on rejette javascript:/data: etc., cf. safeExternalUrl).
+  // Absente des pages /sports (la MV ne porte pas website_url) → dégradation
+  // gracieuse, pas d'incohérence.
+  const websiteHref = safeExternalUrl(venue.website_url);
   const venueUrl = `${SITE_URL}/venue/${venue.slug}`;
   const reportHref = `mailto:hello@sporthubmap.com?subject=${encodeURIComponent(
     t("reportErrorSubject", { name: venue.name })
@@ -164,6 +171,18 @@ export async function VenueCard({ venue }: Props) {
             <Navigation className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {t("directions")}
           </a>
+          {/* Site web (#642) — secondaire, conditionnel à une URL sûre. */}
+          {websiteHref && (
+            <a
+              href={websiteHref}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {t("website")}
+            </a>
+          )}
           <a
             href={reportHref}
             className="ml-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
