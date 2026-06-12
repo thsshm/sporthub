@@ -59,6 +59,37 @@ _NAME_SPORT_PATTERNS = [
 _NAME_SPORT_RE = [(re.compile(r"\b" + p + r"\b", re.IGNORECASE), s)
                   for p, s in _NAME_SPORT_PATTERNS]
 
+# Disciplines pour l'ANALYSE seule (#645/#613 taxonomie) — chiffrer quels NOUVEAUX
+# sports ajouter. NE classe RIEN (beaucoup n'ont pas de slug) : 1ʳᵉ correspondance
+# gagne, sur le nom (insensible à la casse). Élargi exprès au-delà de la taxo.
+_DISCIPLINE_ANALYSIS = [
+    ("taekwondo", r"tae?\s?kwon[\s-]?do|taekwondo|\btkd\b|hapkido|soo\s?bahk|tang\s?soo\s?do"),
+    ("aikido", r"a[iï]kido|ai[\s-]?ki[\s-]?do"),
+    ("karate", r"karat[eé]|shotokan|kyokushin|goju[\s-]?ryu|shito[\s-]?ryu|wado"),
+    ("kung_fu", r"kung[\s-]?fu|wing[\s-]?chun|wushu|shaolin|sanda|jeet[\s-]?kune"),
+    ("taichi", r"tai[\s-]?chi|t[aā]i[\s-]?ji|qi[\s-]?gong|chi[\s-]?gong"),
+    ("krav_maga", r"krav[\s-]?maga"),
+    ("self_defense", r"self[\s-]?defen|d[ée]fense\s?personnelle|self[\s-]?defence"),
+    ("bjj", r"brazilian\s?jiu|jiu[\s-]?jitsu|\bbjj\b|\bjjb\b|gracie|grappling|no[\s-]?gi|luta\s?livre"),
+    ("judo", r"\bjudo\b"),
+    ("kickboxing", r"kick[\s-]?box|muay[\s-]?thai|muaythai|boxe\s?tha[iï]|\bk-?1\b|full[\s-]?contact|savate"),
+    ("boxing", r"\bboxe\b|boxing|boxeo|pugilat"),
+    ("mma", r"\bmma\b|mixed\s?martial|free[\s-]?fight"),
+    ("kendo", r"kendo|iaido|kenjutsu|naginata|kyudo"),
+    ("capoeira", r"capoeira"),
+    ("wrestling", r"wrestl|\blutte\b|\bcatch\b|sambo"),
+    ("fencing", r"escrime|fencing|sabre|fleuret|[ée]p[ée]e"),
+    ("nunchaku_weapons", r"nunchaku|kobudo|eskrima|kali\b|arnis"),
+    ("martial_generic", r"martial\s?art|arts?\s?martiaux|\bdojo\b|\bbudo\b|\bryu\b|\bcombat\b"),
+    # quelques non-combat → mesurer le résidu hors arts martiaux
+    ("dance", r"\bdanse\b|\bdance\b|ballet|zumba|salsa"),
+    ("climbing", r"escalade|climbing|bouldering|grimpe"),
+    ("yoga_pilates", r"\byoga\b|pilates"),
+    ("padel", r"\bpadel\b"),
+    ("fitness", r"fitness|muscu|crossfit|gym\b"),
+]
+_DISCIPLINE_ANALYSIS_RE = [(lbl, re.compile(rx, re.IGNORECASE)) for lbl, rx in _DISCIPLINE_ANALYSIS]
+
 
 def classify_by_name(name: str | None, family_slug: str | None,
                      sport_family: dict[str, str]) -> str | None:
@@ -275,6 +306,42 @@ def run_by_name(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_distribution(args: argparse.Namespace) -> int:
+    """Lecture seule (#645) : distribution des DISCIPLINES (mots-clés de nom) sur
+    les venues NULL, pour décider quels NOUVEAUX sports ajouter. N'écrit/ne classe
+    rien — purement informatif (la plupart n'ont pas de slug existant)."""
+    url, key = load_env()
+    print("▶ chargement des venues NULL (analyse disciplines)…")
+    venues = fetch_null_named(url, key, limit=args.limit)
+    print(f"  ✓ {len(venues):,} venues à primary_sport NULL\n")
+
+    disc: collections.Counter = collections.Counter()
+    disc_family: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    unmatched_family: collections.Counter = collections.Counter()
+    matched = 0
+    for v in venues:
+        name = v.get("name") or ""
+        fam = v.get("family_slug") or "?"
+        hit = next((lbl for lbl, rx in _DISCIPLINE_ANALYSIS_RE if rx.search(name)), None)
+        if hit:
+            matched += 1
+            disc[hit] += 1
+            disc_family[hit][fam] += 1
+        else:
+            unmatched_family[fam] += 1
+
+    total = max(1, len(venues))
+    print(f"  reconnues par mot-clé : {matched:,} ({100 * matched // total}%)"
+          f"  ·  non reconnues : {len(venues) - matched:,}")
+    print("\n  ── disciplines par volume (candidates à un slug sport) ──")
+    for lbl, n in disc.most_common(25):
+        topfam = dict(disc_family[lbl].most_common(3))
+        print(f"    {lbl:18} {n:6,}   familles: {topfam}")
+    print("\n  ── non reconnues, par famille ──")
+    print(f"    {dict(unmatched_family.most_common(14))}")
+    return 0
+
+
 def run(args: argparse.Namespace) -> int:
     url, key = load_env()
     print("▶ chargement des venues sans primary_sport_slug…")
@@ -348,12 +415,16 @@ def main(argv: list[str] | None = None) -> int:
                    help="Lecture seule : échantillonne N venues NULL (nom/tags/famille)")
     p.add_argument("--by-name", action="store_true",
                    help="Classe par NOM (sport canonique cohérent avec la famille)")
+    p.add_argument("--distribution", action="store_true",
+                   help="Lecture seule : distribution des disciplines (analyse taxonomie #645)")
     p.add_argument("--self-test", action="store_true")
     args = p.parse_args(argv)
     if args.self_test:
         return self_test()
     if args.sample:
         return sample_unclassified(args)
+    if args.distribution:
+        return run_distribution(args)
     if args.by_name:
         return run_by_name(args)
     return run(args)
