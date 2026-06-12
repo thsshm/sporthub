@@ -58,6 +58,34 @@ const DEFAULT_MAX = 50;
 // trompeur (agrégation totalement cassée) → on n'affiche rien.
 const ABSURD_FACTOR = 4;
 
+/**
+ * Nom « équipement générique » (#697) : la fiche est un ENREGISTREMENT
+ * niveau-équipement (« COURT DE PADEL », « Courts de tennis Extérieurs »,
+ * « Terrain de basket n°2 »…), pas un club nommé. Sur ces fiches, un
+ * `courts_count` élevé est presque toujours une agrégation au mauvais niveau
+ * (vécu : « COURT DE PADEL » annonçant 9 courts, courts tennis Lyon à 28) —
+ * la MAGNITUDE seule ne suffit pas (28 ≤ plafond tennis 30).
+ * Détection : commence par court(s)/terrain(s)/piste(s), suivi au plus d'un
+ * sport et de qualificatifs courts (ext/int/couvert/n°…). Un nom PROPRE
+ * (« Casa Padel ») n'est jamais matché.
+ */
+export function isGenericEquipmentName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const n = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
+  return /^(les?\s|la\s)?(courts?|terrains?|pistes?|salles?)\b(\s(de|du|des|d))?(\s[a-z-]+)?(\s+(ext|int|exterieurs?|interieurs?|couverts?|decouverts?|n\s?[°o]?\s?\d+|\d+))*$/.test(
+    n,
+  );
+}
+
+// Sur un nom équipement-générique, au-delà de ce compte on n'affiche plus le
+// chiffre (un « court de padel » à 2-4 terrains reste crédible ; à 9, c'est
+// un artefact d'agrégation → « plusieurs terrains »).
+const GENERIC_NAME_MAX_COURTS = 4;
+
 /** Décision d'affichage du nombre de courts. Pur, testable, déterministe. */
 export type CourtCountDisplay =
   | { kind: "exact"; count: number } // valeur plausible → on l'affiche
@@ -79,10 +107,21 @@ function resolveMax(
  */
 export function getCourtCountDisplay(
   count: number | null | undefined,
-  opts: { sportSlug?: string | null; familySlug?: string | null } = {}
+  opts: { sportSlug?: string | null; familySlug?: string | null; name?: string | null } = {}
 ): CourtCountDisplay {
   if (count == null || count <= 0) return { kind: "none" };
   const max = resolveMax(opts.sportSlug, opts.familySlug);
+  // #697 — confiance par le NOM : sur une fiche équipement-générique
+  // (« COURT DE PADEL »), un compte élevé est un artefact d'agrégation même
+  // s'il passe le plafond du sport (9 ≤ padel 16, 28 ≤ tennis 30). On adoucit
+  // en « plusieurs terrains » ; l'absurde (> plafond×4) reste masqué.
+  if (
+    opts.name != null &&
+    isGenericEquipmentName(opts.name) &&
+    count > GENERIC_NAME_MAX_COURTS
+  ) {
+    return count <= max * ABSURD_FACTOR ? { kind: "approx" } : { kind: "none" };
+  }
   if (count <= max) return { kind: "exact", count };
   if (count <= max * ABSURD_FACTOR) return { kind: "approx" };
   return { kind: "none" };
@@ -97,8 +136,9 @@ export function getCourtCountDisplay(
 export function plausibleCourtCount(
   count: number | null | undefined,
   familySlug: string | null | undefined,
-  sportSlug?: string | null
+  sportSlug?: string | null,
+  name?: string | null
 ): number | null {
-  const d = getCourtCountDisplay(count, { familySlug, sportSlug });
+  const d = getCourtCountDisplay(count, { familySlug, sportSlug, name });
   return d.kind === "exact" ? d.count : null;
 }

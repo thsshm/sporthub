@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getCourtCountDisplay, plausibleCourtCount } from "@/lib/venue/courts-plausibility";
+import {
+  getCourtCountDisplay,
+  isGenericEquipmentName,
+  plausibleCourtCount,
+} from "@/lib/venue/courts-plausibility";
 
 describe("plausibleCourtCount", () => {
   it("garde une valeur plausible", () => {
@@ -84,5 +88,67 @@ describe("getCourtCountDisplay (#636)", () => {
   it("sport ET famille inconnus → seuil par défaut", () => {
     expect(getCourtCountDisplay(50, {}).kind).toBe("exact");
     expect(getCourtCountDisplay(51, {}).kind).toBe("approx");
+  });
+});
+
+describe("confiance par le nom — équipement générique (#697)", () => {
+  it("détecte les libellés équipement, pas les clubs nommés", () => {
+    for (const g of [
+      "COURT DE PADEL",
+      "Courts de tennis Extérieurs",
+      "court de tennis ext",
+      "Terrain de basket n°2",
+      "Courts de tennis intérieurs",
+      "Piste de padel 3",
+    ]) {
+      expect(isGenericEquipmentName(g), g).toBe(true);
+    }
+    for (const c of ["Casa Padel", "Tennis Club de Lyon", "We Are Padel", "Esprit Padel Lyon"]) {
+      expect(isGenericEquipmentName(c), c).toBe(false);
+    }
+  });
+
+  it("« COURT DE PADEL » + 9 courts → adouci (cas exact de l'issue)", () => {
+    const d = getCourtCountDisplay(9, { sportSlug: "padel", name: "COURT DE PADEL" });
+    expect(d.kind).toBe("approx"); // 9 ≤ plafond padel 16, mais nom générique
+  });
+
+  it("courts tennis Lyon 28/24/18/12 sur fiches équipement → adoucis", () => {
+    for (const n of [28, 24, 18, 12]) {
+      const d = getCourtCountDisplay(n, {
+        sportSlug: "tennis",
+        name: "Courts de tennis Extérieurs",
+      });
+      expect(d.kind, String(n)).toBe("approx");
+    }
+  });
+
+  it("petit compte sur nom générique : crédible → exact", () => {
+    expect(getCourtCountDisplay(2, { sportSlug: "padel", name: "Court de padel" })).toEqual({
+      kind: "exact",
+      count: 2,
+    });
+  });
+
+  it("club NOMMÉ : le compte élevé plausible reste affiché", () => {
+    expect(getCourtCountDisplay(9, { sportSlug: "padel", name: "Casa Padel" })).toEqual({
+      kind: "exact",
+      count: 9,
+    });
+    expect(getCourtCountDisplay(28, { sportSlug: "tennis", name: "Tennis Club de Lyon" })).toEqual({
+      kind: "exact",
+      count: 28,
+    });
+  });
+
+  it("nom générique + valeur absurde → none (pas même un libellé)", () => {
+    expect(
+      getCourtCountDisplay(200, { sportSlug: "tennis", name: "Courts de tennis" }).kind,
+    ).toBe("none");
+  });
+
+  it("plausibleCourtCount masque aussi via le nom (fiche venue)", () => {
+    expect(plausibleCourtCount(9, "raquette", "padel", "COURT DE PADEL")).toBeNull();
+    expect(plausibleCourtCount(9, "raquette", "padel", "Casa Padel")).toBe(9);
   });
 });
