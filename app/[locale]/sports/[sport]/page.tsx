@@ -7,6 +7,7 @@ import { SPORTS_BY_SLUG } from "@/lib/sports";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { LOW_QUALITY_THRESHOLD } from "@/lib/venue/quality-score";
 import { isSportMismatch, sinkMismatches } from "@/lib/venue/sport-mismatch";
+import { dedupeRelatedVenues } from "@/lib/venue/related-dedup";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportVenuesSection } from "./SportVenuesSection";
 import { SportPageCtaBar } from "./SportPageCtaBar";
@@ -230,8 +231,14 @@ async function fetchVenues(
   }
   const enriched = mapped.map((v) => ({ ...v, source: sourceById.get(v.id) ?? null }));
 
+  // Dédup d'affichage (#698) : deux records du même lieu réel (variantes de nom /
+  // sources, ex. « The Padellers » ×N au même endroit) ne s'affichent qu'une fois.
+  // Nom normalisé (case/accents) + coords ≤ 250 m ; branches distinctes (> 250 m)
+  // gardées. NB : dédup INTRA-PAGE (la liste est paginée côté SQL) → couvre le cas
+  // le plus visible (doublons adjacents dans le classement). Display-only (#657).
+  const deduped = dedupeRelatedVenues(enriched);
   const venues = sinkMismatches(
-    applyQuality ? enriched.filter((v) => !isSportMismatch(v.name, sportSlug)) : enriched,
+    applyQuality ? deduped.filter((v) => !isSportMismatch(v.name, sportSlug)) : deduped,
     sportSlug,
   );
   return { venues, total: count ?? 0 };
