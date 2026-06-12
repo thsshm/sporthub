@@ -15,6 +15,7 @@ import {
 import { getVisibleVenueCount } from "@/lib/venue/visible-count";
 import { isSportMismatch, sinkMismatches } from "@/lib/venue/sport-mismatch";
 import { groupCourtRecords } from "@/lib/venue/group-courts";
+import { dedupeRelatedVenues } from "@/lib/venue/related-dedup";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -214,7 +215,24 @@ async function fetchScopeVenues(
   // AVANT scoring/tri/pagination, pour que la page liste des venues et non des
   // pistes isolées. Display-only : la donnée brute n'est pas touchée (merge DB =
   // #554). Conservateur : même source+sport+coords arrondies exigés.
-  const scope: DisplayVenue[] = groupCourtRecords(rows).map((v) => ({
+  // Tri par score qualité décroissant (#563) AJUSTÉ POUR LE SPORT (#637) :
+  // complétude (adresse, contact, contenu, vérifié…) + signal nom↔sport (#638) →
+  // un club « padel » remonte, un « Tennis Club » sans signal padel descend. Pure
+  // démotion : le lieu reste listé (#637, anti sur-filtrage multi-sport).
+  // id en tie-break → ordre déterministe (stable pour l'ISR/la pagination).
+  // ⚠️ TRI AVANT dédup (#698) : on garde le record le plus riche de chaque doublon.
+  const grouped = groupCourtRecords(rows).sort(
+    (a, b) =>
+      venueQualityScoreForSport(b, sportSlug) - venueQualityScoreForSport(a, sportSlug) ||
+      a.id.localeCompare(b.id),
+  );
+  // Dédup d'affichage (#698) : un même lieu réel apparaissant en PLUSIEURS records
+  // (variantes de nom / sources : « CrossFit Louvre » + « Crossfit Louvre » au même
+  // endroit, « The Padellers » ×N) ne doit pas figurer 2× dans la liste SEO. Clé =
+  // nom normalisé (case + accents + ponctuation) ET coords ≤ 250 m → même lieu (on
+  // garde le 1ᵉʳ = le plus riche après le tri ci-dessus). Des branches distinctes
+  // (> 250 m, ex. Basic-Fit/Fitness Park) restent séparées. Display-only (#657).
+  const scope: DisplayVenue[] = dedupeRelatedVenues(grouped).map((v) => ({
     ...v,
     city_name: city.name,
     country_code: v.country_code ?? city.country_code ?? undefined,
@@ -225,17 +243,8 @@ async function fetchScopeVenues(
   // noindex). `scope` = tout le scope publié (non filtré) → FALLBACK d'affichage
   // quand aucune venue n'atteint le seuil mais que des venues existent (#551 :
   // ne jamais montrer « No address » si total > 0 ; la page reste noindex car
-  // thin, mais liste de vrais lieux au lieu d'une grille vide).
-  // Ranking par score qualité décroissant (#563) AJUSTÉ POUR LE SPORT (#637) :
-  // complétude (adresse, contact, contenu, vérifié…) + signal nom↔sport (#638) →
-  // un club « padel » remonte, un « Tennis Club » sans signal padel descend. Pure
-  // démotion : le lieu reste listé (#637, anti sur-filtrage multi-sport).
-  // id en tie-break → ordre déterministe (stable pour l'ISR/la pagination).
-  scope.sort(
-    (a, b) =>
-      venueQualityScoreForSport(b, sportSlug) - venueQualityScoreForSport(a, sportSlug) ||
-      a.id.localeCompare(b.id),
-  );
+  // thin, mais liste de vrais lieux au lieu d'une grille vide). `scope` est déjà
+  // trié par qualité (le tri a précédé la dédup).
   // Exclusion des noms contradictoires (#553) : « piscine », « salle de
   // musculation du tennis club »… ne se listent pas sur une page mono-sport,
   // même bien notés (la carte reste exhaustive). Dans le fallback `scope`

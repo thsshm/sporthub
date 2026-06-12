@@ -70,4 +70,32 @@ describe("dedupeRelatedVenues (#657)", () => {
     ];
     expect(dedupeRelatedVenues(rows).map((r) => r.id)).toEqual(["a", "b"]);
   });
+
+  // Cas de l'issue #698 (listes SEO sport×ville / sport global).
+  it("#698 CrossFit Louvre / Crossfit Louvre (même lieu, casse) → 1 card", () => {
+    const rows = [
+      mk("CrossFit Louvre", 48.8606, 2.3376, "a"),
+      mk("Crossfit Louvre", 48.8607, 2.3377, "b"),
+    ];
+    expect(dedupeRelatedVenues(rows).map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("#698 « The Padellers » répété au même endroit → 1 card", () => {
+    const rows = [
+      mk("The Padellers Amsterdam", 52.37, 4.89, "a"),
+      mk("The Padellers Amsterdam", 52.3701, 4.8901, "b"),
+      mk("The Padellers Amsterdam", 52.3702, 4.8902, "c"),
+    ];
+    expect(dedupeRelatedVenues(rows).map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("#698 branches Basic-Fit distinctes (> 250 m) → gardées séparées", () => {
+    const rows = [
+      mk("Basic-Fit", 48.8566, 2.3522, "a"), // Paris centre
+      mk("Basic-Fit", 48.8744, 2.295, "b"), // ~1,5 km plus loin
+      mk("Basic-Fit", 48.8499, 2.379, "c"), // ~3 km
+    ];
+    // Même nom mais coords éloignées → branches réelles, aucune fusion.
+    expect(dedupeRelatedVenues(rows).map((r) => r.id)).toEqual(["a", "b", "c"]);
+  });
 });
