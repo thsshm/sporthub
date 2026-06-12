@@ -39,7 +39,26 @@ _NAME_SPORT_PATTERNS = [
     (r"jiu[- ]?jitsu", "bjj"),
     (r"bjj", "bjj"),
     (r"jjb", "bjj"),
-    (r"kickbox\w*", "boxing"),
+    (r"grappling", "bjj"),
+    # Arts martiaux ajoutés (#645). Disciplines SPÉCIFIQUES avant le générique
+    # `martial_arts` (1ʳᵉ correspondance gagne) ; kickboxing AVANT boxing.
+    (r"tae?[- ]?kwon[- ]?do", "taekwondo"),
+    (r"taekwondo", "taekwondo"),
+    (r"hapkido", "taekwondo"),
+    (r"tang soo do", "taekwondo"),
+    (r"a[iï]kido", "aikido"),
+    (r"kung[- ]?fu", "kung_fu"),
+    (r"wing chun", "kung_fu"),
+    (r"wushu", "kung_fu"),
+    (r"shaolin", "kung_fu"),
+    (r"krav[- ]?maga", "krav_maga"),
+    (r"capoeira", "capoeira"),
+    (r"kendo", "kendo"),
+    (r"iaido", "kendo"),
+    (r"kick[- ]?box\w*", "kickboxing"),
+    (r"muay[- ]?thai", "kickboxing"),
+    (r"tai[- ]?chi", "taichi"),
+    (r"qi[- ]?gong", "taichi"),
     (r"boxing", "boxing"),
     (r"boxe", "boxing"),
     (r"boxeo", "boxing"),
@@ -47,6 +66,11 @@ _NAME_SPORT_PATTERNS = [
     (r"karat[eé]", "karate"),
     (r"mixed martial arts?", "mma"),
     (r"mma", "mma"),
+    # Générique : seulement si aucune discipline spécifique n'a matché.
+    (r"martial arts?", "martial_arts"),
+    (r"arts? martiaux", "martial_arts"),
+    (r"dojo", "martial_arts"),
+    (r"budo", "martial_arts"),
     (r"padel", "padel"),
     (r"squash", "squash"),
     (r"badminton", "badminton"),
@@ -322,14 +346,26 @@ def self_test() -> int:
 
     # classify_by_name : sport canonique nommé + cohérent avec la famille.
     sf = {"karate": "combat", "judo": "combat", "boxing": "combat", "bjj": "combat",
-          "mma": "combat", "yoga": "yoga", "padel": "raquette"}
+          "mma": "combat", "taekwondo": "combat", "aikido": "combat", "kung_fu": "combat",
+          "krav_maga": "combat", "kickboxing": "combat", "capoeira": "combat",
+          "taichi": "combat", "kendo": "combat", "martial_arts": "combat",
+          "yoga": "yoga", "padel": "raquette"}
     assert classify_by_name("Academia de Karate Ronin", "combat", sf) == "karate"
     assert classify_by_name("Brazilian Jiu-Jitsu Lyon", "combat", sf) == "bjj"
     assert classify_by_name("Boxing Club Paris", "combat", sf) == "boxing"
     # incohérence famille (karate dans une venue 'glisse') → on NE classe PAS
     assert classify_by_name("Karate Surf Shop", "glisse", sf) is None
-    # nom sans sport canonique → None (pas de fabrication)
-    assert classify_by_name("Aikido Kouvola", "combat", sf) is None
+    # arts martiaux ajoutés (#645) : disciplines spécifiques classées.
+    assert classify_by_name("Aikido Kouvola", "combat", sf) == "aikido"
+    assert classify_by_name("Taekwondo Club Lyon", "combat", sf) == "taekwondo"
+    assert classify_by_name("École Tang Soo Do", "combat", sf) == "taekwondo"
+    assert classify_by_name("Wing Chun Académie", "combat", sf) == "kung_fu"
+    assert classify_by_name("Krav Maga Défense", "combat", sf) == "krav_maga"
+    assert classify_by_name("Kickboxing Gym", "combat", sf) == "kickboxing"
+    # le spécifique l'emporte sur le générique : kickboxing ≠ boxing.
+    assert classify_by_name("Muay Thai Camp", "combat", sf) == "kickboxing"
+    # générique seulement si aucune discipline : « dojo / arts martiaux » → martial_arts.
+    assert classify_by_name("Dojo des Arts Martiaux", "combat", sf) == "martial_arts"
     assert classify_by_name("Stade municipal", "ballon", sf) is None
     assert classify_by_name(None, "combat", sf) is None
     # mot entier : 'mmaison' ne matche pas 'mma'
