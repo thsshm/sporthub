@@ -185,6 +185,38 @@ def build_report(
         if visible_by_sport_slug.get((sport, slug), 0) < THIN_PAGE_MIN
     ]
 
+    # 8) couverture enrichissement FR par sport (#345/#645) : % de fiches avec
+    # website / courts / indoor-outdoor / booking. L'acceptance de #345 (padel
+    # FR : web ≥70, courts ≥80, in-out ≥90, booking ≥60) se lit ici en continu,
+    # run après run d'enrichissement. FR uniquement (cible des campagnes).
+    cov_acc: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
+    for v in venues:
+        if (v.get("country_code") or "").upper() != "FR":
+            continue
+        a = cov_acc[v.get("primary_sport_slug") or "?"]
+        a[0] += 1
+        if (v.get("website_url") or "").strip():
+            a[1] += 1
+        if any(v.get(k) is not None for k in ("courts_count", "courts_indoor", "courts_outdoor")):
+            a[2] += 1
+        if v.get("courts_indoor") is not None or v.get("courts_outdoor") is not None:
+            a[3] += 1
+        if (v.get("booking_url") or "").strip():
+            a[4] += 1
+    pct = lambda n, t: round(100.0 * n / t, 1) if t else 0.0  # noqa: E731
+    enrichment_coverage = {
+        s: {
+            "total": a[0],
+            "website_pct": pct(a[1], a[0]),
+            "courts_pct": pct(a[2], a[0]),
+            "indoor_outdoor_pct": pct(a[3], a[0]),
+            "booking_pct": pct(a[4], a[0]),
+        }
+        # sports à volume (≥50) + padel toujours présent (suivi #345)
+        for s, a in sorted(cov_acc.items(), key=lambda kv: -kv[1][0])
+        if a[0] >= 50 or s == "padel"
+    }
+
     top = lambda d, n=15: [  # noqa: E731 — tri descendant, label lisible
         f"{page_label(k)} ({v})" for k, v in sorted(d.items(), key=lambda x: -x[1])[:n]
     ]
@@ -208,6 +240,7 @@ def build_report(
         "implausible_courts_examples": implausible[:10],
         "failing_popular_searches": failing_popular,
         "worst_sports": dict(worst_sports.most_common(10)),
+        "enrichment_coverage_fr": enrichment_coverage,
     }
 
 
@@ -305,6 +338,14 @@ def render_markdown(r: dict) -> str:
         L.append("- aucune ✓")
 
     L.append(f"\n## Pires sports (pages thin + mismatch)\n\n- {r['worst_sports']}\n")
+    L.append("\n## Couverture enrichissement FR (#345)\n")
+    L.append("| sport | n | website | courts | indoor/outdoor | booking |")
+    L.append("|---|---:|---:|---:|---:|---:|")
+    for s, c in r.get("enrichment_coverage_fr", {}).items():
+        L.append(
+            f"| {s} | {c['total']} | {c['website_pct']}% | {c['courts_pct']}% "
+            f"| {c['indoor_outdoor_pct']}% | {c['booking_pct']}% |"
+        )
     return "\n".join(L) + "\n"
 
 
@@ -319,7 +360,8 @@ def run(args: argparse.Namespace) -> int:
     print("▶ chargement des venues publiées…")
     venues = fetch_keyset(
         url, key, "venue",
-        "id,name,primary_sport_slug,family_slug,city_id,courts_count,quality_score,address",
+        "id,name,primary_sport_slug,family_slug,city_id,courts_count,quality_score,address,"
+        "website_url,booking_url,courts_indoor,courts_outdoor,country_code",
         "&is_published=eq.true&deleted_at=is.null", label="venues",
     )
     print(f"  ✓ {len(venues):,} venues publiées")
@@ -351,6 +393,13 @@ def run(args: argparse.Namespace) -> int:
         print(f"     {ex[:70]}")
     print(f"\n  popular searches sous le gate : {report['failing_popular_searches'] or 'aucune ✓'}")
     print(f"  pires sports (pages thin+mismatch) : {report['worst_sports']}")
+    print("\n  couverture enrichissement FR (#345) — % web · courts · in/out · booking :")
+    for s, c in list(report["enrichment_coverage_fr"].items())[:10]:
+        print(
+            f"     {s:<14} n={c['total']:<6} web {c['website_pct']:>5}% · "
+            f"courts {c['courts_pct']:>5}% · in/out {c['indoor_outdoor_pct']:>5}% · "
+            f"booking {c['booking_pct']:>5}%"
+        )
 
     if args.json:
         Path(args.json).write_text(json.dumps(report, ensure_ascii=False, indent=2))
@@ -410,6 +459,27 @@ def self_test() -> int:
     # popular : padel×paris a 0 visible → en échec ; tennis×lyon a 3 (<5) → aussi.
     assert len(r["failing_popular_searches"]) == 2, r["failing_popular_searches"]
     assert any("Piscine" in e for e in r["suspicious_examples"]), r["suspicious_examples"]
+    # 8) couverture enrichissement FR (#345) : fixture dédiée — 2 padel FR dont
+    # 1 enrichie (web+booking+indoor) et 1 nue, 1 padel ES (exclue du scope FR).
+    cov_venues = [
+        {"id": "a", "primary_sport_slug": "padel", "country_code": "FR",
+         "website_url": "https://x.fr", "booking_url": "https://playtomic.io/x",
+         "courts_indoor": 4, "courts_outdoor": None, "courts_count": None},
+        {"id": "b", "primary_sport_slug": "padel", "country_code": "FR",
+         "website_url": None, "booking_url": "", "courts_indoor": None,
+         "courts_outdoor": None, "courts_count": None},
+        {"id": "c", "primary_sport_slug": "padel", "country_code": "ES",
+         "website_url": "https://y.es", "booking_url": "https://z.es",
+         "courts_indoor": 2, "courts_outdoor": 2, "courts_count": 4},
+    ]
+    rc = build_report(cov_venues, {}, [])
+    cov = rc["enrichment_coverage_fr"]["padel"]
+    assert cov["total"] == 2, cov  # l'ES est exclue
+    assert cov["website_pct"] == 50.0 and cov["booking_pct"] == 50.0, cov
+    assert cov["courts_pct"] == 50.0 and cov["indoor_outdoor_pct"] == 50.0, cov
+    md_cov = render_markdown(rc)
+    assert "Couverture enrichissement FR" in md_cov and "| padel | 2 |" in md_cov, md_cov[-300:]
+
     # Markdown : rendu sans erreur, contient l'en-tête.
     md = render_markdown(r)
     assert md.startswith("# Rapport qualité data") and "No address" in md, md[:120]
