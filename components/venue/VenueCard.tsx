@@ -19,6 +19,7 @@ import { SportChips } from "@/components/venue/SportChips";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
 import { formatCityName } from "@/lib/format-city";
+import { getArrondissement } from "@/lib/venue/district";
 import { formatVenueName } from "@/lib/format-venue-name";
 import { googleMapsUrl } from "@/lib/utils";
 import { safeExternalUrl } from "@/lib/url";
@@ -48,9 +49,15 @@ export async function VenueCard({ venue, bookingUrl }: Props) {
   // Ville normalisée à l'affichage (#559) — la source livre parfois « PARIS ».
   const cityLabel = venue.city_name ? formatCityName(venue.city_name) : null;
   const street = venue.address?.trim() || null;
-  // Ligne principale = ville si connue, sinon la rue (#559). La rue passe en
-  // ligne secondaire quand une ville est déjà affichée (#703, cf. ci-dessous).
-  const location = cityLabel ?? street ?? "";
+  // Arrondissement (#703) pour les grandes villes FR (Paris/Lyon/Marseille) :
+  // dérivé du code postal de l'adresse → « Paris 11e » plutôt que « Paris »,
+  // pour distinguer deux homonymes (« Basic-Fit Paris » 11e vs 15e). Jamais
+  // fabriqué (null si pas de CP d'arrondissement).
+  const arrondissement = getArrondissement(venue.address, venue.city_name);
+  const cityLabelWithArr = cityLabel && arrondissement ? `${cityLabel} ${arrondissement}` : cityLabel;
+  // Ligne principale = ville (+ arrondissement) si connue, sinon la rue (#559).
+  // La rue passe en ligne secondaire quand une ville est déjà affichée (#703).
+  const location = cityLabelWithArr ?? street ?? "";
   const t = await getTranslations("venue");
   const tFav = await getTranslations("favorites");
   const tFamilies = await getTranslations("families");
