@@ -66,19 +66,30 @@ export const SPORT_RULES: Record<string, SportRule> = {
     suspicious: [], // pool/muscu sont déjà des contradictions ; multisport = générique
   },
   padel: {
-    positive: [w("padel"), w("padel"), w("paddle"), /casa padel/, w("padellers"), /padel club/],
-    contradiction: C_RAQUETTE,
-    // tennis SANS signal padel (le positif l'emporte), + équestre / circuits.
-    suspicious: [
-      w("tennis"),
+    positive: [w("padel"), w("paddle"), /casa padel/, w("padellers"), /padel club/],
+    // #695 : la rétrogradation ne suffisait pas — les équipements ÉQUESTRES et
+    // les courts TENNIS-only restaient « SEO-visibles » sur la page padel
+    // (vécu : « Écuries … manège, carrière, pistes de galop », « COURT DE
+    // TENNIS EXT »). Promus en EXCLUSION :
+    //  - équestre : termes sans ambiguïté pour un lieu de padel ;
+    //  - tennis-only : regex composée « contient tennis ET aucun signal
+    //    padel/paddle » — un nom mixte (« Esprit Padel & Tennis ») garde son
+    //    signal positif et n'est jamais exclu. La contradiction primant sur le
+    //    positif (#553), l'override doit vivre DANS la regex.
+    contradiction: [
+      ...C_RAQUETTE,
       /\bmanege\b/,
       /\becuries?\b/,
       /\bhippodromes?\b/,
       /\bharas\b/,
       /\bhippique\b/,
-      /\bcircuit\b/,
-      /\bkarting\b/,
+      /\bgalop\b/,
+      /\bponeys?\b/,
+      /^(?!.*padel)(?!.*paddle).*(?<![a-z])tennis(?![a-z])/,
     ],
+    // circuits/karting : douteux mais pas impossibles (complexes de loisirs
+    // avec padel) → rétrogradés seulement.
+    suspicious: [/\bcircuit\b/, /\bkarting\b/],
   },
   gym: {
     // musculation/fitness sont POSITIFS pour le gym (cf. #553). Le positif

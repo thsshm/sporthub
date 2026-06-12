@@ -205,9 +205,18 @@ describe("venueQualityScoreForSport (#637) — complétude + signal nom↔sport"
   });
 
   it("signal suspect → score abaissé (mais > 0, démotion pas exclusion)", () => {
-    const tennisOnPadel = { ...base, name: "Tennis Club de Lyon" };
+    // #695 : tennis-only sur padel est devenu une CONTRADICTION (exclusion) —
+    // le cas « suspect » se teste désormais avec circuit/karting.
+    const kartingOnPadel = { ...base, name: "Circuit de karting" };
     // 30 − 20 = 10 ; reste listable côté carte/scope, juste dépriorisé.
-    expect(venueQualityScoreForSport(tennisOnPadel, "padel")).toBe(10);
+    expect(venueQualityScoreForSport(kartingOnPadel, "padel")).toBe(10);
+  });
+
+  it("tennis-only sur padel = contradiction → score plancher (#695)", () => {
+    const tennisOnPadel = { ...base, name: "Tennis Club de Lyon" };
+    // 30 − 40 → 0 ; l'exclusion des listes SEO vient de isSportMismatch
+    // (sport-rules), le score n'est que la dépriorisation.
+    expect(venueQualityScoreForSport(tennisOnPadel, "padel")).toBe(0);
   });
 
   it("multi-sport légitime : le signal positif l'emporte sur le suspect", () => {

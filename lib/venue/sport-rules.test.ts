@@ -12,19 +12,37 @@ describe("getSportSignal — padel (#638)", () => {
     expect(getSportSignal("Padellers Lyon", "padel")).toBe("positive");
     expect(getSportSignal("Le Paddle Club", "padel")).toBe("positive");
   });
-  it("suspect : tennis-only SANS signal padel, ou équestre/circuit", () => {
-    expect(getSportSignal("Tennis Club de Lyon", "padel")).toBe("suspicious");
-    expect(getSportSignal("Manège équestre", "padel")).toBe("suspicious");
-    expect(getSportSignal("Hippodrome de Vincennes", "padel")).toBe("suspicious");
+  it("EXCLUSION (#695) : tennis-only SANS signal padel et équestre", () => {
+    // Faux positifs vécus sur /en/sports/padel (P0 #695) — désormais exclus
+    // des listes SEO (plus seulement rétrogradés).
+    expect(getSportSignal("COURT DE TENNIS EXT", "padel")).toBe("contradiction");
+    expect(getSportSignal("Tennis Club de Lyon", "padel")).toBe("contradiction");
+    expect(
+      getSportSignal("Écuries de propriétaires - manège, carrière, pistes de galop", "padel"),
+    ).toBe("contradiction");
+    expect(getSportSignal("Manège équestre", "padel")).toBe("contradiction");
+    expect(getSportSignal("Hippodrome de Vincennes", "padel")).toBe("contradiction");
+    expect(getSportSignal("Haras des Poneys", "padel")).toBe("contradiction");
+  });
+  it("suspect (rétrogradé seulement) : circuit/karting", () => {
     expect(getSportSignal("Circuit de karting", "padel")).toBe("suspicious");
   });
-  it("le signal POSITIF l'emporte sur le suspect (multi-sport légitime)", () => {
-    // « Tennis & Padel Club » mentionne tennis (suspect) ET padel (positif).
+  it("le signal PADEL l'emporte sur tennis (multi-sport légitime, #695)", () => {
+    // La regex tennis-only embarque l'override : un nom mixte n'est pas exclu.
     expect(getSportSignal("Tennis & Padel Club", "padel")).toBe("positive");
+    expect(getSportSignal("Esprit Padel Tennis Lyon", "padel")).toBe("positive");
+  });
+  it("vrais lieux padel de l'acceptance #695 : jamais exclus", () => {
+    for (const name of ["Casa Padel", "Padel Berlin", "The Padellers", "We Are Padel"]) {
+      expect(getSportSignal(name, "padel")).toBe("positive");
+    }
   });
   it("contradiction : piscine/fitness restent une exclusion dure", () => {
     expect(getSportSignal("Piscine municipale", "padel")).toBe("contradiction");
     expect(getSportSignal("Espace Fitness", "padel")).toBe("contradiction");
+  });
+  it("la page TENNIS n'est pas affectée par les règles padel (#695)", () => {
+    expect(getSportSignal("COURT DE TENNIS EXT", "tennis")).toBe("positive");
   });
 });
 
