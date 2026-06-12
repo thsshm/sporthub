@@ -1,0 +1,30 @@
+name: Project health (Supabase)
+
+# Lit l'état de santé des services du projet (Management API, lecture seule) —
+# pour diagnostiquer depuis CI quand le dashboard est inutilisable (vécu
+# 2026-06-11/12 : PostgREST HS post-upgrade, dashboard gelé).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUPABASE_PROJECT_REF: qwfvcrisfmnrfzsrnjwn
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Service health
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "=== /health ==="
+          curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/health?services=db,rest,auth,realtime,storage,pooler" | python3 -m json.tool || true
+          echo "=== /upgrade/status ==="
+          curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/upgrade/status" | python3 -m json.tool || true

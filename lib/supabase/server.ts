@@ -13,6 +13,12 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
+import { createTimeoutFetch } from "@/lib/supabase/timeout-fetch";
+
+// Tous les clients serveur partagent un `fetch` à timeout (résilience prod) :
+// si Supabase ne répond plus, les requêtes échouent vite et chaque data-fetch
+// retombe sur son fallback, au lieu de pendre jusqu'au 504 de Vercel.
+const timeoutFetch = createTimeoutFetch();
 
 /**
  * Réconcilie le type de client renvoyé par @supabase/ssr avec celui de
@@ -35,6 +41,7 @@ export function getSupabaseServerClient(): SupabaseClient<Database> {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: timeoutFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -75,6 +82,7 @@ export function getSupabaseStaticClient(): SupabaseClient<Database> {
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54321",
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? "build-placeholder",
     {
+      global: { fetch: timeoutFetch },
       cookies: {
         getAll() { return []; },  // stateless — pas de session utilisateur
         setAll() {},              // no-op
@@ -100,6 +108,7 @@ export function getSupabaseEdgeClient(): SupabaseClient<Database> {
   return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54321",
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? "build-placeholder",
+    { global: { fetch: timeoutFetch } },
   );
 }
 
@@ -123,6 +132,7 @@ export function getSupabaseAnonEdgeClient(): SupabaseClient<Database> {
   return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://localhost:54321",
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "build-placeholder",
+    { global: { fetch: timeoutFetch } },
   );
 }
 
@@ -138,6 +148,7 @@ export function getSupabaseAdminClient(): SupabaseClient<Database> {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
+      global: { fetch: timeoutFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll();
