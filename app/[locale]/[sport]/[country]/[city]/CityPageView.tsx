@@ -16,6 +16,7 @@ import { getVisibleVenueCount } from "@/lib/venue/visible-count";
 import { isSportMismatch, sinkMismatches } from "@/lib/venue/sport-mismatch";
 import { groupCourtRecords } from "@/lib/venue/group-courts";
 import { groupByClub } from "@/lib/venue/group-by-club";
+import { dedupeRelatedVenues } from "@/lib/venue/related-dedup";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -227,16 +228,23 @@ async function fetchScopeVenues(
     }
   }
 
-  // Regroupement en deux passes, AVANT scoring/tri/pagination (la page liste des
-  // CLUBS, pas des courts/surfaces isolés) :
-  //  1. par CLUB (#696) : les fiches d'un même club (club_id du clustering géo
-  //     50 m) — y compris des SURFACES différentes (« terre battue », « green
-  //     set »…) que le regroupement par nom ne réunit pas — deviennent UNE card
-  //     au nom du club ;
-  //  2. court-level (#635) : « Court 1/2/3 », « Sportfield 16 piste 1 »… des
-  //     venues restantes (sans club_id) sont collapsées par nom + coords.
-  // Display-only : la donnée brute n'est pas touchée (merge DB = #554).
-  const scope: DisplayVenue[] = groupCourtRecords(groupByClub(rows, clubNameById)).map((v) => ({
+  // Regroupement + dédup en passes, AVANT scoring/tri/pagination (la page liste
+  // des CLUBS, pas des courts/surfaces isolés) :
+  //  1. par CLUB (#696) : `groupByClub` — fiches d'un même club_id (clustering
+  //     géo 50 m), y compris des SURFACES différentes (« terre battue », « green
+  //     set »…) que le regroupement par nom ne réunit pas → UNE card au nom du
+  //     club ;
+  //  2. court-level (#635) : `groupCourtRecords` — « Court 1/2/3 », « Sportfield
+  //     16 piste 1 »… des venues restantes (sans club_id) collapsées par nom+coords ;
+  //  3. tri qualité (#637) AVANT dédup (#698 : garder le record le plus riche) ;
+  //  4. dédup d'affichage (#698) : un même lieu en PLUSIEURS records (variantes de
+  //     nom / sources, ≤ 250 m) ne figure qu'UNE fois. Display-only (#554/#657).
+  const grouped = groupCourtRecords(groupByClub(rows, clubNameById)).sort(
+    (a, b) =>
+      venueQualityScoreForSport(b, sportSlug) - venueQualityScoreForSport(a, sportSlug) ||
+      a.id.localeCompare(b.id),
+  );
+  const scope: DisplayVenue[] = dedupeRelatedVenues(grouped).map((v) => ({
     ...v,
     city_name: city.name,
     country_code: v.country_code ?? city.country_code ?? undefined,
@@ -247,17 +255,8 @@ async function fetchScopeVenues(
   // noindex). `scope` = tout le scope publié (non filtré) → FALLBACK d'affichage
   // quand aucune venue n'atteint le seuil mais que des venues existent (#551 :
   // ne jamais montrer « No address » si total > 0 ; la page reste noindex car
-  // thin, mais liste de vrais lieux au lieu d'une grille vide).
-  // Ranking par score qualité décroissant (#563) AJUSTÉ POUR LE SPORT (#637) :
-  // complétude (adresse, contact, contenu, vérifié…) + signal nom↔sport (#638) →
-  // un club « padel » remonte, un « Tennis Club » sans signal padel descend. Pure
-  // démotion : le lieu reste listé (#637, anti sur-filtrage multi-sport).
-  // id en tie-break → ordre déterministe (stable pour l'ISR/la pagination).
-  scope.sort(
-    (a, b) =>
-      venueQualityScoreForSport(b, sportSlug) - venueQualityScoreForSport(a, sportSlug) ||
-      a.id.localeCompare(b.id),
-  );
+  // thin, mais liste de vrais lieux au lieu d'une grille vide). `scope` est déjà
+  // trié par qualité (le tri a précédé la dédup).
   // Exclusion des noms contradictoires (#553) : « piscine », « salle de
   // musculation du tennis club »… ne se listent pas sur une page mono-sport,
   // même bien notés (la carte reste exhaustive). Dans le fallback `scope`

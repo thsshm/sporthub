@@ -2,7 +2,10 @@ import { unstable_cache } from "next/cache";
 import { getSupabaseStaticClient } from "@/lib/supabase/server";
 import { FAMILIES } from "@/lib/families";
 import { LOW_QUALITY_THRESHOLD } from "@/lib/venue/quality-score";
-import { getVisibleVenueCount } from "@/lib/venue/visible-count";
+import {
+  highConfidenceCardCount,
+  MIN_HIGH_CONFIDENCE_CARDS,
+} from "@/lib/seo/popular-search-gate";
 
 /**
  * Counts de venues publiées par famille — source unique partagée par le H1 de
@@ -91,6 +94,21 @@ const POPULAR_CANDIDATES: PopularCombo[] = [
   { sport: "tennis", citySlug: "bordeaux", cityLabel: "Bordeaux" }, // ~20
 ];
 
+/** Top de venues qualité fetché par combo avant de passer le gate (#699). Borné :
+ * il suffit d'en avoir assez pour trouver ≥ seuil cards propres après group +
+ * exclusion mismatch ; les court-level/misclassif sont souvent sous le seuil. */
+const GATE_FETCH_LIMIT = 60;
+
+/** Ligne minimale lue depuis mv_venue_sport_search pour le gate. */
+type GateRow = {
+  venue_id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  courts_count: number | null;
+  primary_sport_slug: string | null;
+};
+
 /** Filtre pur (testable) : ne garde que les combos avec ≥ `min` lieux. */
 export function keepPopularCombos(
   withCount: { combo: PopularCombo; count: number }[],
@@ -127,23 +145,35 @@ export const getPopularCombos = unstable_cache(
       POPULAR_CANDIDATES.map(async (combo) => {
         const cityId = cityIdBySlug.get(combo.citySlug);
         if (!cityId) return { combo, count: 0 };
-        // SOURCE COMMUNE (#644/#556) : on compte EXACTEMENT comme la page ville
-        // (helper getVisibleVenueCount → mv_venue_sport_search + seuil qualité).
-        // Avant, getPopularCombos comptait sur `venue.primary_sport_slug` (≠ la
-        // page) → une combo « peuplée » côté gate mais vide côté page passait
-        // quand même (bug Gym Paris). Désormais gate ⇔ page : si la page est
-        // vide, la combo est exclue ; keepPopularCombos garde les suivantes.
-        const count = await getVisibleVenueCount(sb, {
-          sportSlug: combo.sport,
-          cityId,
-          minQualityScore: LOW_QUALITY_THRESHOLD,
-          exact: true,
-        });
-        return { combo, count };
+        // GATE DURCI (#699) : on ne compte plus « venues ≥ seuil qualité » (qui
+        // sur-comptait les enregistrements court-level et les misclassif), mais
+        // les CARDS HAUTE CONFIANCE réellement affichées par la page ville =
+        // après groupCourtRecords (#635) + exclusion des noms contradictoires
+        // (#553). On fetche le top par qualité (déjà ≥ seuil) depuis la MV puis
+        // on passe le gate pur. count exposé = nb réel de cards de confiance.
+        // mv_venue_sport_search : MV → absente des types générés (cast `any`).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (sb as any)
+          .from("mv_venue_sport_search")
+          .select("venue_id, name, lat, lon, courts_count, primary_sport_slug")
+          .eq("sport_slug", combo.sport)
+          .eq("city_id", cityId)
+          .gte("quality_score", LOW_QUALITY_THRESHOLD)
+          .order("quality_score", { ascending: false })
+          .limit(GATE_FETCH_LIMIT);
+        const rows = ((data as GateRow[]) ?? []).map((r) => ({
+          id: r.venue_id,
+          name: r.name,
+          lat: r.lat,
+          lon: r.lon,
+          courts_count: r.courts_count,
+          primary_sport_slug: r.primary_sport_slug,
+        }));
+        return { combo, count: highConfidenceCardCount(rows, combo.sport) };
       }),
     );
 
-    return keepPopularCombos(withCount, MIN_VENUES_FOR_POPULAR);
+    return keepPopularCombos(withCount, MIN_HIGH_CONFIDENCE_CARDS);
   },
   ["home-popular-combos"],
   { revalidate: 300, tags: ["home"] },
