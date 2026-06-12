@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Search } from "lucide-react";
-import { useRouter } from "@/i18n/routing";
+import { Link } from "@/i18n/routing";
 
 type CitySuggestion = {
   slug: string;
@@ -22,7 +22,6 @@ type Props = {
  * la page programmatique sport×ville. Debounce 300ms, min 2 chars, cap 8.
  */
 export function SportCitySearch({ sportSlug, placeholder }: Props) {
-  const router = useRouter();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<CitySuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -65,12 +64,6 @@ export function SportCitySearch({ sportSlug, placeholder }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const go = (c: CitySuggestion) => {
-    setOpen(false);
-    setQ("");
-    router.push(`/${sportSlug}/${c.country_code.toLowerCase()}/${c.slug}`);
-  };
-
   return (
     <div ref={wrapperRef} className="relative w-full max-w-sm">
       <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 shadow-sm">
@@ -99,9 +92,9 @@ export function SportCitySearch({ sportSlug, placeholder }: Props) {
         >
           {results.map((c) => (
             <li key={`${c.country_code}-${c.slug}`}>
-              <button
-                type="button"
-                onClick={() => go(c)}
+              <Link
+                href={`/${sportSlug}/${c.country_code.toLowerCase()}/${c.slug}`}
+                onClick={() => setOpen(false)}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent"
                 role="option"
                 aria-selected="false"
@@ -111,7 +104,7 @@ export function SportCitySearch({ sportSlug, placeholder }: Props) {
                 <span className="ml-auto text-xs uppercase text-muted-foreground">
                   {c.country_code}
                 </span>
-              </button>
+              </Link>
             </li>
           ))}
         </ul>
