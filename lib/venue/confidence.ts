@@ -27,6 +27,8 @@ export type ConfidenceIssue = "incomplete" | "name_sport_mismatch" | "implausibl
 export type ConfidenceVenue = ScorableVenue & {
   family_slug?: string | null;
   courts_count?: number | null;
+  /** Nom affiché — alimente la confiance « équipement générique » (#697). */
+  name?: string | null;
 };
 
 /**
@@ -55,6 +57,7 @@ export function venueConfidenceIssues(
     const display = getCourtCountDisplay(venue.courts_count, {
       sportSlug: sport,
       familySlug: venue.family_slug,
+      name: venue.name ?? null, // #697 — confiance par le nom
     });
     if (display.kind !== "exact") issues.push("implausible_courts");
   }

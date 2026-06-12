@@ -31,7 +31,7 @@ export async function VenueAbout({ venue, cityName, locale = "fr" }: Props) {
   const sportName = sportSlug && tSports.has(sportSlug) ? tSports(sportSlug) : sportSlug;
   // Plausibilité (#555) : on n'utilise pas un nb de courts aberrant dans la
   // description générée (« 200 courts de tennis »).
-  const courtsCount = plausibleCourtCount(venue.courts_count, venue.family_slug);
+  const courtsCount = plausibleCourtCount(venue.courts_count, venue.family_slug, venue.primary_sport_slug, venue.name);
 
   // Construit la description générée si aucune description Wikipedia.
   let description = wikiDescription;

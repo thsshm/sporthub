@@ -84,7 +84,7 @@ export async function VenueAmenitiesList({ venue }: Props) {
 
   // Plausibilité (#555) : ne pas afficher un nb de courts aberrant (agrégation
   // au mauvais niveau) → masqué au-dessus du seuil de la famille.
-  const courts = plausibleCourtCount(venue.courts_count, venue.family_slug);
+  const courts = plausibleCourtCount(venue.courts_count, venue.family_slug, null, venue.name);
 
   if (features.length === 0 && !courts) {
     return null;
