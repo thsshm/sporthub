@@ -284,6 +284,37 @@ async function fetchNearbyVenues(
   }));
 }
 
+/**
+ * Top villes pour CE sport (hors ville courante) → maillage interne SEO + UX
+ * « changer de ville facilement » (#608). Réutilise la RPC `top_cities_for_sport`
+ * (#604, qualité ≥ 25) déjà servie sur /sports/[sport]. Lien vers
+ * /[sport]/[pays]/[ville] de chaque ville. Page cachée (force-static) → l'appel
+ * RPC est mutualisé pour `revalidate`.
+ */
+async function fetchOtherCities(
+  sportSlug: string,
+  currentCitySlug: string,
+): Promise<{ slug: string; name: string; country: string; count: number }[]> {
+  const sb = getSupabaseStaticClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb as any).rpc("top_cities_for_sport", {
+    p_sport_slug: sportSlug,
+    p_limit: 9,
+  });
+  const rows =
+    (data as { city_name: string; city_slug: string; country_code: string; venue_count: number }[]) ??
+    [];
+  return rows
+    .filter((c) => c.city_slug !== currentCitySlug)
+    .slice(0, 6)
+    .map((c) => ({
+      slug: c.city_slug,
+      name: formatCityName(c.city_name),
+      country: c.country_code.toLowerCase(),
+      count: Number(c.venue_count),
+    }));
+}
+
 // Métadonnées partagées entre la route page 1 (`/[city]`) et la route paginée
 // (`/[city]/page/[n]`). `page` pilote le canonical (auto-canonical par page).
 export async function buildCityMetadata({
@@ -358,6 +389,9 @@ export async function CityPageView({ locale, sport, country, city, page }: ViewP
   const tSport = await getTranslations("sport");
   const tFamilies = await getTranslations("families");
   const tSports = await getTranslations("sports");
+
+  // Autres villes pour ce sport (#608) — maillage interne + « changer de ville ».
+  const otherCities = await fetchOtherCities(sport, city);
 
   // Liste affichée : venues indexables (≥ qualité) si présentes, SINON fallback
   // sur tout le scope publié (#551 — ne jamais afficher « No address » / une
@@ -600,6 +634,32 @@ export async function CityPageView({ locale, sport, country, city, page }: ViewP
             </>
           )}
         </>
+      )}
+
+      {/* Autres villes pour ce sport (#608) — maillage interne SEO + UX
+          « changer de ville ». Toujours rendu (utile même si la ville courante
+          est vide : « pas ici, mais essayez ces villes »). */}
+      {otherCities.length > 0 && (
+        <section className="mt-12 border-t pt-6">
+          <h2 className="text-sm font-medium text-foreground">
+            {t("otherCitiesTitle", { sport: sportName })}
+          </h2>
+          <nav
+            className="mt-3 flex flex-wrap gap-2"
+            aria-label={t("otherCitiesTitle", { sport: sportName })}
+          >
+            {otherCities.map((c) => (
+              <Link
+                key={`${c.country}-${c.slug}`}
+                href={`/${sport}/${c.country}/${c.slug}`}
+                className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                {c.name}
+                <span className="text-xs opacity-60">({c.count})</span>
+              </Link>
+            ))}
+          </nav>
+        </section>
       )}
     </main>
   );

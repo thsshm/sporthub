@@ -198,7 +198,8 @@
       "retreat": "where to go on retreat",
       "swim": "where to swim"
     },
-    "relatedTitle": "Related sports in {city}"
+    "relatedTitle": "Related sports in {city}",
+    "otherCitiesTitle": "{sport} in other cities"
   },
   "venue": {
     "sportsPracticed": "Sports played",

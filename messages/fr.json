@@ -198,7 +198,8 @@
       "retreat": "où partir en retraite",
       "swim": "où nager"
     },
-    "relatedTitle": "Sports proches à {city}"
+    "relatedTitle": "Sports proches à {city}",
+    "otherCitiesTitle": "{sport} dans d'autres villes"
   },
   "venue": {
     "sportsPracticed": "Sports pratiqués",

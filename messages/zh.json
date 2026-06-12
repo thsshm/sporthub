@@ -198,7 +198,8 @@
       "retreat": "在哪里静修",
       "swim": "在哪里游泳"
     },
-    "relatedTitle": "{city}的相关运动"
+    "relatedTitle": "{city}的相关运动",
+    "otherCitiesTitle": "其他城市的{sport}"
   },
   "venue": {
     "sportsPracticed": "可练习的运动",
