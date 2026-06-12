@@ -208,6 +208,11 @@
     "verifiedFrom": "Donnée vérifiée depuis {source}",
     "updatedAt": "Mis à jour le {date}",
     "reportError": "Signaler une erreur",
+    "correctionTitle": "Une erreur ? Aidez-nous à corriger",
+    "correctionNudge": "Cette fiche semble incomplète ou peu vérifiée — vous connaissez ce lieu ?",
+    "correctionClosed": "C'est fermé ?",
+    "correctionWrongSport": "Mauvais sport ?",
+    "correctionMissingInfo": "Infos manquantes ?",
     "directions": "Itinéraire",
     "addVenueCta": "Ajouter un lieu",
     "quality": {

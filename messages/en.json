@@ -208,6 +208,11 @@
     "verifiedFrom": "Data verified from {source}",
     "updatedAt": "Updated {date}",
     "reportError": "Report an error",
+    "correctionTitle": "Spotted an error? Help us fix it",
+    "correctionNudge": "This listing looks incomplete or unverified — do you know this place?",
+    "correctionClosed": "Is it closed?",
+    "correctionWrongSport": "Wrong sport?",
+    "correctionMissingInfo": "Missing info?",
     "directions": "Directions",
     "addVenueCta": "Add a place",
     "quality": {

@@ -23,6 +23,7 @@ import { VenueMiniMap } from "@/components/venue/VenueMiniMap";
 import { VenueProvenance } from "@/components/venue/VenueProvenance";
 import { googleMapsUrl, appleMapsUrl, wazeUrl } from "@/lib/utils";
 import { telHref } from "@/lib/venue/cta";
+import { isLowConfidenceVenue } from "@/lib/venue/confidence";
 import { FAMILIES_BY_SLUG } from "@/lib/families";
 import type { VenueDetail } from "@/lib/supabase/types";
 
@@ -131,9 +132,17 @@ export default async function VenuePage({ params }: Props) {
   // « Signaler une erreur » (#467) — correction communautaire sans backend :
   // mailto pré-rempli avec le nom de la venue + l'URL de la fiche.
   const venueUrl = `${SITE_URL}/${locale}/venue/${venue.slug}`;
-  const reportErrorHref = `mailto:hello@sporthubmap.com?subject=${encodeURIComponent(
-    t("reportErrorSubject", { name: venue.name })
-  )}&body=${encodeURIComponent(t("reportErrorBody", { url: venueUrl }))}`;
+  // Correction typée (#613) : un mailto par type de problème (le sujet porte le
+  // type → triable dans la boîte = « trackable internally » sans compte ni
+  // backend). La nudge appuyée n'apparaît que sur les fiches peu fiables
+  // (incomplètes / nom↔sport douteux / courts invraisemblables) — réutilise la
+  // logique qualité (#464/#636/#638) via isLowConfidenceVenue.
+  const correctionHref = (issue: string) =>
+    `mailto:hello@sporthubmap.com?subject=${encodeURIComponent(
+      `${t("reportErrorSubject", { name: venue.name })} — ${issue}`,
+    )}&body=${encodeURIComponent(t("reportErrorBody", { url: venueUrl }))}`;
+  const reportErrorHref = correctionHref(t("reportError"));
+  const lowConfidence = isLowConfidenceVenue(venue, venue.primary_sport_slug);
 
   return (
     <article className="container mx-auto max-w-4xl px-6 py-8">
@@ -218,12 +227,48 @@ export default async function VenuePage({ params }: Props) {
             >
               ➕ {t("addVenueCta")}
             </Link>
-            <a
-              className="rounded-md px-3 py-2 text-muted-foreground hover:bg-accent hover:text-foreground"
-              href={reportErrorHref}
-            >
-              ⚠️ {t("reportError")}
-            </a>
+          </section>
+
+          {/* Correction communautaire typée (#613) — plus visible quand la fiche
+              est peu fiable (incomplète / nom↔sport douteux / courts
+              invraisemblables, cf. isLowConfidenceVenue). mailto sans compte ;
+              le TYPE de problème est dans le sujet → triable dans la boîte
+              (« trackable internally » sans backend). */}
+          <section
+            className={`mt-4 rounded-lg border p-4 ${
+              lowConfidence ? "border-amber-300 bg-amber-50/60" : ""
+            }`}
+          >
+            <p className="text-sm font-medium text-foreground">{t("correctionTitle")}</p>
+            {lowConfidence && (
+              <p className="mt-1 text-sm text-muted-foreground">{t("correctionNudge")}</p>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2 text-sm">
+              <a
+                className="rounded-md border px-3 py-1.5 hover:bg-accent"
+                href={correctionHref(t("correctionClosed"))}
+              >
+                {t("correctionClosed")}
+              </a>
+              <a
+                className="rounded-md border px-3 py-1.5 hover:bg-accent"
+                href={correctionHref(t("correctionWrongSport"))}
+              >
+                {t("correctionWrongSport")}
+              </a>
+              <a
+                className="rounded-md border px-3 py-1.5 hover:bg-accent"
+                href={correctionHref(t("correctionMissingInfo"))}
+              >
+                {t("correctionMissingInfo")}
+              </a>
+              <a
+                className="rounded-md border px-3 py-1.5 hover:bg-accent"
+                href={reportErrorHref}
+              >
+                ⚠️ {t("reportError")}
+              </a>
+            </div>
           </section>
         </div>
 

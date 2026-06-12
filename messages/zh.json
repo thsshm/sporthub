@@ -208,6 +208,11 @@
     "verifiedFrom": "数据来自 {source}",
     "updatedAt": "更新于 {date}",
     "reportError": "报告错误",
+    "correctionTitle": "发现错误？帮我们修正",
+    "correctionNudge": "该页面似乎信息不全或未经核实 — 你了解这个场所吗？",
+    "correctionClosed": "已关闭？",
+    "correctionWrongSport": "运动类型有误？",
+    "correctionMissingInfo": "信息缺失？",
     "directions": "路线",
     "addVenueCta": "添加地点",
     "quality": {
