@@ -20,6 +20,8 @@
  * générique sans numéro (« COURT DE PADEL ») n'est pas un candidat → reste séparé.
  */
 
+import { isGenericEquipmentName } from "@/lib/venue/courts-plausibility";
+
 export type GroupableVenue = {
   id: string;
   name: string;
@@ -49,6 +51,25 @@ export function baseName(name: string): string | null {
   return stripped;
 }
 
+/**
+ * Racine de regroupement (#696) : strip EN CHAÎNE des suffixes numéro / mot-court
+ * jusqu'au point fixe. Un seul strip (#635) séparait « Sportfield 16 piste 1 »
+ * (base « Sportfield 16 piste ») de « Sportfield 16 » (base « Sportfield ») →
+ * deux clés ≠ → jamais regroupés (vécu sur /padel/fr/paris). La racine commune
+ * « sportfield » les réunit. Renvoie null si rien n'a été retiré (nom propre).
+ */
+export function rootName(name: string): string | null {
+  let cur = name.trim();
+  let prev: string;
+  do {
+    prev = cur;
+    cur = cur.replace(NUM_SUFFIX, "").trim();
+    cur = cur.replace(COURT_WORD, "").trim();
+  } while (cur !== prev && cur);
+  if (!cur || cur === name.trim()) return null;
+  return cur;
+}
+
 /** Nom de carte = base sans le mot-court résiduel (« … piste » → « … »). */
 export function displayName(groupBase: string): string {
   const n = groupBase.replace(COURT_WORD, "").trim();
@@ -72,12 +93,16 @@ function coordKey(v: GroupableVenue): string {
 export function groupCourtRecords<T extends GroupableVenue>(
   venues: T[]
 ): (T & { groupedCount: number })[] {
-  // 1) indexer les membres par clé de groupe (uniquement les candidats court-level).
+  // 1) indexer par clé de groupe — RACINE chaînée (#696) : réunit
+  // « Sportfield 16 piste 1 » et « Sportfield 16 » (un seul strip les séparait).
   const groups = new Map<string, T[]>();
   for (const v of venues) {
-    const base = baseName(v.name);
-    if (!base) continue;
-    const key = `${norm(base)}|${v.source ?? ""}|${v.primary_sport_slug ?? ""}|${coordKey(v)}`;
+    // Candidat = nom court-level numéroté (racine chaînée) OU nom équipement
+    // générique sans numéro (« Courts de tennis » parent de « … n°1/n°2 »,
+    // #696) — sa racine est alors le nom lui-même.
+    const root = rootName(v.name) ?? (isGenericEquipmentName(v.name) ? v.name.trim() : null);
+    if (!root) continue;
+    const key = `${norm(root)}|${v.source ?? ""}|${v.primary_sport_slug ?? ""}|${coordKey(v)}`;
     const arr = groups.get(key);
     if (arr) arr.push(v);
     else groups.set(key, [v]);
@@ -92,18 +117,50 @@ export function groupCourtRecords<T extends GroupableVenue>(
     const total = sorted.reduce((s, m) => s + (m.courts_count ?? 1), 0);
     canonicalById.set(canonical.id, {
       ...canonical,
-      name: displayName(baseName(canonical.name) ?? canonical.name),
+      name: groupDisplayName(sorted.map((m) => m.name)),
       courts_count: total,
       groupedCount: sorted.length,
     });
     for (const m of sorted) if (m.id !== canonical.id) absorbed.add(m.id);
   }
   // 3) reconstruire la liste : canoniques réécrits, doublons retirés, reste intact.
-  const out: (T & { groupedCount: number })[] = [];
+  const grouped: (T & { groupedCount: number })[] = [];
   for (const v of venues) {
     if (absorbed.has(v.id)) continue;
     const merged = canonicalById.get(v.id);
-    out.push(merged ?? { ...v, groupedCount: 1 });
+    grouped.push(merged ?? { ...v, groupedCount: 1 });
   }
-  return out;
+  // 4) absorption des fiches ÉQUIPEMENT GÉNÉRIQUES (#696/#697) : un
+  // « COURT DE PADEL » sans numéro n'est pas candidat au regroupement, mais
+  // s'il coexiste avec un VRAI lieu nommé (même sport, mêmes coords ~110 m),
+  // c'est l'enregistrement courts de ce club → on le masque. Isolé (seule
+  // destination connue), il reste affiché.
+  const namedCells = new Set(
+    grouped
+      .filter((v) => !isGenericEquipmentName(v.name))
+      .map((v) => `${v.primary_sport_slug ?? ""}|${coordKey(v)}`)
+  );
+  return grouped.filter(
+    (v) =>
+      !isGenericEquipmentName(v.name) ||
+      !namedCells.has(`${v.primary_sport_slug ?? ""}|${coordKey(v)}`)
+  );
+}
+
+/**
+ * Nom de la carte regroupée (#696) :
+ * - si les membres ne diffèrent que par un numéro final (« Court de Padel
+ *   1/2/3 »), c'est une énumération → préfixe commun, mot-court résiduel
+ *   retiré ;
+ * - sinon (mélange parent + pistes, ex. « Sportfield 16 » + « Sportfield 16
+ *   piste 1 »), le membre au nom le PLUS COURT est le parent → tel quel.
+ */
+export function groupDisplayName(names: string[]): string {
+  const bases = new Set(names.map((n) => norm(baseName(n) ?? n)));
+  if (bases.size === 1 && names.every((n) => baseName(n) !== null)) {
+    const prefix = baseName(names[0])!;
+    return displayName(prefix);
+  }
+  const shortest = [...names].sort((a, b) => a.length - b.length || a.localeCompare(b))[0];
+  return shortest.replace(COURT_WORD, "").trim() || shortest;
 }
