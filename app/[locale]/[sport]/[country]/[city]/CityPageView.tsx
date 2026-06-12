@@ -336,6 +336,27 @@ async function fetchOtherCities(
     }));
 }
 
+/**
+ * URL de réservation partenaire ACTIVE par venue (#642), pour les venues
+ * affichées. Une seule requête `booking_link` bornée aux ids de la page (≤ 24).
+ * Map {venue_id: url} ; un seul lien suffit pour l'action « Réserver ».
+ */
+async function fetchBookingLinks(venueIds: string[]): Promise<Record<string, string>> {
+  if (venueIds.length === 0) return {};
+  const sb = getSupabaseStaticClient();
+  const { data, error } = await sb
+    .from("booking_link")
+    .select("venue_id, url")
+    .eq("is_active", true)
+    .in("venue_id", venueIds);
+  if (error || !data) return {};
+  const out: Record<string, string> = {};
+  for (const row of data as { venue_id: string; url: string }[]) {
+    if (!out[row.venue_id]) out[row.venue_id] = row.url;
+  }
+  return out;
+}
+
 // Métadonnées partagées entre la route page 1 (`/[city]`) et la route paginée
 // (`/[city]/page/[n]`). `page` pilote le canonical (auto-canonical par page).
 export async function buildCityMetadata({
@@ -428,6 +449,8 @@ export async function CityPageView({ locale, sport, country, city, page }: ViewP
   if (page > totalPages) notFound();
   const offset = (page - 1) * PAGE_SIZE;
   const venues = display.slice(offset, offset + PAGE_SIZE);
+  // Liens de réservation (#642) pour les venues affichées uniquement.
+  const bookingByVenue = await fetchBookingLinks(venues.map((v) => v.id));
   const family = FAMILIES_BY_SLUG[ctx.sport.family_slug];
   const basePath = `/${sport}/${country}/${city}`;
   const sportName = tSports.has(ctx.sport.slug) ? tSports(ctx.sport.slug) : ctx.sport.name_fr;
@@ -614,7 +637,7 @@ export async function CityPageView({ locale, sport, country, city, page }: ViewP
             <>
               <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {venues.map((v) => (
-                  <VenueCard key={v.id} venue={v} />
+                  <VenueCard key={v.id} venue={v} bookingUrl={bookingByVenue[v.id]} />
                 ))}
               </section>
 

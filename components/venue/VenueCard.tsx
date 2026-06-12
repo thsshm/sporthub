@@ -12,7 +12,7 @@
  * FavoriteButton reste en overlay positionné hors du Link (cf. #98).
  */
 import Link from "next/link";
-import { Globe, MapPin, Navigation, ShieldCheck } from "lucide-react";
+import { CalendarCheck, Globe, MapPin, Navigation, ShieldCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { SportChips } from "@/components/venue/SportChips";
@@ -37,9 +37,12 @@ type Props = {
     source?: string | null;
     website_url?: string | null;
   };
+  /** URL de réservation partenaire (table booking_link, #642). Passée par les
+   *  listes qui la résolvent ; absente ailleurs → pas d'action « Réserver ». */
+  bookingUrl?: string | null;
 };
 
-export async function VenueCard({ venue }: Props) {
+export async function VenueCard({ venue, bookingUrl }: Props) {
   const emoji = getFamilyEmoji(venue.family_slug);
   const familyColor = getFamilyColor(venue.family_slug);
   // Ville normalisée à l'affichage (#559) — la source livre parfois « PARIS ».
@@ -78,6 +81,10 @@ export async function VenueCard({ venue }: Props) {
   // Absente des pages /sports (la MV ne porte pas website_url) → dégradation
   // gracieuse, pas d'incohérence.
   const websiteHref = safeExternalUrl(venue.website_url);
+  // Action « Réserver » (#642) — secondaire mais accentuée (conversion), seulement
+  // quand un lien partenaire actif existe (booking_link). URL partenaire passée
+  // par le sanitizer comme le site web.
+  const bookingHref = safeExternalUrl(bookingUrl);
   const venueUrl = `${SITE_URL}/venue/${venue.slug}`;
   const reportHref = `mailto:hello@sporthubmap.com?subject=${encodeURIComponent(
     t("reportErrorSubject", { name: venue.name })
@@ -174,6 +181,18 @@ export async function VenueCard({ venue }: Props) {
             <Navigation className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {t("directions")}
           </a>
+          {/* Réserver (#642) — CTA partenaire accentué, conditionnel. */}
+          {bookingHref && (
+            <a
+              href={bookingHref}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+            >
+              <CalendarCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {t("book")}
+            </a>
+          )}
           {/* Site web (#642) — secondaire, conditionnel à une URL sûre. */}
           {websiteHref && (
             <a
