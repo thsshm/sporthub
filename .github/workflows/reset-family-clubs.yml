@@ -1,0 +1,55 @@
+name: Reset family clubs
+
+# Détache les venues de leurs clubs puis supprime ces clubs, pour une famille,
+# AVANT un re-clustering propre (cluster-clubs reset=false). Résistant à la
+# contention de locks (connexion Postgres directe + lock_timeout court + petits
+# lots + retry) là où `cluster_clubs.py --reset` (PostgREST) tombe en 57014.
+# Voir scripts/reset_family_clubs.py et migration 0061.
+
+on:
+  workflow_dispatch:
+    inputs:
+      family:
+        description: "family_slug à réinitialiser"
+        required: true
+        default: "raquette"
+        type: string
+      dry_run:
+        description: "Dry-run (compte seulement, n'écrit rien)"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: reset-family-clubs
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reset family clubs
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "::error::Secret SUPABASE_DB_PASSWORD manquant." >&2
+            exit 1
+          fi
+          pip install psycopg2-binary --quiet
+          DRY_FLAG=""
+          if [ "${{ inputs.dry_run }}" = "false" ]; then DRY_FLAG=""; else DRY_FLAG="--dry-run"; fi
+          python3 scripts/reset_family_clubs.py --family "${{ inputs.family }}" $DRY_FLAG
