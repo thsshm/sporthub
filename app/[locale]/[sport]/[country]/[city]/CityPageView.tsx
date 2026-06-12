@@ -108,9 +108,12 @@ const resolveContext = cache(async (sport: string, country: string, city: string
   // generateMetadata (noindex) et la page via le cache() (un seul fetch).
   const { indexable, scope } = await fetchScopeVenues(sb, sport, cityCtx);
 
-  // Zéro résultat local → on prépare des suggestions « à proximité » (#558).
-  // Calculé UNIQUEMENT dans ce cas (rare) pour ne pas alourdir les pages pleines.
-  const nearby = (count ?? 0) === 0 ? await fetchNearbyVenues(sb, sport, cityCtx) : [];
+  // Suggestions « à proximité » (#558/#608) : on les prépare quand la ville
+  // n'a AUCUN résultat (count 0) OU peu de lieux indexables (liste « thin »,
+  // < NOINDEX_MIN_VENUES) → la page reste locale/utile (alternatives explicites
+  // au lieu d'une liste courte sans suite). Pages pleines = pas de fetch en plus.
+  const wantNearby = (count ?? 0) === 0 || indexable.length < NOINDEX_MIN_VENUES;
+  const nearby = wantNearby ? await fetchNearbyVenues(sb, sport, cityCtx) : [];
 
   return {
     sport: sportDef,
@@ -336,6 +339,27 @@ async function fetchOtherCities(
     }));
 }
 
+/**
+ * URL de réservation partenaire ACTIVE par venue (#642), pour les venues
+ * affichées. Une seule requête `booking_link` bornée aux ids de la page (≤ 24).
+ * Map {venue_id: url} ; un seul lien suffit pour l'action « Réserver ».
+ */
+async function fetchBookingLinks(venueIds: string[]): Promise<Record<string, string>> {
+  if (venueIds.length === 0) return {};
+  const sb = getSupabaseStaticClient();
+  const { data, error } = await sb
+    .from("booking_link")
+    .select("venue_id, url")
+    .eq("is_active", true)
+    .in("venue_id", venueIds);
+  if (error || !data) return {};
+  const out: Record<string, string> = {};
+  for (const row of data as { venue_id: string; url: string }[]) {
+    if (!out[row.venue_id]) out[row.venue_id] = row.url;
+  }
+  return out;
+}
+
 // Métadonnées partagées entre la route page 1 (`/[city]`) et la route paginée
 // (`/[city]/page/[n]`). `page` pilote le canonical (auto-canonical par page).
 export async function buildCityMetadata({
@@ -428,6 +452,8 @@ export async function CityPageView({ locale, sport, country, city, page }: ViewP
   if (page > totalPages) notFound();
   const offset = (page - 1) * PAGE_SIZE;
   const venues = display.slice(offset, offset + PAGE_SIZE);
+  // Liens de réservation (#642) pour les venues affichées uniquement.
+  const bookingByVenue = await fetchBookingLinks(venues.map((v) => v.id));
   const family = FAMILIES_BY_SLUG[ctx.sport.family_slug];
   const basePath = `/${sport}/${country}/${city}`;
   const sportName = tSports.has(ctx.sport.slug) ? tSports(ctx.sport.slug) : ctx.sport.name_fr;
@@ -614,7 +640,7 @@ export async function CityPageView({ locale, sport, country, city, page }: ViewP
             <>
               <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {venues.map((v) => (
-                  <VenueCard key={v.id} venue={v} />
+                  <VenueCard key={v.id} venue={v} bookingUrl={bookingByVenue[v.id]} />
                 ))}
               </section>
 
@@ -653,6 +679,30 @@ export async function CityPageView({ locale, sport, country, city, page }: ViewP
             </nav>
               )}
             </>
+          )}
+
+          {/* « À proximité » AUSSI quand la ville a peu de résultats (#608) :
+              ctx.nearby n'est peuplé que si la liste est thin (< NOINDEX_MIN_VENUES)
+              ou vide, donc cette section n'apparaît que sur les pages maigres →
+              alternatives locales explicites (autres communes, ville exclue). */}
+          {ctx.nearby.length > 0 && (
+            <section className="mt-10 border-t pt-6">
+              <h2 className="text-sm font-medium text-foreground">
+                {t("nearbyTitle", { sport: sportName.toLowerCase(), city: ctx.city.name })}
+              </h2>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {ctx.nearby.map((v) => (
+                  <li key={v.slug}>
+                    <Link
+                      href={`/venue/${v.slug}`}
+                      className="inline-flex rounded-full border bg-card px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent"
+                    >
+                      {v.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
         </>
       )}

@@ -12,13 +12,14 @@
  * FavoriteButton reste en overlay positionné hors du Link (cf. #98).
  */
 import Link from "next/link";
-import { Globe, MapPin, Navigation, ShieldCheck } from "lucide-react";
+import { CalendarCheck, Globe, MapPin, Navigation, ShieldCheck } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { SportChips } from "@/components/venue/SportChips";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
 import { formatCityName } from "@/lib/format-city";
+import { getArrondissement } from "@/lib/venue/district";
 import { formatVenueName } from "@/lib/format-venue-name";
 import { googleMapsUrl } from "@/lib/utils";
 import { safeExternalUrl } from "@/lib/url";
@@ -37,13 +38,26 @@ type Props = {
     source?: string | null;
     website_url?: string | null;
   };
+  /** URL de réservation partenaire (table booking_link, #642). Passée par les
+   *  listes qui la résolvent ; absente ailleurs → pas d'action « Réserver ». */
+  bookingUrl?: string | null;
 };
 
-export async function VenueCard({ venue }: Props) {
+export async function VenueCard({ venue, bookingUrl }: Props) {
   const emoji = getFamilyEmoji(venue.family_slug);
   const familyColor = getFamilyColor(venue.family_slug);
   // Ville normalisée à l'affichage (#559) — la source livre parfois « PARIS ».
-  const location = venue.city_name ? formatCityName(venue.city_name) : (venue.address ?? "");
+  const cityLabel = venue.city_name ? formatCityName(venue.city_name) : null;
+  const street = venue.address?.trim() || null;
+  // Arrondissement (#703) pour les grandes villes FR (Paris/Lyon/Marseille) :
+  // dérivé du code postal de l'adresse → « Paris 11e » plutôt que « Paris »,
+  // pour distinguer deux homonymes (« Basic-Fit Paris » 11e vs 15e). Jamais
+  // fabriqué (null si pas de CP d'arrondissement).
+  const arrondissement = getArrondissement(venue.address, venue.city_name);
+  const cityLabelWithArr = cityLabel && arrondissement ? `${cityLabel} ${arrondissement}` : cityLabel;
+  // Ligne principale = ville (+ arrondissement) si connue, sinon la rue (#559).
+  // La rue passe en ligne secondaire quand une ville est déjà affichée (#703).
+  const location = cityLabelWithArr ?? street ?? "";
   const t = await getTranslations("venue");
   const tFav = await getTranslations("favorites");
   const tFamilies = await getTranslations("families");
@@ -78,6 +92,10 @@ export async function VenueCard({ venue }: Props) {
   // Absente des pages /sports (la MV ne porte pas website_url) → dégradation
   // gracieuse, pas d'incohérence.
   const websiteHref = safeExternalUrl(venue.website_url);
+  // Action « Réserver » (#642) — secondaire mais accentuée (conversion), seulement
+  // quand un lien partenaire actif existe (booking_link). URL partenaire passée
+  // par le sanitizer comme le site web.
+  const bookingHref = safeExternalUrl(bookingUrl);
   const venueUrl = `${SITE_URL}/venue/${venue.slug}`;
   const reportHref = `mailto:hello@sporthubmap.com?subject=${encodeURIComponent(
     t("reportErrorSubject", { name: venue.name })
@@ -126,15 +144,26 @@ export async function VenueCard({ venue }: Props) {
           </CardHeader>
 
           <CardContent className="pb-3">
-            {/* Localisation */}
+            {/* Localisation : ville (ou rue si pas de ville) + rue en secondaire. */}
             {location && (
-              <p className="mb-2 flex items-center gap-1 text-sm text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>{location}</span>
-                {venue.country_code && (
-                  <span className="ml-1 text-xs opacity-60">({venue.country_code})</span>
+              <div className="mb-2">
+                <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>{location}</span>
+                  {venue.country_code && (
+                    <span className="ml-1 text-xs opacity-60">({venue.country_code})</span>
+                  )}
+                </p>
+                {/* Rue (#703) : sous la ville, pour distinguer des lieux homonymes
+                    (deux « Basic-Fit » de la même ville → adresses ≠). Seulement si
+                    une ville est déjà affichée ET qu'une rue existe (jamais
+                    fabriquée). Compacte : 1 ligne tronquée, alignée sous le texte. */}
+                {cityLabel && street && (
+                  <p className="line-clamp-1 pl-[1.125rem] text-xs text-muted-foreground/80">
+                    {street}
+                  </p>
                 )}
-              </p>
+              </div>
             )}
 
             {/* Sports */}
@@ -174,6 +203,18 @@ export async function VenueCard({ venue }: Props) {
             <Navigation className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {t("directions")}
           </a>
+          {/* Réserver (#642) — CTA partenaire accentué, conditionnel. */}
+          {bookingHref && (
+            <a
+              href={bookingHref}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+            >
+              <CalendarCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {t("book")}
+            </a>
+          )}
           {/* Site web (#642) — secondaire, conditionnel à une URL sûre. */}
           {websiteHref && (
             <a

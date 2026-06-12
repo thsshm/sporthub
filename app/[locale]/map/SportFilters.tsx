@@ -120,7 +120,12 @@ export function SportFilters({
   // panneau affichait familles + critères + surfaces d'un coup (« interface
   // d'admin »). Ouvert au mount UNIQUEMENT si l'un d'eux est déjà actif
   // (deep-link ?indoor=1…) — on ne cache jamais un filtre qui influence la carte.
-  const advancedCount = selectedCriteria.size + selectedSurfaces.size;
+  // #700 : un filtre famille actif (≠ toutes les familles cochées) compte aussi
+  // dans les filtres « avancés » → le badge et l'ouverture-au-mount reflètent
+  // qu'une famille est filtrée (deep-link), jamais masqué en silence.
+  const familyFilterActive = selected.size < FAMILIES.length;
+  const advancedCount =
+    selectedCriteria.size + selectedSurfaces.size + (familyFilterActive ? 1 : 0);
   const [advancedOpen, setAdvancedOpen] = useState(() => advancedCount > 0);
   const resetAll = () => {
     onChange(new Set(FAMILIES.map((f) => f.slug)));
@@ -192,59 +197,12 @@ export function SportFilters({
         </button>
       )}
 
-      {/* Familles */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">{tMap("filtersTitle")}</h2>
-          <div className="flex gap-1.5 text-[11px]">
-            <button
-              type="button"
-              onClick={selectAll}
-              className="text-blue-600 hover:underline"
-            >
-              {tMap("filtersAll")}
-            </button>
-            <span className="text-muted-foreground">·</span>
-            <button
-              type="button"
-              onClick={selectNone}
-              className="text-blue-600 hover:underline"
-            >
-              {tMap("filtersNone")}
-            </button>
-          </div>
-        </div>
-        <ul className="space-y-0.5">
-          {FAMILIES.map((f) => {
-            const name = tFamilies(f.slug);
-            return (
-              <li key={f.slug}>
-                <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(f.slug)}
-                    onChange={() => toggle(f.slug)}
-                    className="h-3.5 w-3.5 cursor-pointer"
-                    aria-label={name}
-                  />
-                  <span
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: f.color }}
-                    aria-hidden="true"
-                  />
-                  <span aria-hidden="true">{f.emoji}</span>
-                  <span className="truncate">{name}</span>
-                  <CountBadge counts={familyCounts} k={f.slug} />
-                </label>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      {/* Disclosure « Plus de filtres » (#641) : critères + surfaces repliés
-          par défaut. aria-expanded pour l'accessibilité ; badge du nb de
-          filtres actifs quand replié — jamais de filtre actif masqué en silence. */}
+      {/* Disclosure « Plus de filtres » (#641 / #700) : FAMILLES + critères +
+          surfaces repliés par défaut → le panneau n'expose plus tout d'un coup
+          (« interface d'admin », #700). Le switcher famille rapide ci-dessus
+          couvre le cas courant (1 famille en 1 clic) ; le multi-select complet
+          est ici. aria-expanded pour l'a11y ; badge = nb de filtres actifs quand
+          replié (familles incluses) → jamais de filtre actif masqué en silence. */}
       <div className="border-t pt-3">
         <button
           type="button"
@@ -269,8 +227,59 @@ export function SportFilters({
 
       {advancedOpen && (
         <>
-          {/* Critères universels */}
+          {/* Familles (#700 : déplacées sous « Plus de filtres » — multi-select
+              complet ; le switcher rapide reste en haut pour le cas courant). */}
           <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold">{tMap("filtersTitle")}</h2>
+              <div className="flex gap-1.5 text-[11px]">
+                <button
+                  type="button"
+                  onClick={selectAll}
+                  className="text-blue-600 hover:underline"
+                >
+                  {tMap("filtersAll")}
+                </button>
+                <span className="text-muted-foreground">·</span>
+                <button
+                  type="button"
+                  onClick={selectNone}
+                  className="text-blue-600 hover:underline"
+                >
+                  {tMap("filtersNone")}
+                </button>
+              </div>
+            </div>
+            <ul className="space-y-0.5">
+              {FAMILIES.map((f) => {
+                const name = tFamilies(f.slug);
+                return (
+                  <li key={f.slug}>
+                    <label className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-accent">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(f.slug)}
+                        onChange={() => toggle(f.slug)}
+                        className="h-3.5 w-3.5 cursor-pointer"
+                        aria-label={name}
+                      />
+                      <span
+                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: f.color }}
+                        aria-hidden="true"
+                      />
+                      <span aria-hidden="true">{f.emoji}</span>
+                      <span className="truncate">{name}</span>
+                      <CountBadge counts={familyCounts} k={f.slug} />
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Critères universels (border-t : séparateur sous les familles) */}
+          <div className="flex flex-col gap-2 border-t pt-3">
             <h3 className="text-sm font-semibold">{tMap("criteriaTitle")}</h3>
             <ul className="space-y-0.5">
               {CRITERIA.map((c) => {
