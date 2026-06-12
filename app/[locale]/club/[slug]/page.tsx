@@ -8,6 +8,7 @@ import { FAMILIES_BY_SLUG } from "@/lib/families";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportChips } from "@/components/venue/SportChips";
 import { ClubMap } from "./ClubMap";
+import { Phone, Globe } from "lucide-react";
 import type { VenuePin } from "@/lib/supabase/types";
 import {
   buildBreadcrumbJsonLd,
@@ -47,6 +48,13 @@ type CourtRow = {
   address: string | null;
   courts_count: number | null;
   country_code: string | null;
+  // Champs d'enrichissement agrégés au niveau club (#726).
+  phone: string | null;
+  website_url: string | null;
+  is_indoor: boolean | null;
+  has_lighting: boolean | null;
+  is_wheelchair_accessible: boolean | null;
+  fee_required: boolean | null;
 };
 
 // country_code re-typé `string | undefined` (et non `string | null`) pour coller
@@ -79,7 +87,7 @@ const fetchClub = cache(async (slug: string): Promise<ClubData | null> => {
   const { data: courtsData } = await sb
     .from("venue")
     .select(
-      "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code",
+      "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code, phone, website_url, is_indoor, has_lighting, is_wheelchair_accessible, fee_required",
     )
     .eq("club_id", club.id)
     .eq("is_published", true)
@@ -151,7 +159,34 @@ export default async function ClubPage({ params }: Props) {
 
   const t = await getTranslations("club");
   const tFamilies = await getTranslations("families");
+  const tVenue = await getTranslations("venue");
   const family = FAMILIES_BY_SLUG[club.family_slug];
+
+  // ── Agrégats « Infos pratiques » depuis les courts (#726). Le club est un
+  // cluster de venues (même établissement) → on remonte contact + équipements.
+  const totalCourts =
+    courts.reduce((n, c) => n + (c.courts_count ?? 0), 0) || courts.length;
+  const phone = courts.find((c) => c.phone)?.phone ?? null;
+  const websiteUrl = courts.find((c) => c.website_url)?.website_url ?? null;
+  const amenities = {
+    indoor: courts.some((c) => c.is_indoor === true),
+    lighting: courts.some((c) => c.has_lighting === true),
+    wheelchair: courts.some((c) => c.is_wheelchair_accessible === true),
+    free: courts.some((c) => c.fee_required === false),
+    paid: courts.some((c) => c.fee_required === true),
+  };
+  const amenityKeys = (
+    ["indoor", "lighting", "wheelchair", "free", "paid"] as const
+  ).filter((k) => amenities[k]);
+  // Clés littérales pour next-intl (pas d'accès dynamique `amenity.${k}`).
+  const amenityLabel = {
+    indoor: tVenue("amenity.indoor"),
+    lighting: tVenue("amenity.lighting"),
+    wheelchair: tVenue("amenity.wheelchair"),
+    free: tVenue("amenity.free"),
+    paid: tVenue("amenity.paid"),
+  };
+  const hasPracticalInfo = Boolean(phone || websiteUrl || amenityKeys.length);
 
   // ── JSON-LD : SportsClub (lieu) + Breadcrumb + ItemList des terrains.
   const clubUrl = `${SITE_URL}/${locale}/club/${club.slug}`;
@@ -242,6 +277,65 @@ export default async function ClubPage({ params }: Props) {
           </div>
         )}
       </header>
+
+      {/* Infos pratiques agrégées depuis les courts (#726) : total courts,
+          contact (1er court qui en porte un), équipements (≥ 1 court). */}
+      {hasPracticalInfo && (
+        <section className="mt-6 rounded-lg border p-4 sm:p-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            {tVenue("infoCardTitle")}
+          </h2>
+          <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-start sm:gap-10">
+            <div>
+              <p className="text-xs text-muted-foreground">{t("courtsHeading")}</p>
+              <p className="mt-0.5 text-sm font-medium">
+                {t("courts", { count: totalCourts })}
+              </p>
+            </div>
+
+            {(phone || websiteUrl) && (
+              <div className="flex flex-wrap items-center gap-2">
+                {phone && (
+                  <a
+                    href={`tel:${phone}`}
+                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+                  >
+                    <Phone className="h-4 w-4" aria-hidden="true" />
+                    {tVenue("callCta")}
+                  </a>
+                )}
+                {websiteUrl && (
+                  <a
+                    href={websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+                  >
+                    <Globe className="h-4 w-4" aria-hidden="true" />
+                    {tVenue("websiteCta")}
+                  </a>
+                )}
+              </div>
+            )}
+
+            {amenityKeys.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground">{tVenue("amenitiesTitle")}</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {amenityKeys.map((k) => (
+                    <span
+                      key={k}
+                      className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground"
+                    >
+                      {amenityLabel[k]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {courts.length === 0 ? (
         <p className="mt-12 text-center text-muted-foreground">
