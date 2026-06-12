@@ -15,6 +15,7 @@ import {
 import { getVisibleVenueCount } from "@/lib/venue/visible-count";
 import { isSportMismatch, sinkMismatches } from "@/lib/venue/sport-mismatch";
 import { groupCourtRecords } from "@/lib/venue/group-courts";
+import { groupByClub } from "@/lib/venue/group-by-club";
 import { VenueCard } from "@/components/venue/VenueCard";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -140,6 +141,7 @@ type VenueRow = {
   claim_status: ScorableVenue["claim_status"];
   enrichments: ScorableVenue["enrichments"];
   source: string | null; // provenance — signal de confiance sur la carte (#607)
+  club_id: string | null; // clustering géo (#696) — regroupe les fiches d'un club
 };
 
 type DisplayVenue = Omit<VenueRow, "country_code"> & {
@@ -183,7 +185,7 @@ async function fetchScopeVenues(
   // Résilient : un lot en échec est loggé sans vider toute la page. `source` =
   // signal de provenance affiché sur la carte (#607).
   const SELECT =
-    "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code, city_id, website_url, phone, description, claim_status, enrichments, source";
+    "id, slug, name, lat, lon, family_slug, primary_sport_slug, address, courts_count, country_code, city_id, website_url, phone, description, claim_status, enrichments, source, club_id";
   const batches = await Promise.all(
     chunk(ids, 100).map((batch) =>
       sb
@@ -209,12 +211,32 @@ async function fetchScopeVenues(
   }
   if (rows.length === 0) return { indexable: [], scope: [] };
 
-  // Regroupement court-level (#635) : « Court de Padel 1/2/3 », « Sportfield 16
-  // piste 1/2/3 »… sont collapsés en UNE card de club (nom + courts_count agrégé)
-  // AVANT scoring/tri/pagination, pour que la page liste des venues et non des
-  // pistes isolées. Display-only : la donnée brute n'est pas touchée (merge DB =
-  // #554). Conservateur : même source+sport+coords arrondies exigés.
-  const scope: DisplayVenue[] = groupCourtRecords(rows).map((v) => ({
+  // Noms de clubs (#696) pour regrouper par `club_id` : map club_id → nom, par
+  // lots d'ids (URL bornée, RLS SELECT public sur `club`). Best-effort : sans
+  // club, on retombe sur le seul regroupement court-level par nom.
+  const clubIds = [...new Set(rows.map((r) => r.club_id).filter((c): c is string => !!c))];
+  const clubNameById = new Map<string, string>();
+  if (clubIds.length > 0) {
+    const clubBatches = await Promise.all(
+      chunk(clubIds, 100).map((batch) => sb.from("club").select("id, name").in("id", batch)),
+    );
+    for (const b of clubBatches) {
+      for (const c of (b.data as { id: string; name: string }[] | null) ?? []) {
+        if (c.id && c.name) clubNameById.set(c.id, c.name);
+      }
+    }
+  }
+
+  // Regroupement en deux passes, AVANT scoring/tri/pagination (la page liste des
+  // CLUBS, pas des courts/surfaces isolés) :
+  //  1. par CLUB (#696) : les fiches d'un même club (club_id du clustering géo
+  //     50 m) — y compris des SURFACES différentes (« terre battue », « green
+  //     set »…) que le regroupement par nom ne réunit pas — deviennent UNE card
+  //     au nom du club ;
+  //  2. court-level (#635) : « Court 1/2/3 », « Sportfield 16 piste 1 »… des
+  //     venues restantes (sans club_id) sont collapsées par nom + coords.
+  // Display-only : la donnée brute n'est pas touchée (merge DB = #554).
+  const scope: DisplayVenue[] = groupCourtRecords(groupByClub(rows, clubNameById)).map((v) => ({
     ...v,
     city_name: city.name,
     country_code: v.country_code ?? city.country_code ?? undefined,
