@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getCourtCountDisplay, plausibleCourtCount } from "@/lib/venue/courts-plausibility";
+import {
+  getCourtCountDisplay,
+  isGenericEquipmentName,
+  plausibleCourtCount,
+} from "@/lib/venue/courts-plausibility";
 
 describe("plausibleCourtCount", () => {
   it("garde une valeur plausible", () => {
@@ -84,5 +88,43 @@ describe("getCourtCountDisplay (#636)", () => {
   it("sport ET famille inconnus → seuil par défaut", () => {
     expect(getCourtCountDisplay(50, {}).kind).toBe("exact");
     expect(getCourtCountDisplay(51, {}).kind).toBe("approx");
+  });
+
+  // #697 : un nom d'équipement générique n'affiche jamais un chiffre exact.
+  it("nom d'équipement générique → jamais exact (#697)", () => {
+    // « COURT DE PADEL » à 9 pistes : sous le seuil padel (16) donc serait
+    // « exact » sans le garde-fou nom → on bascule sur « plusieurs terrains ».
+    expect(getCourtCountDisplay(9, { sportSlug: "padel", name: "COURT DE PADEL" }).kind).toBe(
+      "approx",
+    );
+    expect(getCourtCountDisplay(28, { sportSlug: "tennis", name: "Court de tennis ext" }).kind).toBe(
+      "approx",
+    );
+    // 1 seul terrain sur un nom générique → rien (pas « 1 terrain »).
+    expect(getCourtCountDisplay(1, { sportSlug: "padel", name: "Court de padel" }).kind).toBe(
+      "none",
+    );
+    // Un vrai lieu nommé garde son compte exact, même mots « court/tennis ».
+    expect(
+      getCourtCountDisplay(9, { sportSlug: "padel", name: "Casa Padel Saint-Denis" }),
+    ).toEqual({ kind: "exact", count: 9 });
+  });
+});
+
+describe("isGenericEquipmentName (#697)", () => {
+  it("vrai pour les libellés d'équipement génériques", () => {
+    expect(isGenericEquipmentName("COURT DE PADEL")).toBe(true);
+    expect(isGenericEquipmentName("Court de tennis ext")).toBe(true);
+    expect(isGenericEquipmentName("Terrain de foot")).toBe(true);
+    expect(isGenericEquipmentName("Courts couverts")).toBe(true);
+    expect(isGenericEquipmentName("Piste 1")).toBe(true); // nombre ignoré → « piste »
+  });
+  it("faux pour les vrais noms de lieux", () => {
+    expect(isGenericEquipmentName("Casa Padel Saint-Denis")).toBe(false);
+    expect(isGenericEquipmentName("Sportfield 16")).toBe(false);
+    expect(isGenericEquipmentName("Tennis Club de Lyon")).toBe(false); // commence par « tennis », pas un mot d'équipement
+    expect(isGenericEquipmentName("Mouratoglou Country Club")).toBe(false);
+    expect(isGenericEquipmentName(null)).toBe(false);
+    expect(isGenericEquipmentName("")).toBe(false);
   });
 });

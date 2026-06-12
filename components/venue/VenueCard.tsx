@@ -64,6 +64,8 @@ export async function VenueCard({ venue }: Props) {
   const courtCount = getCourtCountDisplay(venue.courts_count, {
     sportSlug: venue.sport_slugs?.[0],
     familySlug: venue.family_slug,
+    // #697 : le nom affine la confiance — « COURT DE PADEL · 9 » ne montre pas 9.
+    name: venue.name,
   });
 
   // Actions : Itinéraire (Google Maps, comme la fiche) + Signaler (mailto

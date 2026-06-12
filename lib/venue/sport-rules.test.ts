@@ -7,20 +7,31 @@ import {
 } from "@/lib/venue/sport-rules";
 
 describe("getSportSignal — padel (#638)", () => {
-  it("positif : un nom qui contient padel/paddle/casa padel", () => {
+  it("positif : padel/paddle/casa padel + enseignes (#695)", () => {
     expect(getSportSignal("Casa Padel Saint-Denis", "padel")).toBe("positive");
     expect(getSportSignal("Padellers Lyon", "padel")).toBe("positive");
     expect(getSportSignal("Le Paddle Club", "padel")).toBe("positive");
+    expect(getSportSignal("We Are Padel Bordeaux", "padel")).toBe("positive");
+    expect(getSportSignal("Padelshot Nantes", "padel")).toBe("positive");
   });
-  it("suspect : tennis-only SANS signal padel, ou équestre/circuit", () => {
+  it("suspect : tennis-only/squash SANS signal padel, circuit/karting", () => {
     expect(getSportSignal("Tennis Club de Lyon", "padel")).toBe("suspicious");
-    expect(getSportSignal("Manège équestre", "padel")).toBe("suspicious");
-    expect(getSportSignal("Hippodrome de Vincennes", "padel")).toBe("suspicious");
+    expect(getSportSignal("COURT DE TENNIS EXT", "padel")).toBe("suspicious");
+    expect(getSportSignal("Squash Club Marseille", "padel")).toBe("suspicious");
     expect(getSportSignal("Circuit de karting", "padel")).toBe("suspicious");
   });
   it("le signal POSITIF l'emporte sur le suspect (multi-sport légitime)", () => {
     // « Tennis & Padel Club » mentionne tennis (suspect) ET padel (positif).
     expect(getSportSignal("Tennis & Padel Club", "padel")).toBe("positive");
+  });
+  it("contradiction : équestre / pêche exclus des listes padel (#695)", () => {
+    // Faux positifs live : équipement équestre, plans d'eau → jamais du padel.
+    expect(
+      getSportSignal("Écuries de propriétaires - manège, carrière", "padel"),
+    ).toBe("contradiction");
+    expect(getSportSignal("Manège équestre", "padel")).toBe("contradiction");
+    expect(getSportSignal("Hippodrome de Vincennes", "padel")).toBe("contradiction");
+    expect(getSportSignal("Étang de pêche du Moulin", "padel")).toBe("contradiction");
   });
   it("contradiction : piscine/fitness restent une exclusion dure", () => {
     expect(getSportSignal("Piscine municipale", "padel")).toBe("contradiction");

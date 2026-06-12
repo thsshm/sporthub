@@ -55,6 +55,23 @@ const C_RAQUETTE = [
 ];
 const C_BALLON = [...C_RAQUETTE];
 
+// Équipement ÉQUESTRE — jamais un terrain de padel/tennis (#695, faux positifs
+// live « Écuries de propriétaires - manège, carrière, pistes de galop »). Mots
+// sans ambiguïté seulement → exclusion dure sûre.
+const C_EQUESTRIAN = [
+  /\bmanege\b/,
+  /\becuries?\b/,
+  /\bhippodromes?\b/,
+  /\bharas\b/,
+  /\bhippiques?\b/,
+  /\bequestres?\b/,
+  /\bequitation\b/,
+  /\bponeys?\b/,
+];
+
+// Pêche / plans d'eau — listés comme négatifs padel dans #695. Jamais du padel.
+const C_FISHING = [/\bpeche\b/, /\betangs?\b/, /\bpisciculture\b/];
+
 /**
  * Carte de règles. Volontairement courte et factuelle (exemples réels des audits
  * #553/#637/#638) ; élargir au cas par cas, jamais en masse (faux positifs).
@@ -66,19 +83,23 @@ export const SPORT_RULES: Record<string, SportRule> = {
     suspicious: [], // pool/muscu sont déjà des contradictions ; multisport = générique
   },
   padel: {
-    positive: [w("padel"), w("padel"), w("paddle"), /casa padel/, w("padellers"), /padel club/],
-    contradiction: C_RAQUETTE,
-    // tennis SANS signal padel (le positif l'emporte), + équestre / circuits.
-    suspicious: [
-      w("tennis"),
-      /\bmanege\b/,
-      /\becuries?\b/,
-      /\bhippodromes?\b/,
-      /\bharas\b/,
-      /\bhippique\b/,
-      /\bcircuit\b/,
-      /\bkarting\b/,
+    positive: [
+      w("padel"),
+      w("paddle"),
+      /casa padel/,
+      w("padellers"),
+      /padel club/,
+      /padelshot/,
+      /padel indoor/,
+      /we are padel/,
     ],
+    // Équipement clairement AUTRE → exclu des listes SEO padel (#695) : famille
+    // raquette « autre » (piscine/muscu…), équestre et pêche (jamais du padel).
+    contradiction: [...C_RAQUETTE, ...C_EQUESTRIAN, ...C_FISHING],
+    // tennis/squash SANS signal padel (le positif l'emporte) + circuits/karting :
+    // possibles mais douteux → rétrogradés seulement, jamais exclus (« Tennis &
+    // Padel Club » garde son signal positif et reste prioritaire).
+    suspicious: [w("tennis"), w("squash"), /\bcircuit\b/, /\bkarting\b/, /\bgalop\b/],
   },
   gym: {
     // musculation/fitness sont POSITIFS pour le gym (cf. #553). Le positif
