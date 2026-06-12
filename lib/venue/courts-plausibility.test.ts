@@ -89,42 +89,66 @@ describe("getCourtCountDisplay (#636)", () => {
     expect(getCourtCountDisplay(50, {}).kind).toBe("exact");
     expect(getCourtCountDisplay(51, {}).kind).toBe("approx");
   });
-
-  // #697 : un nom d'équipement générique n'affiche jamais un chiffre exact.
-  it("nom d'équipement générique → jamais exact (#697)", () => {
-    // « COURT DE PADEL » à 9 pistes : sous le seuil padel (16) donc serait
-    // « exact » sans le garde-fou nom → on bascule sur « plusieurs terrains ».
-    expect(getCourtCountDisplay(9, { sportSlug: "padel", name: "COURT DE PADEL" }).kind).toBe(
-      "approx",
-    );
-    expect(getCourtCountDisplay(28, { sportSlug: "tennis", name: "Court de tennis ext" }).kind).toBe(
-      "approx",
-    );
-    // 1 seul terrain sur un nom générique → rien (pas « 1 terrain »).
-    expect(getCourtCountDisplay(1, { sportSlug: "padel", name: "Court de padel" }).kind).toBe(
-      "none",
-    );
-    // Un vrai lieu nommé garde son compte exact, même mots « court/tennis ».
-    expect(
-      getCourtCountDisplay(9, { sportSlug: "padel", name: "Casa Padel Saint-Denis" }),
-    ).toEqual({ kind: "exact", count: 9 });
-  });
 });
 
-describe("isGenericEquipmentName (#697)", () => {
-  it("vrai pour les libellés d'équipement génériques", () => {
-    expect(isGenericEquipmentName("COURT DE PADEL")).toBe(true);
-    expect(isGenericEquipmentName("Court de tennis ext")).toBe(true);
-    expect(isGenericEquipmentName("Terrain de foot")).toBe(true);
-    expect(isGenericEquipmentName("Courts couverts")).toBe(true);
-    expect(isGenericEquipmentName("Piste 1")).toBe(true); // nombre ignoré → « piste »
+describe("confiance par le nom — équipement générique (#697)", () => {
+  it("détecte les libellés équipement, pas les clubs nommés", () => {
+    for (const g of [
+      "COURT DE PADEL",
+      "Courts de tennis Extérieurs",
+      "court de tennis ext",
+      "Terrain de basket n°2",
+      "Courts de tennis intérieurs",
+      "Piste de padel 3",
+    ]) {
+      expect(isGenericEquipmentName(g), g).toBe(true);
+    }
+    for (const c of ["Casa Padel", "Tennis Club de Lyon", "We Are Padel", "Esprit Padel Lyon"]) {
+      expect(isGenericEquipmentName(c), c).toBe(false);
+    }
   });
-  it("faux pour les vrais noms de lieux", () => {
-    expect(isGenericEquipmentName("Casa Padel Saint-Denis")).toBe(false);
-    expect(isGenericEquipmentName("Sportfield 16")).toBe(false);
-    expect(isGenericEquipmentName("Tennis Club de Lyon")).toBe(false); // commence par « tennis », pas un mot d'équipement
-    expect(isGenericEquipmentName("Mouratoglou Country Club")).toBe(false);
-    expect(isGenericEquipmentName(null)).toBe(false);
-    expect(isGenericEquipmentName("")).toBe(false);
+
+  it("« COURT DE PADEL » + 9 courts → adouci (cas exact de l'issue)", () => {
+    const d = getCourtCountDisplay(9, { sportSlug: "padel", name: "COURT DE PADEL" });
+    expect(d.kind).toBe("approx"); // 9 ≤ plafond padel 16, mais nom générique
+  });
+
+  it("courts tennis Lyon 28/24/18/12 sur fiches équipement → adoucis", () => {
+    for (const n of [28, 24, 18, 12]) {
+      const d = getCourtCountDisplay(n, {
+        sportSlug: "tennis",
+        name: "Courts de tennis Extérieurs",
+      });
+      expect(d.kind, String(n)).toBe("approx");
+    }
+  });
+
+  it("petit compte sur nom générique : crédible → exact", () => {
+    expect(getCourtCountDisplay(2, { sportSlug: "padel", name: "Court de padel" })).toEqual({
+      kind: "exact",
+      count: 2,
+    });
+  });
+
+  it("club NOMMÉ : le compte élevé plausible reste affiché", () => {
+    expect(getCourtCountDisplay(9, { sportSlug: "padel", name: "Casa Padel" })).toEqual({
+      kind: "exact",
+      count: 9,
+    });
+    expect(getCourtCountDisplay(28, { sportSlug: "tennis", name: "Tennis Club de Lyon" })).toEqual({
+      kind: "exact",
+      count: 28,
+    });
+  });
+
+  it("nom générique + valeur absurde → none (pas même un libellé)", () => {
+    expect(
+      getCourtCountDisplay(200, { sportSlug: "tennis", name: "Courts de tennis" }).kind,
+    ).toBe("none");
+  });
+
+  it("plausibleCourtCount masque aussi via le nom (fiche venue)", () => {
+    expect(plausibleCourtCount(9, "raquette", "padel", "COURT DE PADEL")).toBeNull();
+    expect(plausibleCourtCount(9, "raquette", "padel", "Casa Padel")).toBe(9);
   });
 });

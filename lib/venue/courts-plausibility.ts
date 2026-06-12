@@ -58,55 +58,33 @@ const DEFAULT_MAX = 50;
 // trompeur (agrégation totalement cassée) → on n'affiche rien.
 const ABSURD_FACTOR = 4;
 
-// Détection « nom d'équipement générique » (#697). Un enregistrement nommé
-// « COURT DE PADEL », « Court de tennis ext », « Terrain de foot » est une LIGNE
-// D'ÉQUIPEMENT, pas une destination : son `courts_count` (souvent une agrégation
-// au mauvais niveau, ex. « COURT DE PADEL » → 9) n'est pas un compte de club
-// fiable. Sur ces noms on n'affiche JAMAIS un chiffre exact — au mieux « plusieurs
-// terrains ». Pure heuristique texte (sans accents), conservatrice : ne se
-// déclenche que si le nom COMMENCE par un mot d'équipement ET ne contient aucun
-// nom propre distinctif (que des mots équipement / sport / remplissage).
-const _EQ_LEAD = new Set([
-  "court", "courts", "terrain", "terrains", "piste", "pistes", "cancha", "pista",
-  "field", "lane", "kort",
-]);
-const _EQ_FILLER = new Set([
-  "de", "du", "des", "d", "le", "la", "les", "l", "en", "et", "a",
-  "ext", "exterieur", "exterieurs", "exterieure", "exterieures",
-  "int", "interieur", "interieurs", "interieure", "interieures",
-  "couvert", "couverts", "couverte", "couvertes", "decouvrable", "decouvrables",
-  "n", "no", "num", "central", "centrale", "centraux",
-]);
-const _EQ_SPORT = new Set([
-  "padel", "paddle", "tennis", "squash", "badminton", "foot", "football",
-  "basket", "basketball", "volley", "volleyball", "ping", "pong", "tennistable",
-]);
-
-/** Normalise (minuscule, sans accents) — local pour éviter une dépendance. */
-function _normEq(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
 /**
- * true si `name` ressemble à une ligne d'équipement générique (« COURT DE
- * PADEL », « Court de tennis EXT ») et non à un vrai lieu nommé. Conservateur :
- * doit commencer par un mot d'équipement ET n'avoir QUE des mots
- * équipement/sport/remplissage (un nom propre comme « Casa », « Sportfield »,
- * « Lyon » le disqualifie → ce n'est pas générique).
+ * Nom « équipement générique » (#697) : la fiche est un ENREGISTREMENT
+ * niveau-équipement (« COURT DE PADEL », « Courts de tennis Extérieurs »,
+ * « Terrain de basket n°2 »…), pas un club nommé. Sur ces fiches, un
+ * `courts_count` élevé est presque toujours une agrégation au mauvais niveau
+ * (vécu : « COURT DE PADEL » annonçant 9 courts, courts tennis Lyon à 28) —
+ * la MAGNITUDE seule ne suffit pas (28 ≤ plafond tennis 30).
+ * Détection : commence par court(s)/terrain(s)/piste(s), suivi au plus d'un
+ * sport et de qualificatifs courts (ext/int/couvert/n°…). Un nom PROPRE
+ * (« Casa Padel ») n'est jamais matché.
  */
 export function isGenericEquipmentName(name: string | null | undefined): boolean {
   if (!name) return false;
-  const toks = _normEq(name)
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((t) => t && !/^\d+$/.test(t) && t.length > 1); // ignore nombres & lettres isolées
-  if (toks.length === 0) return false;
-  if (!_EQ_LEAD.has(toks[0])) return false;
-  return toks.every((t) => _EQ_LEAD.has(t) || _EQ_FILLER.has(t) || _EQ_SPORT.has(t));
+  const n = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim();
+  return /^(les?\s|la\s)?(courts?|terrains?|pistes?|salles?)\b(\s(de|du|des|d))?(\s[a-z-]+)?(\s+(ext|int|exterieurs?|interieurs?|couverts?|decouverts?|n\s?[°o]?\s?\d+|\d+))*$/.test(
+    n,
+  );
 }
+
+// Sur un nom équipement-générique, au-delà de ce compte on n'affiche plus le
+// chiffre (un « court de padel » à 2-4 terrains reste crédible ; à 9, c'est
+// un artefact d'agrégation → « plusieurs terrains »).
+const GENERIC_NAME_MAX_COURTS = 4;
 
 /** Décision d'affichage du nombre de courts. Pur, testable, déterministe. */
 export type CourtCountDisplay =
@@ -133,13 +111,16 @@ export function getCourtCountDisplay(
 ): CourtCountDisplay {
   if (count == null || count <= 0) return { kind: "none" };
   const max = resolveMax(opts.sportSlug, opts.familySlug);
-  // #697 : sur un nom d'équipement générique (« COURT DE PADEL », « Court de
-  // tennis ext »), le count n'est pas un agrégat de club fiable → jamais de
-  // chiffre exact. Au mieux « plusieurs terrains » (≥ 2, sous le plafond
-  // absurde), sinon rien. Évite « COURT DE PADEL · 9 terrains » sur une card.
-  if (isGenericEquipmentName(opts.name)) {
-    if (count >= 2 && count <= max * ABSURD_FACTOR) return { kind: "approx" };
-    return { kind: "none" };
+  // #697 — confiance par le NOM : sur une fiche équipement-générique
+  // (« COURT DE PADEL »), un compte élevé est un artefact d'agrégation même
+  // s'il passe le plafond du sport (9 ≤ padel 16, 28 ≤ tennis 30). On adoucit
+  // en « plusieurs terrains » ; l'absurde (> plafond×4) reste masqué.
+  if (
+    opts.name != null &&
+    isGenericEquipmentName(opts.name) &&
+    count > GENERIC_NAME_MAX_COURTS
+  ) {
+    return count <= max * ABSURD_FACTOR ? { kind: "approx" } : { kind: "none" };
   }
   if (count <= max) return { kind: "exact", count };
   if (count <= max * ABSURD_FACTOR) return { kind: "approx" };
@@ -155,8 +136,9 @@ export function getCourtCountDisplay(
 export function plausibleCourtCount(
   count: number | null | undefined,
   familySlug: string | null | undefined,
-  sportSlug?: string | null
+  sportSlug?: string | null,
+  name?: string | null
 ): number | null {
-  const d = getCourtCountDisplay(count, { familySlug, sportSlug });
+  const d = getCourtCountDisplay(count, { familySlug, sportSlug, name });
   return d.kind === "exact" ? d.count : null;
 }

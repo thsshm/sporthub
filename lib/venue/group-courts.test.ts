@@ -33,19 +33,60 @@ const v = (
 });
 
 describe("groupCourtRecords (#635)", () => {
-  it("Padel Paris : collapse les pistes en une card de club + courts_count agrégé", () => {
+  it("Padel Paris : collapse les pistes + ABSORBE le générique voisin (#696)", () => {
     const out = groupCourtRecords([
       v("a", "Sportfield 16 piste 1"),
       v("b", "Sportfield 16 piste 2"),
       v("c", "Sportfield 16 piste 3"),
-      v("d", "COURT DE PADEL"), // générique → reste séparé
+      // #696 : générique SANS numéro, même sport + mêmes coords qu'un vrai
+      // lieu → c'est l'enregistrement courts du club → masqué (plus séparé).
+      v("d", "COURT DE PADEL"),
     ]);
-    expect(out).toHaveLength(2);
+    expect(out).toHaveLength(1);
     const club = out.find((o) => o.id === "a")!; // canonique = plus petit id
     expect(club.name).toBe("Sportfield 16");
     expect(club.courts_count).toBe(3);
     expect(club.groupedCount).toBe(3);
-    expect(out.find((o) => o.name === "COURT DE PADEL")?.groupedCount).toBe(1);
+  });
+
+  it("le trio exact de l'issue #696 : piste + parent + générique → UNE card « Sportfield 16 »", () => {
+    const out = groupCourtRecords([
+      v("a", "Sportfield 16 piste 1"),
+      v("b", "Sportfield 16"), // parent : racine chaînée commune « sportfield »
+      v("c", "COURT DE PADEL"),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe("Sportfield 16"); // le parent (nom le plus court)
+    expect(out[0].groupedCount).toBe(2);
+  });
+
+  it("générique ISOLÉ (pas de lieu nommé voisin) → conservé", () => {
+    const out = groupCourtRecords([v("a", "COURT DE PADEL")]);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe("COURT DE PADEL");
+  });
+
+  it("générique près d'un lieu d'un AUTRE sport → conservé", () => {
+    const out = groupCourtRecords([
+      v("a", "COURT DE PADEL"),
+      v("b", "Tennis Club de Lyon", { primary_sport_slug: "tennis" }),
+    ]);
+    expect(out).toHaveLength(2);
+  });
+
+  it("Tennis Lyon : énumération n°1/n°2 + parent regroupés par racine chaînée (#696)", () => {
+    const out = groupCourtRecords([
+      v("a", "Courts de tennis n°1", { primary_sport_slug: "tennis" }),
+      v("b", "Courts de tennis n°2", { primary_sport_slug: "tennis" }),
+      v("c", "Courts de tennis", { primary_sport_slug: "tennis" }), // parent sans numéro
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].groupedCount).toBe(3);
+  });
+
+  it("deux clubs NOMMÉS distincts au même endroit → jamais fusionnés", () => {
+    const out = groupCourtRecords([v("a", "Casa Padel"), v("b", "Esprit Padel Lyon")]);
+    expect(out).toHaveLength(2);
   });
 
   it("ne renomme JAMAIS un singleton (Stade 2000 reste tel quel)", () => {
