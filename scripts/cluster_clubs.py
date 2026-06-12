@@ -168,21 +168,45 @@ _COURT_LEAD: frozenset[str] = frozenset({
     "bassin", "bassins", "cours", "pitch", "ground", "field",
 })
 
+# Qualificatifs d'équipement (surface, couverture, exposition) : combinés à un
+# mot d'équipement de tête, ils signalent un libellé de court, pas un club.
+_COURT_QUALIFIERS: frozenset[str] = frozenset({
+    "couvert", "couverts", "couverte", "couvertes", "decouvrable", "decouvrables",
+    "exterieur", "exterieurs", "exterieure", "exterieures",
+    "interieur", "interieurs", "interieure", "interieures",
+    "central", "centrale", "centraux", "annexe", "annexes",
+    "quick", "resine", "beton", "gazon", "synthetique", "synthetiques",
+    "dur", "durs", "battue", "greenset",
+})
+
 
 def is_subcourt_label(name: str | None) -> bool:
-    """True pour les libellés de SOUS-COURT numérotés — pas un nom de club.
+    """True pour les libellés de SOUS-COURT — pas un nom de club.
 
     Ex : « Court de tennis 3 », « Terrain n°5 », « Court de tennis B 2 »,
-    « COURTS DE TENNIS EXTERIEURS (BETON) 9 ». Ces noms passent `is_generic`
+    « COURTS DE TENNIS EXTERIEURS (BETON) 9 », « Court de tennis B »,
+    « Terrain quick », « Court tennis couvert 4 ». Ces noms passent `is_generic`
     (absents de la liste figée, ≥ 4 chars) et devenaient donc des NOMS DE CLUB
-    dans le ranking /disciplines (#497). Signal structurel : le nom normalisé
-    commence par un mot d'équipement générique ET se termine par un nombre
-    (éventuellement précédé d'une lettre ou de « n° »).
+    dans le ranking /disciplines (#497).
+
+    Signal structurel : un mot d'équipement générique figure dans les 3 premiers
+    tokens ET le nom porte une marque de sous-court — soit il se termine par un
+    nombre (éventuellement précédé d'une lettre / « n° »), soit par une lettre
+    isolée (« … B »), soit il contient un qualificatif d'équipement (surface,
+    couverture). Sans cette marque on garde le nom (vrai club : « Courts de
+    tennis El Hogar », « Courts de tennis de Chiberta »).
     """
     n = normalize_name(name)
-    if not n or not re.search(r"\d\s*$", n):
+    if not n:
         return False
-    return n.split()[0] in _COURT_LEAD
+    toks = n.split()
+    if not any(t in _COURT_LEAD for t in toks[:3]):
+        return False
+    # Termine par un nombre, ou par une lettre isolée (sous-court « … B »).
+    if re.search(r"(?:\d|\s[a-z])\s*$", n):
+        return True
+    # Contient un qualificatif d'équipement (quick, couvert, exterieur, …).
+    return any(t in _COURT_QUALIFIERS for t in toks)
 
 
 def names_similar(a: str | None, b: str | None) -> bool:
@@ -291,16 +315,40 @@ def cluster_venues(venues: list[dict[str, Any]], radius_m: float = 50.0) -> Unio
 
 # ─── Construction des objets club ─────────────────────────────────────────────
 
+# Libellé sport lisible par famille, pour nommer un cluster qui n'a QUE des
+# libellés de courts (« Tennis · Bordeaux » plutôt que « Terrain quick »).
+_FAMILY_LABEL: dict[str, str] = {
+    "raquette": "Tennis",
+    "fitness": "Salle de sport",
+    "baignade": "Piscine",
+    "yoga": "Yoga",
+    "combat": "Club de combat",
+    "glisse": "Spot de glisse",
+    "hike": "Rando",
+}
+
+
+def _city_name(venue: dict[str, Any], cities: dict[str, str] | None) -> str | None:
+    """Nom de ville d'un venue depuis la map {city_id: name}, sinon None."""
+    if not cities:
+        return None
+    cid = venue.get("city_id")
+    return cities.get(cid) if cid else None
+
 
 def build_clubs(
     venues: list[dict[str, Any]],
     uf: UnionFind,
     family_slug: str,
+    cities: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Construit la liste des clubs à partir du résultat de clustering.
 
     Seuls les clusters de >= 2 venues génèrent un club (un venue isolé
     reste un pin individuel sans club parent).
+
+    `cities` (optionnel) : map {city_id: nom_ville} pour nommer par la ville les
+    clusters qui n'ont aucun vrai nom (que des libellés de courts).
     """
     members: dict[int, list[int]] = defaultdict(list)
     for i in range(len(venues)):
@@ -329,14 +377,24 @@ def build_clubs(
         if good_names:
             club_name: str = Counter(good_names).most_common(1)[0][0]
         else:
-            # Aucun vrai nom dispo : on prend le moins mauvais nom non générique
-            # (le plus court = souvent le plus propre), sinon le nom de famille.
-            fallback = [
-                v["name"] for v in grp if v.get("name") and not is_generic(v.get("name"))
-            ]
-            club_name = (
-                min(fallback, key=len) if fallback else family_slug.replace("_", " ").title()
+            # Aucun vrai nom (que des libellés de courts) : on nomme par la
+            # VILLE dominante du cluster — « Tennis · Bordeaux » est plus utile
+            # et honnête qu'un « Terrain quick » / « Court de tennis B » (#497).
+            city_counts = Counter(
+                name for v in grp if (name := _city_name(v, cities))
             )
+            if city_counts:
+                label = _FAMILY_LABEL.get(family_slug, family_slug.replace("_", " ").title())
+                club_name = f"{label} · {city_counts.most_common(1)[0][0]}"
+            else:
+                # Pas de ville connue : moins mauvais nom non générique (le plus
+                # court = souvent le plus propre), sinon le nom de famille.
+                fallback = [
+                    v["name"] for v in grp if v.get("name") and not is_generic(v.get("name"))
+                ]
+                club_name = (
+                    min(fallback, key=len) if fallback else family_slug.replace("_", " ").title()
+                )
 
         # Centroïde géographique
         lat = sum(v["lat"] for v in grp) / len(grp)
@@ -500,6 +558,27 @@ class SupabaseRest:
         if limit:
             venues = venues[:limit]
         return venues
+
+    def fetch_city_names(self, city_ids: list[str], chunk: int = 150) -> dict[str, str]:
+        """Map {city_id: name} pour une liste d'ids (requêtes `id=in.(…)` par lots).
+
+        Sert à nommer par la ville les clusters sans vrai nom. Lots petits pour
+        rester sous la limite d'URL et le statement_timeout. Tolérant : une
+        erreur réseau sur un lot le saute (le fallback retombe sur le nom court).
+        """
+        out: dict[str, str] = {}
+        uniq = sorted({c for c in city_ids if c})
+        for i in range(0, len(uniq), chunk):
+            quoted = ",".join(uniq[i : i + chunk])
+            qs = urllib.parse.urlencode({"select": "id,name", "id": f"in.({quoted})"})
+            try:
+                rows: list[dict[str, Any]] = self._req("GET", f"/city?{qs}")
+            except RuntimeError:
+                continue
+            for r in rows:
+                if r.get("id") and r.get("name"):
+                    out[r["id"]] = r["name"]
+        return out
 
     # ── Écriture ────────────────────────────────────────────────────────────
 
@@ -762,8 +841,19 @@ def run(args: argparse.Namespace) -> int:
         log.info("Clustering %d venues (rayon 50 m)…", len(venues))
         uf = cluster_venues(venues, radius_m=50.0)
 
+        # 2bis. Noms de ville (pour nommer les clusters sans vrai nom par leur
+        # ville plutôt que par un libellé de court).
+        cities: dict[str, str] = {}
+        if not is_dummy:
+            city_ids = [v["city_id"] for v in venues if v.get("city_id")]
+            try:
+                cities = sb.fetch_city_names(city_ids)
+                log.info("  %d villes résolues.", len(cities))
+            except RuntimeError as exc:
+                log.warning("Villes non résolues (fallback nom court) : %s", exc)
+
         # 3. Construction des clubs
-        clubs = build_clubs(venues, uf, family)
+        clubs = build_clubs(venues, uf, family, cities=cities)
         log.info("  %d clusters (>= 2 venues) détectés.", len(clubs))
         total_clusters += len(clubs)
 
@@ -923,9 +1013,17 @@ def self_test() -> int:
     assert is_subcourt_label("Court de tennis B 2") is True
     assert is_subcourt_label("Terrain n°5") is True
     assert is_subcourt_label("COURTS DE TENNIS EXTERIEURS (BETON) 9") is True
+    # Variantes élargies (#497 finition) : lettre isolée, surface, couverture.
+    assert is_subcourt_label("Court de tennis B") is True          # lettre isolée
+    assert is_subcourt_label("Terrain quick") is True              # surface
+    assert is_subcourt_label("Court tennis couvert 4 Central") is True
+    assert is_subcourt_label("Baby courts de tennis exterieurs 2") is True
     assert is_subcourt_label("Tennis Club Baillargues") is False  # vrai club
     assert is_subcourt_label("La Croix-Catelan") is False
     assert is_subcourt_label("Stade Roland Garros") is False  # pas de nombre final
+    # Vrais clubs commençant par « Courts de tennis … » : NE PAS rejeter.
+    assert is_subcourt_label("Courts de tennis El Hogar") is False
+    assert is_subcourt_label("Courts de tennis de Chiberta") is False
 
     # ── build_clubs : ignore les sous-courts pour nommer (#497) ───────────
     grp_v = [
@@ -949,6 +1047,16 @@ def self_test() -> int:
     uf_c.union(0, 1)
     clubs_c = build_clubs(grp_only_courts, uf_c, "raquette")
     assert len(clubs_c) == 1, clubs_c
+
+    # Cluster 100 % sous-courts AVEC ville connue → nommé par la ville (#497).
+    grp_city = [
+        {"id": "a", "name": "Court de tennis B", "lat": 44.84, "lon": -0.58, "city_id": "c1", "country_code": "FR"},
+        {"id": "b", "name": "Terrain quick", "lat": 44.84001, "lon": -0.58, "city_id": "c1", "country_code": "FR"},
+    ]
+    uf_city = UnionFind(2)
+    uf_city.union(0, 1)
+    clubs_city = build_clubs(grp_city, uf_city, "raquette", cities={"c1": "Bordeaux"})
+    assert clubs_city[0]["name"] == "Tennis · Bordeaux", clubs_city[0]["name"]
 
     # ── names_similar ────────────────────────────────────────────────────
     assert names_similar("Court 1", "Court 2") is False           # deux génériques
