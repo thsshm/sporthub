@@ -45,6 +45,16 @@ export const SPORTS: SportDef[] = [
   { slug: "karate", name_fr: "Karaté", name_en: "Karate", family_slug: "combat", emoji: "🥋", color: "#b91c1c", position: 3 },
   { slug: "mma", name_fr: "MMA", name_en: "MMA", family_slug: "combat", emoji: "🤼", color: "#b91c1c", position: 4 },
   { slug: "bjj", name_fr: "BJJ", name_en: "BJJ", family_slug: "combat", emoji: "🥋", color: "#b91c1c", position: 5 },
+  // Combat — arts martiaux ajoutés (#645 : ~40k venues sans slug de discipline)
+  { slug: "taekwondo", name_fr: "Taekwondo", name_en: "Taekwondo", family_slug: "combat", emoji: "🥋", color: "#b91c1c", position: 6 },
+  { slug: "aikido", name_fr: "Aïkido", name_en: "Aikido", family_slug: "combat", emoji: "🥋", color: "#b91c1c", position: 7 },
+  { slug: "kung_fu", name_fr: "Kung-fu", name_en: "Kung Fu", family_slug: "combat", emoji: "🥋", color: "#b91c1c", position: 8 },
+  { slug: "krav_maga", name_fr: "Krav Maga", name_en: "Krav Maga", family_slug: "combat", emoji: "🛡️", color: "#b91c1c", position: 9 },
+  { slug: "kickboxing", name_fr: "Kickboxing", name_en: "Kickboxing", family_slug: "combat", emoji: "🥊", color: "#b91c1c", position: 10 },
+  { slug: "capoeira", name_fr: "Capoeira", name_en: "Capoeira", family_slug: "combat", emoji: "🤸", color: "#b91c1c", position: 11 },
+  { slug: "taichi", name_fr: "Tai-chi", name_en: "Tai Chi", family_slug: "combat", emoji: "☯️", color: "#b91c1c", position: 12 },
+  { slug: "kendo", name_fr: "Kendo", name_en: "Kendo", family_slug: "combat", emoji: "🥋", color: "#b91c1c", position: 13 },
+  { slug: "martial_arts", name_fr: "Arts martiaux", name_en: "Martial arts", family_slug: "combat", emoji: "🥋", color: "#b91c1c", position: 14 },
   // Boules
   { slug: "petanque", name_fr: "Pétanque", name_en: "Pétanque", family_slug: "boules", emoji: "🟢", color: "#ca8a04", position: 1 },
   { slug: "boules", name_fr: "Boules lyonnaises", name_en: "Lyonnaises", family_slug: "boules", emoji: "⚪", color: "#ca8a04", position: 2 },
