@@ -46,7 +46,11 @@ export async function VenueCard({ venue, bookingUrl }: Props) {
   const emoji = getFamilyEmoji(venue.family_slug);
   const familyColor = getFamilyColor(venue.family_slug);
   // Ville normalisée à l'affichage (#559) — la source livre parfois « PARIS ».
-  const location = venue.city_name ? formatCityName(venue.city_name) : (venue.address ?? "");
+  const cityLabel = venue.city_name ? formatCityName(venue.city_name) : null;
+  const street = venue.address?.trim() || null;
+  // Ligne principale = ville si connue, sinon la rue (#559). La rue passe en
+  // ligne secondaire quand une ville est déjà affichée (#703, cf. ci-dessous).
+  const location = cityLabel ?? street ?? "";
   const t = await getTranslations("venue");
   const tFav = await getTranslations("favorites");
   const tFamilies = await getTranslations("families");
@@ -133,15 +137,26 @@ export async function VenueCard({ venue, bookingUrl }: Props) {
           </CardHeader>
 
           <CardContent className="pb-3">
-            {/* Localisation */}
+            {/* Localisation : ville (ou rue si pas de ville) + rue en secondaire. */}
             {location && (
-              <p className="mb-2 flex items-center gap-1 text-sm text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>{location}</span>
-                {venue.country_code && (
-                  <span className="ml-1 text-xs opacity-60">({venue.country_code})</span>
+              <div className="mb-2">
+                <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>{location}</span>
+                  {venue.country_code && (
+                    <span className="ml-1 text-xs opacity-60">({venue.country_code})</span>
+                  )}
+                </p>
+                {/* Rue (#703) : sous la ville, pour distinguer des lieux homonymes
+                    (deux « Basic-Fit » de la même ville → adresses ≠). Seulement si
+                    une ville est déjà affichée ET qu'une rue existe (jamais
+                    fabriquée). Compacte : 1 ligne tronquée, alignée sous le texte. */}
+                {cityLabel && street && (
+                  <p className="line-clamp-1 pl-[1.125rem] text-xs text-muted-foreground/80">
+                    {street}
+                  </p>
                 )}
-              </p>
+              </div>
             )}
 
             {/* Sports */}
