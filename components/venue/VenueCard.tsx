@@ -13,9 +13,10 @@
  */
 import Link from "next/link";
 import { CalendarCheck, Globe, MapPin, Navigation, ShieldCheck } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, getLocale } from "next-intl/server";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { SportChips } from "@/components/venue/SportChips";
+import { VenueDistance } from "@/components/venue/VenueDistance";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { getFamilyEmoji, getFamilyColor } from "@/lib/families";
 import { formatCityName } from "@/lib/format-city";
@@ -46,6 +47,7 @@ type Props = {
 export async function VenueCard({ venue, bookingUrl }: Props) {
   const emoji = getFamilyEmoji(venue.family_slug);
   const familyColor = getFamilyColor(venue.family_slug);
+  const locale = await getLocale(); // séparateur décimal de la distance (#703)
   // Ville normalisée à l'affichage (#559) — la source livre parfois « PARIS ».
   const cityLabel = venue.city_name ? formatCityName(venue.city_name) : null;
   const street = venue.address?.trim() || null;
@@ -153,6 +155,9 @@ export async function VenueCard({ venue, bookingUrl }: Props) {
                   {venue.country_code && (
                     <span className="ml-1 text-xs opacity-60">({venue.country_code})</span>
                   )}
+                  {/* Distance approximative si la position du visiteur est connue
+                      (#703) — client-only, masquée si > 100 km / géoloc inconnue. */}
+                  <VenueDistance lat={venue.lat} lon={venue.lon} locale={locale} />
                 </p>
                 {/* Rue (#703) : sous la ville, pour distinguer des lieux homonymes
                     (deux « Basic-Fit » de la même ville → adresses ≠). Seulement si
