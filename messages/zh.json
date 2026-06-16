@@ -220,6 +220,26 @@
     "verifiedFrom": "数据来自 {source}",
     "updatedAt": "更新于 {date}",
     "reportError": "报告错误",
+    "report": {
+      "trigger": "报告错误",
+      "title": "报告错误",
+      "typeLegend": "问题类型",
+      "type": {
+        "closed": "该场所已关闭",
+        "wrong_sport": "运动类型错误",
+        "wrong_info": "地址或信息错误",
+        "duplicate": "与其他页面重复",
+        "other": "其他"
+      },
+      "notePlaceholder": "详情（可选）：哪里有误……",
+      "submit": "发送",
+      "sending": "发送中…",
+      "cancel": "取消",
+      "error": "发送失败，请重试。",
+      "thanksTitle": "谢谢！",
+      "thanksBody": "你的反馈帮助我们保持地图的可靠。",
+      "closeCta": "关闭"
+    },
     "correctionTitle": "发现错误？帮我们修正",
     "correctionNudge": "该页面似乎信息不全或未经核实 — 你了解这个场所吗？",
     "correctionClosed": "已关闭？",
