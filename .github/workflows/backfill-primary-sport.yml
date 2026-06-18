@@ -29,6 +29,11 @@ on:
         type: boolean
         required: false
         default: false
+      distribution:
+        description: "Lecture seule : distribution des disciplines (analyse taxonomie #645)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: backfill-primary-sport
@@ -59,6 +64,7 @@ jobs:
           IN_APPLY: ${{ inputs.apply || 'false' }}
           IN_SAMPLE: ${{ inputs.sample || '' }}
           IN_BYNAME: ${{ inputs.by_name || 'false' }}
+          IN_DIST: ${{ inputs.distribution || 'false' }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
@@ -68,6 +74,11 @@ jobs:
           if [ -n "$IN_SAMPLE" ]; then
             echo "▶ backfill_primary_sport.py --sample $IN_SAMPLE"
             python3 scripts/backfill_primary_sport.py --sample "$IN_SAMPLE"
+            exit 0
+          fi
+          if [ "$IN_DIST" = "true" ]; then
+            echo "▶ backfill_primary_sport.py --distribution"
+            python3 scripts/backfill_primary_sport.py --distribution
             exit 0
           fi
           ARGS=(--chunk 120)
