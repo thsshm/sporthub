@@ -18,6 +18,7 @@ import { groupCourtRecords } from "@/lib/venue/group-courts";
 import { groupByClub } from "@/lib/venue/group-by-club";
 import { dedupeRelatedVenues } from "@/lib/venue/related-dedup";
 import { VenueCard } from "@/components/venue/VenueCard";
+import { SportCitySearch } from "@/components/sports/SportCitySearch";
 import { SportPageMap } from "@/app/[locale]/sports/[sport]/SportPageMap";
 import type { VenuePin } from "@/lib/supabase/types";
 import {
@@ -435,6 +436,8 @@ export async function CityPageView({ locale, sport, country, city, page }: ViewP
   const tFamilies = await getTranslations("families");
   const tSports = await getTranslations("sports");
 
+  const tMap = await getTranslations("map");
+
   // Autres villes pour ce sport (#608) — maillage interne + « changer de ville ».
   const otherCities = await fetchOtherCities(sport, city);
 
@@ -531,6 +534,12 @@ export async function CityPageView({ locale, sport, country, city, page }: ViewP
             </span>
           )}
         </p>
+        {/* Changer de ville (#608) — réutilise l'autocomplete de /sports/[sport],
+            navigue vers /[sport]/[pays]/[ville] pour le MÊME sport. Client
+            component → n'altère pas l'ISR de la page. */}
+        <div className="mt-4">
+          <SportCitySearch sportSlug={sport} placeholder={tMap("searchPlaceholder")} />
+        </div>
       </header>
 
       {/* Contenu local : court paragraphe descriptif pour donner du texte
