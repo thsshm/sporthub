@@ -220,6 +220,26 @@
     "verifiedFrom": "Donnée vérifiée depuis {source}",
     "updatedAt": "Mis à jour le {date}",
     "reportError": "Signaler une erreur",
+    "report": {
+      "trigger": "Signaler une erreur",
+      "title": "Signaler une erreur",
+      "typeLegend": "Type de problème",
+      "type": {
+        "closed": "Ce lieu est fermé",
+        "wrong_sport": "Mauvais sport",
+        "wrong_info": "Adresse ou info erronée",
+        "duplicate": "Doublon d'une autre fiche",
+        "other": "Autre"
+      },
+      "notePlaceholder": "Détails (optionnel) : ce qui est incorrect…",
+      "submit": "Envoyer",
+      "sending": "Envoi…",
+      "cancel": "Annuler",
+      "error": "Échec de l'envoi. Réessayez.",
+      "thanksTitle": "Merci !",
+      "thanksBody": "Votre signalement nous aide à garder la carte fiable.",
+      "closeCta": "Fermer"
+    },
     "correctionTitle": "Une erreur ? Aidez-nous à corriger",
     "correctionNudge": "Cette fiche semble incomplète ou peu vérifiée — vous connaissez ce lieu ?",
     "correctionClosed": "C'est fermé ?",

@@ -220,6 +220,26 @@
     "verifiedFrom": "Data verified from {source}",
     "updatedAt": "Updated {date}",
     "reportError": "Report an error",
+    "report": {
+      "trigger": "Report an error",
+      "title": "Report an error",
+      "typeLegend": "Type of problem",
+      "type": {
+        "closed": "This place is closed",
+        "wrong_sport": "Wrong sport",
+        "wrong_info": "Wrong address or info",
+        "duplicate": "Duplicate of another listing",
+        "other": "Other"
+      },
+      "notePlaceholder": "Details (optional): what's wrong…",
+      "submit": "Send",
+      "sending": "Sending…",
+      "cancel": "Cancel",
+      "error": "Couldn't send. Please try again.",
+      "thanksTitle": "Thank you!",
+      "thanksBody": "Your report helps keep the map reliable.",
+      "closeCta": "Close"
+    },
     "correctionTitle": "Spotted an error? Help us fix it",
     "correctionNudge": "This listing looks incomplete or unverified — do you know this place?",
     "correctionClosed": "Is it closed?",

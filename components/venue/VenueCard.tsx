@@ -24,7 +24,7 @@ import { getArrondissement } from "@/lib/venue/district";
 import { formatVenueName } from "@/lib/format-venue-name";
 import { googleMapsUrl } from "@/lib/utils";
 import { safeExternalUrl } from "@/lib/url";
-import { SITE_URL } from "@/lib/seo/sitemap-shards";
+import { VenueReportButton } from "@/components/venue/VenueReportButton";
 import { getVenueSourceMeta } from "@/lib/venue/source";
 import { getCourtCountDisplay } from "@/lib/venue/courts-plausibility";
 import type { VenuePin } from "@/lib/supabase/types";
@@ -98,10 +98,6 @@ export async function VenueCard({ venue, bookingUrl }: Props) {
   // quand un lien partenaire actif existe (booking_link). URL partenaire passée
   // par le sanitizer comme le site web.
   const bookingHref = safeExternalUrl(bookingUrl);
-  const venueUrl = `${SITE_URL}/venue/${venue.slug}`;
-  const reportHref = `mailto:hello@sporthubmap.com?subject=${encodeURIComponent(
-    t("reportErrorSubject", { name: venue.name })
-  )}&body=${encodeURIComponent(t("reportErrorBody", { url: venueUrl }))}`;
 
   return (
     <div className="group relative">
@@ -232,12 +228,12 @@ export async function VenueCard({ venue, bookingUrl }: Props) {
               {t("website")}
             </a>
           )}
-          <a
-            href={reportHref}
+          {/* Signalement structuré (#613) : modale type + note → POST /api/report,
+              sans compte. Remplace l'ancien mailto. */}
+          <VenueReportButton
+            venueId={venue.id}
             className="ml-auto text-xs text-muted-foreground hover:text-foreground hover:underline"
-          >
-            {t("reportError")}
-          </a>
+          />
         </CardFooter>
       </Card>
     </div>
